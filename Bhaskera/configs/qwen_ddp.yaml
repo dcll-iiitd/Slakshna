@@ -1,0 +1,128 @@
+# =============================================================================
+# Bhaskera — Qwen2.5-14B | SFT on UltraChat | DDP — OOM-safe throughput
+# 4 GPUs (2 nodes × 2 GPUs), A100 80GB
+#
+# Why this is smaller than the previous "max throughput" config:
+#   The previous YAML assumed Liger's fused LCE path was active, which
+#   makes lm_head logits a non-issue. In practice you OOM'd because LCE
+#   fell back to materialising [B, T, V] = 12·4096·152064 = 14 GB of
+#   logits. Until model.train() is asserted and liger version verified,
+#   batch_size must accommodate the worst case where logits ARE
+#   materialised.
+#
+# Memory per GPU (worst case, LCE NOT fused):
+#   Model bf16:           29.6 GB
+#   LoRA + AdamW (fp32):  ~1.0 GB
+#   Activations (AC):     ~8  GB  (batch=4, seq=4096, 48 layers)
+#   lm_head logits:       ~5  GB  (batch=4, seq=4096, vocab=152k, bf16)
+#   logits gradient:      ~5  GB
+#   NCCL + CUDA buffers:  ~4  GB
+#   ────────────────────────────
+#   Total:               ~53 GB → ~27 GB headroom
+#
+# After confirming LCE is fused (logits never materialised), bump
+# batch_size to 8 or 12.
+# =============================================================================
+
+model:
+  name: "Qwen/Qwen2.5-14B"
+  dtype: "bfloat16"
+  attn_impl: "flash_attention_2"
+  trust_remote_code: false
+  use_liger_kernel: true              # required for LCE fused path
+
+data:
+  name: "ultrachat"
+  seq_len: 4096
+  num_workers: 8
+  tokenized_path: "/scratch/ldls-iiitd/training-framework/cpt/ultrachat_d52e738af6ac1e5a"
+  prefetch_batches: 8
+  local_shuffle_buffer_multiplier: 16
+  pack_sequences: true
+
+lora:
+  enabled: true
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: ["auto"]
+  include_experts: false
+  freeze_router: false
+  modules_to_save: []                 # critical: lm_head NOT in here
+
+moe:
+  aux_loss_weight: 0.0
+  router_z_loss_weight: 0.0
+  freeze_router: false
+  log_expert_utilization: false
+  log_every_n_steps: 10
+
+training:
+  batch_size: 4                       # was 12 — safe even if LCE materialises logits
+  grad_accum: 4                       # eff batch = 4 GPUs × 4 × 4 = 64 sequences
+  lr: 2.0e-4
+  weight_decay: 0.01
+  max_steps: 8000
+  num_epochs: 4
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  grad_clip: 1.0
+  max_grad_skip_steps: 100
+  seed: 42
+  deterministic: false
+
+  distributed:
+    strategy: "ddp"
+
+    fsdp:                             # ignored when strategy=ddp
+      sharding_strategy: "FULL_SHARD"
+      transformer_layer_cls: []
+      param_dtype: "bfloat16"
+      reduce_dtype: "bfloat16"
+      buffer_dtype: "bfloat16"
+      activation_checkpointing: true
+      cpu_offload: false
+      shard_experts_individually: false
+
+    ddp:
+      find_unused_parameters: false
+      gradient_as_bucket_view: true
+      broadcast_buffers: false
+      activation_checkpointing: true
+      static_graph: false
+
+checkpoint:
+  enabled: true
+  save_dir: "./checkpoints/qwen25-14b-ultrachat-ddp"
+  save_interval: 1
+  keep_last_n: 2
+
+logging:
+  tracker: "mlflow"
+  project: "bhaskera"
+  run_name: "qwen-ddp-run1"
+  mlflow_tracking_uri: ""  # leave empty → defaults to ~/mlflow-runs
+  mlflow_log_all_ranks: false
+  mlflow_log_artifacts_every: 50
+  log_gpu_every_n_steps: 10
+
+# -----------------------------------------------------------------------------
+# Monitoring
+# -----------------------------------------------------------------------------
+monitoring:
+  dashboard: true          # Ray Dashboard — job/actor/resource view
+  dashboard_host: "0.0.0.0"
+  dashboard_port: 8265     # access via ssh -L 8265:localhost:8265
+  metrics_export_port: 8080
+
+  metrics:
+    enabled: true
+    system_every_n_steps: 1
+    cuda_every_n_steps: 2
+    gpu: true
+    cpu: true
+    cuda_memory: true
+    throughput: true
+    peak_tflops_per_gpu: 312.0     # update to 165.0 for RTX 4090, 121.0 for L4
+    throughput_window: 5
+    throughput_warmup: 5

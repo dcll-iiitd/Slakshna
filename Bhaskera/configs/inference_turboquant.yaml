@@ -1,0 +1,53 @@
+# Bhaskera inference config — TurboQuant KV cache (OPTIMIZED v2)
+# ─────────────────────────────────────────────────────────────────
+# Run with:
+#   bhaskera-infer --config configs/inference_turboquant.yaml \
+#                  --prompt "Explain the attention mechanism in transformers"
+#
+# Backend selection (auto, override via env var):
+#   BHASKERA_BACKEND=vllm  bhaskera-infer ...   # force vLLM (best HPC throughput)
+#   BHASKERA_BACKEND=hf    bhaskera-infer ...   # force HF generate()
+#
+# If vLLM is installed on your HPC, it will be picked automatically.
+# Consumer GPU (1 card): HF generate() with TurboQuantKVCache.
+
+model:
+  name: tiiuae/falcon-7b
+  dtype: bfloat16
+  attn_impl: null             # set flash_attention_2 if flash-attn is installed
+  trust_remote_code: false
+
+inference:
+  max_new_tokens: 512
+  temperature: 0.8
+  top_p: 0.9
+  top_k: 50
+  do_sample: true
+  batch_size: 1
+  device: auto                # cuda → MPS → CPU
+
+  # KV cache strategy
+  kv_cache: turboquant
+
+  # TurboQuant V3 (MSE-only) settings
+  # Reference: arXiv:2504.19874, community-validated V3 (no QJL)
+  # ~4.4× VRAM vs bf16, 99.5%+ attention cosine similarity
+  turboquant:
+    key_bits: 4               # 4-bit keys  (99.5%+ cosine sim)
+    value_bits: 2             # 2-bit values (errors cancel in softmax)
+    residual_window: 128      # last N tokens kept in fp16 — DO NOT set below 64
+    protected_layers: 2       # first+last N layers at +2 bits precision
+
+  speculative:
+    enabled: false
+    draft_model_name: ""
+    num_draft_tokens: 5
+
+  # torch.compile: set true on A100/H100 for extra ~20% speedup.
+  # Has no effect on consumer GPUs (RTX series) due to recompile overhead.
+  torch_compile: false
+
+logging:
+  tracker: null
+  project: bhaskera
+  run_name: infer-turboquant-v2

@@ -1,0 +1,54 @@
+model:
+  name: "tiiuae/falcon-7b"
+  dtype: "bfloat16"
+  attn_impl: "flash_attention_2"              # set to "flash_attention_2" if installed for ~20% speedup
+  trust_remote_code: false      # Falcon uses stock transformers code
+
+data:
+  name: "ultrachat"
+  seq_len: 2048
+  num_workers: 8                # Ray Data loading parallelism
+  
+  # -----------------------------------------------------------------
+  # PRE-TOKENIZED CACHE PATH
+  # Replace this with the exact path outputted by bhaskera-tokenize
+  # -----------------------------------------------------------------
+  tokenized_path: "/mnt/disk1/Framework/newchanges/ultrachat_7864b8fbc16e70ef"
+
+lora:
+  enabled: true
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: ["auto"]      # Auto-discovers query_key_value for Falcon
+
+training:
+  batch_size: 2                 # Increased to 8: 48GB VRAM has plenty of headroom
+  grad_accum: 8                 # Effective batch = 2 GPUs x 8 batch x 2 grad_accum = 32[cite: 1]
+  lr: 2.0e-4
+  weight_decay: 0.01
+  max_steps: 2000
+  num_epochs: 1
+  warmup_steps: 100
+  max_grad_norm: 1.0
+
+  distributed:
+    strategy: "fsdp"            # FSDP is the default and recommended strategy[cite: 1]
+    fsdp:
+      sharding_strategy: "FULL_SHARD"
+      param_dtype: "bfloat16"
+      reduce_dtype: "bfloat16"
+      buffer_dtype: "bfloat16"
+      activation_checkpointing: true
+      cpu_offload: false        # Leave false; you will not OOM on 48GB cards[cite: 1]
+
+checkpoint:
+  enabled: true
+  save_dir: "./checkpoints/falcon7b-2gpu"
+  save_interval: 1
+  keep_last_n: 2
+
+logging:
+  tracker: "wandb"                 # Uses the Ray Dashboard locally by default[cite: 1]
+  project: "bhaskera"
+  run_name: "falcon-2gpu-tokenized"

@@ -1,0 +1,41 @@
+plugins:
+  optimizers: []
+
+model:
+  name: "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T"
+  dtype: "bfloat16"
+  trust_remote_code: true
+  use_liger_kernel: false
+
+data:
+  # To be overridden by ml_engine.py
+  dataset_name: "dummy"
+  tokenized_path: "dummy"
+  sequence_length: 512
+  format_renderer: "chatml"
+
+lora:
+  enabled: true
+  rank: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules: ["q_proj", "v_proj"]
+
+training:
+  batch_size: 4
+  gradient_accumulation_steps: 2
+  learning_rate: 2e-3
+  max_steps: 10
+  optimizer:
+    backend: "default"
+  distributed:
+    strategy: "ddp"
+
+checkpoint:
+  # To be overridden by ml_engine.py
+  save_directory: "dummy"
+  save_interval: 5
+  retention: 1
+
+logging:
+  tracker: "none"

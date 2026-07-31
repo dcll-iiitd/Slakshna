@@ -1,0 +1,147 @@
+# =============================================================================
+# Bhaskera — Qwen2.5-14B (Dense) | SFT on UltraChat
+# 4 GPUs total, 2 GPUs per node (2 nodes × 2 GPUs/node)
+#
+# Architecture:
+#   14.7B params (fully dense — no MoE routing overhead)
+#   48 layers, hidden=5120, 40Q/8KV heads (GQA), head_dim=128
+#   vocab=152k, max_ctx=32768
+#
+# Memory plan (bfloat16 + LoRA + FSDP FULL_SHARD across 4 GPUs):
+#   14.7B params ≈ 29.4 GB total → ~7.4 GB/GPU after sharding
+#   LoRA trainable ≈ 30–60 MB (attention targets only)
+#   Activations: ~4–6 GB/GPU at batch=8, seq=2048 with AC on
+#   AdamW state: tiny (LoRA params only)
+#   → fits comfortably on 2× 24 GB (RTX 3090/4090, L4) per node
+#
+# vs Param2-17B-MoE:
+#   - No expert dispatch overhead → FA2 + Liger actually land
+#   - head_dim=128 → FA2 hits its optimal tile size (vs 64 on Param2)
+#   - Attention is ~35% of compute → meaningful FA2 speedup
+#   - Larger batch_size safe (no MoE activation spikes)
+#
+# Effective batch = 4 GPUs × batch_size 8 × grad_accum 3 = 96 sequences/step
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Model
+# -----------------------------------------------------------------------------
+model:
+  name: "Qwen/Qwen2.5-14B"
+  dtype: "bfloat16"
+  attn_impl: null   # FA2 fully supported — Qwen2.5 uses native HF attention
+  trust_remote_code: false         # not needed for Qwen2.5
+  use_liger_kernel: false           # Liger ships a Qwen2 kernel — RMSNorm/RoPE/SwiGLU all fused
+                                   # No FA2 conflict: Liger does NOT patch attention for Qwen2.5
+
+# -----------------------------------------------------------------------------
+# Data — UltraChat 200k (HuggingFaceH4/ultrachat_200k)
+# -----------------------------------------------------------------------------
+data:
+  name: "ultrachat"
+  seq_len: 2048
+  num_workers: 4
+  tokenized_path: "/scratch/ldls-iiitd/training-framework/cpt/ultrachat_d52e738af6ac1e5a"
+  prefetch_batches: 4
+  local_shuffle_buffer_multiplier: 10
+  pack_sequences: false            # set true for better GPU utilisation at seq_len=2048
+
+# -----------------------------------------------------------------------------
+# LoRA
+# -----------------------------------------------------------------------------
+lora:
+  enabled: true
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: ["auto"]         # introspect.py finds q_proj, k_proj, v_proj, o_proj
+  include_experts: false           # n/a for dense model — no-op
+  freeze_router: false             # n/a for dense model — no-op
+  modules_to_save: []
+
+# -----------------------------------------------------------------------------
+# MoE — disabled (dense model)
+# -----------------------------------------------------------------------------
+moe:
+  aux_loss_weight: 0.0             # zero — no router, no aux loss
+  router_z_loss_weight: 0.0
+  freeze_router: false
+  log_expert_utilization: false
+  log_every_n_steps: 10
+
+# -----------------------------------------------------------------------------
+# Training
+# -----------------------------------------------------------------------------
+training:
+  batch_size: 4                    # safe to go higher than MoE — no expert activation spikes
+  grad_accum: 3                    # effective batch = 4 × 8 × 3 = 96 sequences/step
+  lr: 2.0e-4
+  weight_decay: 0.01
+  max_steps: 4000
+  num_epochs: 4
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  grad_clip: 1.0
+  max_grad_skip_steps: 100
+  seed: 42
+  deterministic: false
+
+  distributed:
+    strategy: "fsdp"
+
+    fsdp:
+      sharding_strategy: "FULL_SHARD"
+      transformer_layer_cls: []            # auto-detect: Qwen2DecoderLayer
+      param_dtype: "bfloat16"
+      reduce_dtype: "bfloat16"             # float32 not needed — dense is stable
+      buffer_dtype: "bfloat16"
+      activation_checkpointing: true       # keeps peak VRAM flat; cost is modest on dense
+      cpu_offload: false
+      shard_experts_individually: false    # n/a for dense
+
+    ddp:
+      find_unused_parameters: false
+      gradient_as_bucket_view: true
+      broadcast_buffers: false
+
+# -----------------------------------------------------------------------------
+# Checkpoint
+# -----------------------------------------------------------------------------
+checkpoint:
+  enabled: true
+  save_dir: "./checkpoints/qwen25-14b-ultrachat-4gpu"
+  save_interval: 1
+  keep_last_n: 2
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+logging:
+  tracker: "mlflow"
+  project: "bhaskera"
+  run_name: "qwen-sft-run1"
+  mlflow_tracking_uri: ""  # leave empty → defaults to ~/mlflow-runs
+  mlflow_log_all_ranks: false
+  mlflow_log_artifacts_every: 50
+  log_gpu_every_n_steps: 10
+
+# -----------------------------------------------------------------------------
+# Monitoring
+# -----------------------------------------------------------------------------
+monitoring:
+  dashboard: true          # Ray Dashboard — job/actor/resource view
+  dashboard_host: "0.0.0.0"
+  dashboard_port: 8265     # access via ssh -L 8265:localhost:8265
+  metrics_export_port: 8080
+
+  metrics:
+    enabled: true
+    system_every_n_steps: 1
+    cuda_every_n_steps: 2
+    gpu: true
+    cpu: true
+    cuda_memory: true
+    throughput: true
+    peak_tflops_per_gpu: 312.0     # update to 165.0 for RTX 4090, 121.0 for L4
+    throughput_window: 5
+    throughput_warmup: 5

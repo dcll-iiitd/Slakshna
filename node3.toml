@@ -1,0 +1,61 @@
+[chain]
+chain_id = "iiitd-mainnet-1"
+chain_name = "IIITD Virtual Machine"
+
+[block]
+block_time = 3
+gas_limit = 1000000
+max_txs_per_block = 100
+
+[rewards]
+block_reward = 10
+validator_percent = 70
+service_pool_percent = 30
+top_nodes = 3
+rank_1_percent = 50
+rank_2_percent = 33
+rank_3_percent = 17
+
+[genesis]
+master_address = ""
+master_balance = 0
+
+[faucet]
+enabled = false
+amount = 100
+cooldown = 3600
+
+[token]
+name = "IIITD"
+symbol = "IIITD"
+decimals = 18
+
+[node]
+id = "node-3"
+type = "full"
+data_dir = "./data-node3"
+gpu_id = 2
+
+[network]
+topology = "mesh"
+host = "0.0.0.0"
+p2p_port = 9002
+ws_port = 8548
+api_port = 8556
+boot_nodes = [
+    "f750f69958bdcb144ed916aff764ad321a1d0d78dc7dbbc4d7b3760d1732f33c@127.0.0.1:9000"
+]
+
+[network.star]
+master_url = "http://192.168.22.23:8545"
+
+[validators]
+addresses = []
+max_validators = 21
+
+[pruning]
+keep_blocks = 1000
+keep_txs = 100
+
+[logging]
+level = "info"

@@ -1,0 +1,88 @@
+# =============================================================================
+# Bhaskera — Param2-17B-A2.4B-Thinking  |  Training (LoRA + FSDP)
+#
+# Architecture:
+#   17B total / 2.4B active  (Hybrid MoE)
+#   21 layers, hidden=2048, 32Q/8KV heads, head_dim=64
+#   64 routed experts + 2 shared, top-6 routing
+#   vocab=128k, max_ctx=4096, trust_remote_code=True
+#
+# Memory (bfloat16 + LoRA):
+#   ~34 GB — use 2× 24 GB GPUs or 1× 40 GB+ GPU
+#   Enable cpu_offload: true if you OOM on 2× 24 GB
+#
+# Run with:
+#   bhaskera-train --config configs/param2_train.yaml
+# SLURM:
+#   sbatch scripts/submit.sh --config configs/param2_train.yaml
+# =============================================================================
+
+model:
+  name: "bharatgenai/Param2-17B-A2.4B-Thinking"
+  dtype: "bfloat16"
+  attn_impl: null                    # set "flash_attention_2" if flash-attn is installed (~20% faster)
+  trust_remote_code: true            # REQUIRED — Param2 uses custom tokenizer/modeling code
+
+data:
+  name: "ultrachat"                  # ultrachat | openassistant | redpajama
+  seq_len: 2048
+  num_workers: 8                     # 2× A100 — bump workers for faster data loading
+
+lora:
+  enabled: true
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: ["auto"]           # auto-discovers linear targets in Param2's attention layers
+  include_experts: false             # set true to apply LoRA to expert FFN layers as well
+  freeze_router: true                # freeze MoE gate/router weights during training
+  modules_to_save: []                # e.g. ["embed_tokens", "lm_head"] to fully fine-tune those
+
+moe:
+  aux_loss_weight: 0.01              # load-balancing aux loss coefficient
+  router_z_loss_weight: 0.001        # router z-loss to prevent logit collapse
+  freeze_router: true                # mirrors lora.freeze_router; kept for explicitness
+  log_expert_utilization: true       # log per-expert token counts to tracker
+  log_every_n_steps: 10
+
+training:
+  batch_size: 8                      # 80 GB VRAM — can push larger micro-batch
+  grad_accum: 2                      # effective batch = 2 GPUs × 8 × 2 = 32
+  lr: 2.0e-4
+  weight_decay: 0.01
+  max_steps: 50                      # quick test run — bump to 1000+ for real training
+  num_epochs: 1
+  warmup_steps: 10                   # scaled down to match max_steps
+  max_grad_norm: 1.0
+  seed: 42
+  deterministic: false
+
+  distributed:
+    strategy: "fsdp"
+
+    fsdp:
+      sharding_strategy: "FULL_SHARD"  # lighter sharding — 80 GB has headroom; faster than FULL_SHARD
+      transformer_layer_cls: []
+      param_dtype: "bfloat16"
+      reduce_dtype: "bfloat16"
+      buffer_dtype: "bfloat16"
+      activation_checkpointing: false  # A100 80 GB has enough VRAM — skip AC for speed
+      cpu_offload: false
+      shard_experts_individually: false
+
+    ddp:
+      find_unused_parameters: false
+      gradient_as_bucket_view: true
+      broadcast_buffers: false
+
+checkpoint:
+  enabled: true
+  save_dir: "./checkpoints/param2-thinking"
+  save_interval: 1                   # every N epochs
+  keep_last_n: 2                     # keep the 2 best-by-loss checkpoints; prune older ones
+
+logging:
+  tracker: "wandb"
+  project: "bhaskera"
+  run_name: "param2-17b-thinking-lora"
+  log_gpu_every_n_steps: 10

@@ -1,0 +1,88 @@
+# =============================================================================
+# Bhaskera — W&B + Ray Dashboard (both active)
+# =============================================================================
+
+model:
+  name: "tiiuae/falcon-7b"        # change to your model
+  dtype: "bfloat16"
+  attn_impl: null
+  use_liger_kernel: true
+  trust_remote_code: false
+
+data:
+  name: "ultrachat"               # change to your dataset
+  seq_len: 2048
+  num_workers: 8
+
+lora:
+  enabled: true
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: ["auto"]
+
+training:
+  batch_size: 4
+  grad_accum: 4
+  lr: 2.0e-4
+  weight_decay: 0.01
+  max_steps: 2000
+  num_epochs: 1
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  seed: 42
+
+  distributed:
+    strategy: "fsdp"
+    fsdp:
+      sharding_strategy: "FULL_SHARD"
+      param_dtype: "bfloat16"
+      reduce_dtype: "bfloat16"
+      buffer_dtype: "bfloat16"
+      activation_checkpointing: true
+      cpu_offload: false
+
+checkpoint:
+  enabled: true
+  save_dir: "./checkpoints/run1"
+  save_interval: 1
+  keep_last_n: 2
+
+# -----------------------------------------------------------------------------
+# Logging — W&B is the run tracker (rank 0 only).
+# -----------------------------------------------------------------------------
+logging:
+  tracker: ["wandb"]              # Ray is auto-added because monitoring.dashboard=true
+  project: "bhaskera"             # → W&B project
+  run_name: "wandb-ray-demo"      # → W&B run name
+  tags: ["sft", "lora", "falcon-7b"]
+  group: null                     # set to a string to group W&B runs (e.g. lr sweep)
+  log_gpu_every_n_steps: 10
+
+# -----------------------------------------------------------------------------
+# Monitoring — Ray Dashboard on, every rank pushes telemetry to it.
+# Prometheus/Grafana stay OFF; you still get the Jobs/Cluster/Logs tabs and
+# all per-rank metrics flow into Ray's metrics export endpoint.
+# -----------------------------------------------------------------------------
+monitoring:
+  dashboard: true
+  dashboard_host: "0.0.0.0"       # bind to all interfaces so SSH port-forward works
+  dashboard_port: 8265
+  metrics_export_port: 8080
+
+  prometheus:
+    enabled: false
+  grafana:
+    enabled: false
+
+  metrics:
+    enabled: true
+    system_every_n_steps: 10
+    cuda_every_n_steps: 10
+    gpu: true
+    cpu: true
+    cuda_memory: true
+    throughput: true
+    peak_tflops_per_gpu: 312.0    # A100 bf16; H100 ≈ 989; L4 ≈ 121
+    throughput_window: 50
+    throughput_warmup: 5

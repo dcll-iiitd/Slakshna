@@ -1,0 +1,61 @@
+# Bhaskera inference config — Param2-17B-A2.4B-Thinking
+# ─────────────────────────────────────────────────────────────────
+# Architecture:
+#   17B total / 2.4B active (Hybrid MoE)
+#   21 layers, hidden=2048, 32Q/8KV heads, head_dim=64
+#   64 routed experts + 2 shared, top-6 routing
+#   vocab=128k, max_ctx=4096, trust_remote_code=True
+#   VRAM: ~34 GB (bf16) — needs 2× 24 GB or 1× 40 GB+
+#
+# Run with:
+#   bhaskera-infer --config configs/inference_param2.yaml \
+#                  --prompt "Explain the attention mechanism."
+#
+# For structured Param2 output (reasoning + final answer) use the Python API:
+#   from bhaskera.inference import InferenceEngine
+#   engine = InferenceEngine.from_param2()
+#   out = engine.generate_param2(["Your question"])[0]
+#   print(out.reasoning)
+#   print(out.final_answer)
+#
+# Multi-GPU (2× 24 GB):  device: auto  (already set below)
+# Single A100 40 GB:     device: auto  (fits with ~6 GB headroom)
+# SLURM:                 CUDA_VISIBLE_DEVICES=0,1 bhaskera-infer ...
+
+model:
+  name: bharatgenai/Param2-17B-A2.4B-Thinking
+  dtype: bfloat16
+  attn_impl: null               # flash_attention_2 if installed gives ~20% speedup
+  trust_remote_code: true       # REQUIRED — custom param2moe modeling code
+
+inference:
+  max_new_tokens: 512
+  temperature: 0.7              # model card recommendation for Thinking variant
+  top_p: 0.9
+  top_k: 50
+  do_sample: true
+  batch_size: 1
+  device: auto                  # auto-detects multi-GPU via device_map=auto
+
+  # TurboQuant KV cache
+  # Param2 already has a small KV footprint (8 KV heads × 21 layers × 64 dim)
+  # but TurboQuant helps for batch_size>1, long contexts, and VRAM-limited setups.
+  kv_cache: turboquant
+
+  turboquant:
+    key_bits: 4
+    value_bits: 2
+    residual_window: 128        # keep last 128 tokens in fp16 (important for MoE routing)
+    protected_layers: 2         # first+last 2 layers at higher precision
+
+  speculative:
+    enabled: false
+    draft_model_name: ""
+    num_draft_tokens: 5
+
+  torch_compile: false          # Param2 uses custom forward — compile risky
+
+logging:
+  tracker: null
+  project: bhaskera
+  run_name: infer-param2

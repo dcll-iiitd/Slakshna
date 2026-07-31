@@ -1,0 +1,152 @@
+# configs/finetune_param17b_chatml.yaml
+#
+# SFT finetuning for Param2-17B-A2.4B-Thinking on local ChatML data.
+#
+# Cluster:
+#   * 4 × A100 GPUs total
+#   * 2 nodes × 2 GPUs per node
+#   * Launch with Ray covering both nodes — Bhaskera reads world_size from the
+#     Ray placement group, no need to set it here.
+#
+# Strategy:
+#   * FSDP FULL_SHARD across all 4 GPUs (treats them as one flat group;
+#     no manual node/intra-node sharding split).
+#   * shard_experts_individually: false  ← as requested.
+#   * LoRA enabled. Full-finetuning a 17B model (even with ~2.4B active per
+#     token) on 4 A100s is impractical — LoRA + frozen router is the right
+#     setting for SFT on a MoE model and matches what include_experts /
+#     freeze_router were designed for in this repo.
+#
+# Run:
+#   bhaskera-train --config configs/finetune_param17b_chatml.yaml
+
+# ──────────────────────────────────────────────────────────────────────────
+# Model
+# ──────────────────────────────────────────────────────────────────────────
+model:
+  name: "bharatgenai/Param2-17B-A2.4B-Thinking"
+  trust_remote_code: true
+  dtype: "bfloat16"
+  attn_impl: null      # A100 supports it; big speedup at 2k
+  use_liger_kernel: true              # fused kernels for SwiGLU/RMSNorm
+
+# ──────────────────────────────────────────────────────────────────────────
+# Data — point at the caches produced by bhaskera-tokenize --split both
+# ──────────────────────────────────────────────────────────────────────────
+data:
+  name: "local"
+  format: "chatml"
+
+  # Replace these with the paths the tokenize CLI printed in its banner.
+  tokenized_path:     "/scratch/ldls-iiitd/training-framework/newchanges/local_train_3d345bc602d7cdba"
+  val_tokenized_path: "/scratch/ldls-iiitd/training-framework/newchanges/local_val_003a4c96743d051f"
+
+
+  seq_len: 2048
+  num_workers: 8                      # data loader workers per Ray actor
+  prefetch_batches: 2
+  local_shuffle_buffer_multiplier: 10
+  pack_sequences: false               # turn on later if epoch is too short
+
+# ──────────────────────────────────────────────────────────────────────────
+# LoRA — MoE-aware
+# ──────────────────────────────────────────────────────────────────────────
+lora:
+  enabled: true
+  r: 32
+  alpha: 64                           # alpha = 2*r is a safe default
+  dropout: 0.05
+  target_modules: ["auto"]            # let the framework pick attn + mlp projs
+  include_experts: false              # do NOT LoRA the routed experts
+  freeze_router: true                 # NEVER train the router — destabilises MoE
+  modules_to_save: []                 # add "embed_tokens" / "lm_head" if needed
+
+# ──────────────────────────────────────────────────────────────────────────
+# MoE auxiliary losses (still applied even with LoRA, for routing health)
+# ──────────────────────────────────────────────────────────────────────────
+moe:
+  aux_loss_weight: 0.01
+  router_z_loss_weight: 0.001
+  freeze_router: true
+  log_expert_utilization: true
+  log_every_n_steps: 25
+
+# ──────────────────────────────────────────────────────────────────────────
+# Training
+# ──────────────────────────────────────────────────────────────────────────
+training:
+  # Effective batch = 4 GPUs * batch_size * grad_accum = 4 * 2 * 8 = 64
+  batch_size: 2
+  grad_accum: 8
+
+  lr: 1.0e-4                          # standard LoRA LR; drop to 5e-6 for full FT
+  weight_decay: 0.0                   # LoRA usually trains better with WD=0
+  num_epochs: 3
+  max_steps: 100000                   # high cap — num_epochs is the real limit
+  warmup_steps: 50
+  max_grad_norm: 1.0
+  grad_clip: 1.0
+  max_grad_skip_steps: 100
+
+  seed: 42
+  deterministic: false                # leave off for speed; turn on to reproduce
+
+  distributed:
+    strategy: "fsdp"
+
+    fsdp:
+      sharding_strategy: "FULL_SHARD"  # shard params + grads + optim across 4 GPUs
+      transformer_layer_cls: []        # [] → auto-detect Param2's decoder block
+      param_dtype: "bfloat16"
+      reduce_dtype: "bfloat16"
+      buffer_dtype: "bfloat16"
+      activation_checkpointing: true   # essential at 17B on A100
+      cpu_offload: false               # only flip on if you OOM at batch_size=1
+      shard_experts_individually: false  # ← per request
+
+    ddp:                              # ignored when strategy=fsdp; left for completeness
+      find_unused_parameters: false
+      gradient_as_bucket_view: true
+      broadcast_buffers: false
+
+# ──────────────────────────────────────────────────────────────────────────
+# Checkpointing
+# ──────────────────────────────────────────────────────────────────────────
+checkpoint:
+  enabled: true
+  save_dir: "/scratch/ldls-iiitd/training-framework/checkpoints/param17b_chatml"
+  save_interval: 1                    # save every epoch
+  keep_last_n: 2                      # keep last two epochs only
+
+# ──────────────────────────────────────────────────────────────────────────
+# Logging
+# ──────────────────────────────────────────────────────────────────────────
+logging:
+  tracker: "mlflow"
+  project: "bhaskera"
+  run_name: "param17b-chatml-finetune-run1"
+  mlflow_tracking_uri: ""  # leave empty → defaults to ~/mlflow-runs
+  mlflow_log_all_ranks: false
+  mlflow_log_artifacts_every: 50
+  log_gpu_every_n_steps: 10
+
+# -----------------------------------------------------------------------------
+# Monitoring
+# -----------------------------------------------------------------------------
+monitoring:
+  dashboard: true          # Ray Dashboard — job/actor/resource view
+  dashboard_host: "0.0.0.0"
+  dashboard_port: 8265     # access via ssh -L 8265:localhost:8265
+  metrics_export_port: 8080
+
+  metrics:
+    enabled: true
+    system_every_n_steps: 1
+    cuda_every_n_steps: 2
+    gpu: true
+    cpu: true
+    cuda_memory: true
+    throughput: true
+    peak_tflops_per_gpu: 312.0     # update to 165.0 for RTX 4090, 121.0 for L4
+    throughput_window: 5
+    throughput_warmup: 5

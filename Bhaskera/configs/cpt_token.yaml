@@ -1,0 +1,23 @@
+# configs/tokenize_cpt.yaml
+
+model:
+  # Using a smaller Qwen model for faster tokenizer loading during testing
+  name: "Qwen/Qwen2.5-1.5B"
+  trust_remote_code: false
+
+data:
+  name: "local_cpt"
+  is_cpt: true              # MUST BE TRUE to trigger the continuous packing logic
+  seq_len: 2048             # 2k chunks for testing
+  num_workers: 16            # Low workers for a small dataset
+  
+  # I/O Settings
+  tokenize_batch_size: 256
+  tokenize_compression: "snappy"
+  overwrite_cache: true     # Useful when repeatedly testing
+  
+  # Point this to the folder where you saved the JSONL file above
+  path: "/mnt/disk1/Framework/cpt/wikitext103_val.jsonl"
+  
+  # The output directory where the packed Parquet files will be saved
+  cache_dir: "/mnt/disk1/Framework/cpt/data"

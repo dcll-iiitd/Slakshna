@@ -1,0 +1,157 @@
+# =============================================================================
+# Bhaskera — Param2-17B-A2.4B-Thinking | QLoRA SFT on UltraChat
+# 4 GPUs (2 nodes × 2 GPUs/node), A100 80 GB
+#
+# Why QLoRA + DDP and NOT QLoRA + FSDP:
+#   BitsAndBytes loads the base model as Params4bit tensors. FSDP2 cannot
+#   shard non-standard parameter types — it crashes or corrupts state.
+#   DDP is the correct strategy: each rank holds a full 4-bit copy of the
+#   model. At 17B in NF4 that is ~8.5 GB/GPU, leaving ample headroom.
+#
+# Memory plan per GPU (NF4 + DDP, A100 80 GB):
+#   Param2-17B base in 4-bit NF4 :  ~8.5 GB  (17B × 0.5 bytes)
+#   Double-quant metadata         :  ~0.2 GB
+#   LoRA adapters (fp32, r=16)    :  ~0.1 GB
+#   AdamW state (LoRA only, fp32) :  ~0.2 GB
+#   Activations (AC on, batch=4)  :  ~6.0 GB
+#   lm_head logits (Liger LCE)    :  ~1.5 GB  (never fully materialised)
+#   NCCL + CUDA buffers           :  ~2.0 GB
+#   ─────────────────────────────
+#   Total                         : ~18.5 GB  → ~61 GB headroom on A100 80 GB
+#
+# Effective batch = 4 GPUs × batch_size 4 × grad_accum 8 = 128 sequences/step
+#
+# Tokenize first (if not already done):
+#   bhaskera-tokenize --config configs/tokenize_param17b_ultrachat.yaml --split both
+#
+# Train:
+#   bhaskera-train --config configs/param17b_qlora_ultrachat.yaml --num-workers 4
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Model
+# -----------------------------------------------------------------------------
+model:
+  name: "bharatgenai/Param2-17B-A2.4B-Thinking"
+  dtype: "bfloat16"                   # base dtype before 4-bit quantization
+  attn_impl: null      # FA2 safe with QLoRA + DDP
+  trust_remote_code: true             # required for Param2 custom architecture
+  use_liger_kernel: true              # fused RMSNorm/SwiGLU; compatible with QLoRA+DDP
+  quantization: "qlora"               # NF4 4-bit + double quant via BitsAndBytes
+
+# -----------------------------------------------------------------------------
+# Data — UltraChat 200k
+# -----------------------------------------------------------------------------
+data:
+  name: "ultrachat"
+  seq_len: 2048
+  num_workers: 8
+  # Replace with the path printed by bhaskera-tokenize after tokenizing with
+  # the Param2 tokenizer — do NOT reuse a Qwen tokenized cache.
+  tokenized_path: "/scratch/ldls-iiitd/training-framework/newchanges/ultrachat_908b384d81812c6e"
+  prefetch_batches: 4
+  local_shuffle_buffer_multiplier: 10
+  pack_sequences: false               # MoE activation spikes make packing risky at first
+
+# -----------------------------------------------------------------------------
+# LoRA — QLoRA means frozen quantized base + trained LoRA adapters
+# -----------------------------------------------------------------------------
+lora:
+  enabled: true                       # must be true for QLoRA to be useful
+  r: 16
+  alpha: 32                           # alpha = 2*r standard starting point
+  dropout: 0.05
+  target_modules: ["auto"]            # introspect.py finds attn + mlp projections
+  include_experts: false              # do NOT LoRA the routed experts
+  freeze_router: true                 # never train the MoE router — destabilises routing
+  modules_to_save: []
+
+# -----------------------------------------------------------------------------
+# MoE auxiliary losses
+# Still active even with QLoRA — routing health matters during SFT
+# -----------------------------------------------------------------------------
+moe:
+  aux_loss_weight: 0.01
+  router_z_loss_weight: 0.001
+  freeze_router: true
+  log_expert_utilization: true
+  log_every_n_steps: 25
+
+# -----------------------------------------------------------------------------
+# Training
+# -----------------------------------------------------------------------------
+training:
+  batch_size: 4                       # conservative for MoE activation spikes
+  grad_accum: 8                       # effective batch = 4 × 4 × 8 = 128 sequences
+  lr: 1.0e-4                          # standard QLoRA LR
+  weight_decay: 0.0                   # LoRA trains better without weight decay
+  max_steps: 100000                   # high cap — num_epochs drives termination
+  num_epochs: 3
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  grad_clip: 1.0
+  max_grad_skip_steps: 100
+  seed: 42
+  deterministic: false
+
+  distributed:
+    strategy: "ddp"                   # REQUIRED — QLoRA is incompatible with FSDP2
+
+    fsdp:                             # ignored when strategy=ddp; kept for completeness
+      sharding_strategy: "FULL_SHARD"
+      transformer_layer_cls: []
+      param_dtype: "bfloat16"
+      reduce_dtype: "bfloat16"
+      buffer_dtype: "bfloat16"
+      activation_checkpointing: true
+      cpu_offload: false
+      shard_experts_individually: false
+
+    ddp:
+      find_unused_parameters: false
+      gradient_as_bucket_view: true
+      broadcast_buffers: false
+      activation_checkpointing: true  # essential even under DDP at this model size
+      static_graph: false             # must stay false with MoE (router drops experts)
+
+# -----------------------------------------------------------------------------
+# Checkpoint
+# -----------------------------------------------------------------------------
+checkpoint:
+  enabled: true
+  save_dir: "./checkpoints/param17b-qlora-ultrachat"
+  save_interval: 1
+  keep_last_n: 2
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+logging:
+  tracker: "mlflow"
+  project: "bhaskera"
+  run_name: "param17b-qlora-ultrachat-run1"
+  mlflow_tracking_uri: ""            # empty → defaults to ~/mlflow-runs
+  mlflow_log_all_ranks: false
+  mlflow_log_artifacts_every: 50
+  log_gpu_every_n_steps: 10
+
+# -----------------------------------------------------------------------------
+# Monitoring
+# -----------------------------------------------------------------------------
+monitoring:
+  dashboard: true
+  dashboard_host: "0.0.0.0"
+  dashboard_port: 8265
+  metrics_export_port: 8080
+
+  metrics:
+    enabled: true
+    system_every_n_steps: 1
+    cuda_every_n_steps: 2
+    gpu: true
+    cpu: true
+    cuda_memory: true
+    throughput: true
+    peak_tflops_per_gpu: 312.0       # A100 80 GB bf16; update for other GPUs
+    throughput_window: 5
+    throughput_warmup: 5

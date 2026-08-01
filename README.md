@@ -86,15 +86,19 @@ SLAKSHNA is built from the ground up to operate securely over untrusted public n
 
 | Path | Description |
 | :--- | :--- |
-| `src/main.rs` | Node entry point, phase execution, ML process orchestration, and P2P broadcast |
-| `src/network/` | Iroh QUIC + Gossip network implementation (`mesh.rs`, `mod.rs`, `star.rs`) for peer synchronization |
-| `src/api.rs` | Axum HTTP REST endpoints and real-time WebSocket broadcast server |
-| `src/config.rs` | TOML configuration loader for network ports and storage paths |
-| `ml_engine.py` | Python bridge executing Bhaskera distributed LoRA training, sparsification (`SparseLoCo`), and evaluation |
-| `Bhaskera/` | Submodule / embedded repository containing the Bhaskera distributed LLM training framework |
-| `config.toml` | Master/Node-1 configuration file |
-| `node2.toml` / `node3.toml` | Peer node configuration files |
-
+| `src/main.rs` | Rust Node entry point, phase execution, P2P orchestrator, and network broadcast |
+| `src/network/` | Iroh QUIC + Gossip network implementation (`mesh.rs`, `mod.rs`, `star.rs`) for secure peer synchronization |
+| `src/api.rs` | Axum HTTP REST endpoints and real-time WebSocket broadcast server for dashboards |
+| `src/config.rs` | TOML configuration loader for network ports, IDs, and storage paths |
+| `ml_engine.py` | Python ML bridge executing Bhaskera distributed LoRA training, DP clipping, sparsification, and peer evaluation |
+| `setup.sh` | Main installation script for system dependencies and virtual environments |
+| `Bhaskera/` | Submodule / embedded repository containing the distributed LLM training framework |
+| `node_template.yaml` | Base YAML template for HuggingFace / Ray / PEFT training arguments |
+| `node1.toml` | Node-1 configuration file |
+| `node2.toml`, `node3.toml` | Peer node configuration files |
+| `logs/` | Directory containing runtime communication logs and real-time epoch loss tracking CSVs |
+| `plots_script/` | Python scripts for visualizing training metrics, trust scores, and system performance |
+| `results/` | Output directory containing generated plots and evaluation metric graphs |
 ---
 
 ## Environment & Prerequisites Setup
@@ -120,24 +124,27 @@ fi
 Follow these exact steps in sequence to set up the environment and build the project:
 
 ```bash
-# 1. Run the SLAKSHNA root setup script
-bash setup.sh
-./setup.sh
-
-# 2. Navigate to the Bhaskera subdirectory and run its setup script
+# 1. Navigate to the Bhaskera ML engine directory
 cd Bhaskera
+
+# 2. Run the Bhaskera setup script (installs python dependencies)
 bash setup.sh
-./setup.sh
 
 # 3. Activate the Bhaskera Python virtual environment
 source bhaskera-activate.sh
 
-# 4. Move back to the SLAKSHNA root directory
+# 4. Move back to the SLAKSHNA-FL root directory
 cd ..
 
-# 5. Build the Rust P2P node binary in release mode
-# (Make sure you have Rust and Cargo installed)
+# 5. Run the SLAKSHNA root setup script
+bash setup.sh
+
+# 6. Build the Rust P2P node binary in release mode
+# (Make sure you have Rust and Cargo installed!)
 cargo build --release
+
+# 7. You are now ready to run your nodes!
+# (e.g. ./target/release/iiitd --config config.toml)
 ```
 
 ---
@@ -182,7 +189,7 @@ ws_port = 8547
 
 # Point boot_nodes to the Master Node's Iroh PublicKey (NodeId):
 # Iroh automatically discovers the route via direct IP, mDNS, STUN, or public Playit tunnel
-boot_nodes = ["<MASTER_IROH_PUBLIC_KEY>@<tunnel address>"]
+boot_nodes = ["<NODE1_IROH_PUBLIC_KEY>@<tunnel address>"]
 ```
 
 ---
@@ -205,7 +212,7 @@ If your machines are located in different cities (e.g., Delhi $\leftrightarrow$ 
 ### Step 2: Start the Master Node (Main Machine)
 With the tunnel running in the background, start your node:
 ```bash
-./target/release/iiitd --config config.toml
+./target/release/iiitd --config node1.toml
 ```
 When started, the node will output its unique cryptographic Iroh `NodeId` (Public Key):
 ```

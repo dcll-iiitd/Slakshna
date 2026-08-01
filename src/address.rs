@@ -5,7 +5,7 @@ use sha2::{ Sha256, Digest };
 use serde::{ Deserialize, Serialize };
 use std::fmt;
 
-const ADDRESS_HRP: &str = "iiitd1";
+const ADDRESS_HRP: &str = "slakshna";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Address(pub String);

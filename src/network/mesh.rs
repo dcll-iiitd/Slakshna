@@ -1,4 +1,4 @@
-// use crate::chain::{LatticeBlock, Blockchain, BoxError};
+// use crate::history::{UpdateRecord, UpdateHistory, BoxError};
 // use crate::network::Network;
 // use crate::state::State;
 // use crate::network::star::P2PMessage;
@@ -13,11 +13,11 @@
 // use tokio::sync::{RwLock, mpsc};
 // use tracing::{info, error, debug, warn};
 
-// /// 32-byte topic identifier for the SLAKSHNA FL Lattice gossip channel.
-// /// Derived deterministically so all nodes with the same chain_id join the same swarm.
-// fn topic_from_chain_id(chain_id: &str) -> iroh_gossip::TopicId {
+// /// 32-byte topic identifier for the SLAKSHNA federated learning gossip channel.
+// /// Derived deterministically so all nodes in the same federation join the same swarm.
+// fn topic_from_federation_id(federation_id: &str) -> iroh_gossip::TopicId {
 //     use sha2::{Sha256, Digest};
-//     let hash = Sha256::digest(chain_id.as_bytes());
+//     let hash = Sha256::digest(federation_id.as_bytes());
 //     let mut bytes = [0u8; 32];
 //     bytes.copy_from_slice(&hash);
 //     iroh_gossip::TopicId::from_bytes(bytes)
@@ -25,7 +25,7 @@
 
 // pub struct MeshNetwork {
 //     config: crate::config::Config,
-//     blockchain: Arc<RwLock<Blockchain>>,
+//     history: Arc<RwLock<UpdateHistory>>,
 //     #[allow(dead_code)]
 //     state: Arc<RwLock<State>>,
 //     /// Channel for the rest of the application to send broadcast commands into the gossip loop
@@ -39,12 +39,12 @@
 // impl MeshNetwork {
 //     pub fn new(
 //         config: crate::config::Config,
-//         blockchain: Arc<RwLock<Blockchain>>,
+//         history: Arc<RwLock<UpdateHistory>>,
 //         state: Arc<RwLock<State>>,
 //     ) -> Self {
 //         MeshNetwork {
 //             config,
-//             blockchain,
+//             history,
 //             state,
 //             command_tx: None,
 //             active_peers: Arc::new(RwLock::new(Vec::new())),
@@ -90,9 +90,9 @@
 
 //         info!("📡 Iroh Router started (listening on port {})", self.config.network.p2p_port);
 
-//         // 4. Derive topic from chain_id for deterministic swarm membership
-//         let topic_id = topic_from_chain_id(&self.config.chain.chain_id);
-//         info!("📢 Gossip Topic: {:?} (derived from chain_id '{}')", topic_id, self.config.chain.chain_id);
+//         // 4. Derive topic from the federation id for deterministic swarm membership
+//         let topic_id = topic_from_federation_id(&self.config.federation.id);
+//         info!("📢 Gossip Topic: {:?} (derived from federation '{}')", topic_id, self.config.federation.id);
 
 //         // 5. Resolve bootstrap peers (if any provided in config)
 //         let mut bootstrap_peers = Vec::new();
@@ -132,7 +132,7 @@
 //         let (cmd_tx, mut cmd_rx) = mpsc::channel::<P2PMessage>(100);
 //         self.command_tx = Some(cmd_tx);
 
-//         let bc_clone = self.blockchain.clone();
+//         let history_clone = self.history.clone();
 //         let peers_clone = self.active_peers.clone();
 //         let allowed_peers = self.config.network.allowed_peers.clone();
 
@@ -143,7 +143,7 @@
 //                     // OUTBOUND: Broadcast messages from the application to the gossip swarm
 //                     Some(msg) = cmd_rx.recv() => {
 //                         match &msg {
-//                             P2PMessage::NewLatticeBlock(_) => {
+//                             P2PMessage::NewUpdate(_) => {
 //                                 let data = serde_json::to_vec(&msg).unwrap();
 //                                 if let Err(e) = gossip_sender.broadcast(data.into()).await {
 //                                     error!("Failed to broadcast gossip message: {:?}", e);
@@ -171,10 +171,10 @@
 
 //                                         if let Ok(p2p_msg) = serde_json::from_slice::<P2PMessage>(&msg.content) {
 //                                             match p2p_msg {
-//                                                 P2PMessage::NewLatticeBlock(block) => {
-//                                                     info!("📡 Gossiped Lattice Block received from {}", from_id);
+//                                                 P2PMessage::NewUpdate(record) => {
+//                                                     info!("📡 Gossiped model update received from {}", from_id);
 //                                                     let mut bc = bc_clone.write().await;
-//                                                     bc.add_lattice_block(block);
+//                                                     bc.record_update(block);
 //                                                 }
 //                                                 _ => {}
 //                                             }
@@ -214,9 +214,9 @@
 //         Ok(())
 //     }
 
-//     async fn broadcast_lattice_block(&self, block: &LatticeBlock) -> Result<(), BoxError> {
+//     async fn broadcast_update(&self, record: &UpdateRecord) -> Result<(), BoxError> {
 //         if let Some(tx) = &self.command_tx {
-//             let _ = tx.send(P2PMessage::NewLatticeBlock(block.clone())).await;
+//             let _ = tx.send(P2PMessage::NewUpdate(record.clone())).await;
 //         }
 //         Ok(())
 //     }
@@ -247,7 +247,7 @@
 
 
 
-use crate::chain::{LatticeBlock, Blockchain, BoxError};
+use crate::history::{UpdateRecord, UpdateHistory, BoxError};
 use crate::network::Network;
 use crate::state::State;
 use crate::network::star::P2PMessage;
@@ -262,11 +262,11 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 use tracing::{info, error, debug, warn};
 
-/// 32-byte topic identifier for the SLAKSHNA FL Lattice gossip channel.
-/// Derived deterministically so all nodes with the same chain_id join the same swarm.
-fn topic_from_chain_id(chain_id: &str) -> iroh_gossip::TopicId {
+/// 32-byte topic identifier for the SLAKSHNA federated learning gossip channel.
+/// Derived deterministically so all nodes in the same federation join the same swarm.
+fn topic_from_federation_id(federation_id: &str) -> iroh_gossip::TopicId {
     use sha2::{Sha256, Digest};
-    let hash = Sha256::digest(chain_id.as_bytes());
+    let hash = Sha256::digest(federation_id.as_bytes());
     let mut bytes = [0u8; 32];
     bytes.copy_from_slice(&hash);
     iroh_gossip::TopicId::from_bytes(bytes)
@@ -274,7 +274,7 @@ fn topic_from_chain_id(chain_id: &str) -> iroh_gossip::TopicId {
 
 pub struct MeshNetwork {
     config: crate::config::Config,
-    blockchain: Arc<RwLock<Blockchain>>,
+    history: Arc<RwLock<UpdateHistory>>,
     #[allow(dead_code)]
     state: Arc<RwLock<State>>,
     /// Channel for the rest of the application to send broadcast commands into the gossip loop
@@ -288,12 +288,12 @@ pub struct MeshNetwork {
 impl MeshNetwork {
     pub fn new(
         config: crate::config::Config,
-        blockchain: Arc<RwLock<Blockchain>>,
+        history: Arc<RwLock<UpdateHistory>>,
         state: Arc<RwLock<State>>,
     ) -> Self {
         MeshNetwork {
             config,
-            blockchain,
+            history,
             state,
             command_tx: None,
             active_peers: Arc::new(RwLock::new(Vec::new())),
@@ -349,9 +349,9 @@ impl Network for MeshNetwork {
 
         info!("📡 Iroh Router started (listening on port {})", self.config.network.p2p_port);
 
-        // 4. Derive topic from chain_id for deterministic swarm membership
-        let topic_id = topic_from_chain_id(&self.config.chain.chain_id);
-        info!("📢 Gossip Topic: {:?} (derived from chain_id '{}')", topic_id, self.config.chain.chain_id);
+        // 4. Derive topic from the federation id for deterministic swarm membership
+        let topic_id = topic_from_federation_id(&self.config.federation.id);
+        info!("📢 Gossip Topic: {:?} (derived from federation '{}')", topic_id, self.config.federation.id);
 
         // 5. Resolve bootstrap peers (if any provided in config)
         let mut bootstrap_peers = Vec::new();
@@ -396,7 +396,7 @@ impl Network for MeshNetwork {
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<P2PMessage>(100);
         self.command_tx = Some(cmd_tx);
 
-        let bc_clone = self.blockchain.clone();
+        let history_clone = self.history.clone();
         let peers_clone = self.active_peers.clone();
         let allowed_peers = self.config.network.allowed_peers.clone();
 
@@ -407,11 +407,11 @@ impl Network for MeshNetwork {
                     // OUTBOUND: Broadcast messages from the application to the gossip swarm
                     Some(msg) = cmd_rx.recv() => {
                         match &msg {
-                            P2PMessage::NewLatticeBlock(_) => {
+                            P2PMessage::NewUpdate(_) => {
                                 let data = serde_json::to_vec(&msg).unwrap();
                                 let size_bytes = data.len();
                                 let size_mb = size_bytes as f64 / 1_048_576.0;
-                                info!("📤 Broadcasting Lattice Block to Swarm | Network Payload Size: {} bytes ({:.2} MB)", size_bytes, size_mb);
+                                info!("📤 Broadcasting model update to swarm | Network Payload Size: {} bytes ({:.2} MB)", size_bytes, size_mb);
                                 if let Err(e) = gossip_sender.broadcast(data.into()).await {
                                     error!("Failed to broadcast gossip message: {:?}", e);
                                 }
@@ -437,14 +437,14 @@ impl Network for MeshNetwork {
                                         }
                                         let size_bytes = msg.content.len();
                                         let size_mb = size_bytes as f64 / 1_048_576.0;
-                                        info!("📡 Gossiped Lattice Block received from {} | Network Payload Size: {} bytes ({:.2} MB)", from_id, size_bytes, size_mb);
+                                        info!("📡 Gossiped model update received from {} | Network Payload Size: {} bytes ({:.2} MB)", from_id, size_bytes, size_mb);
 
                                         if let Ok(p2p_msg) = serde_json::from_slice::<P2PMessage>(&msg.content) {
                                             match p2p_msg {
-                                                P2PMessage::NewLatticeBlock(block) => {
-                                                    info!("📡 Gossiped Lattice Block received from {}", from_id);
-                                                    let mut bc = bc_clone.write().await;
-                                                    bc.add_lattice_block(block);
+                                                P2PMessage::NewUpdate(record) => {
+                                                    info!("📡 Gossiped model update received from {}", from_id);
+                                                    let mut history = history_clone.write().await;
+                                                    history.record_update(record);
                                                 }
                                                 _ => {}
                                             }
@@ -484,9 +484,9 @@ impl Network for MeshNetwork {
         Ok(())
     }
 
-    async fn broadcast_lattice_block(&self, block: &LatticeBlock) -> Result<(), BoxError> {
+    async fn broadcast_update(&self, record: &UpdateRecord) -> Result<(), BoxError> {
         if let Some(tx) = &self.command_tx {
-            let _ = tx.send(P2PMessage::NewLatticeBlock(block.clone())).await;
+            let _ = tx.send(P2PMessage::NewUpdate(record.clone())).await;
         }
         Ok(())
     }

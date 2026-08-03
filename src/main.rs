@@ -1,12 +1,12 @@
 mod config;
-mod chain;
-mod address;
+mod history;
+mod identity;
 mod state;
 mod network;
 mod api;
 
 use crate::config::Config;
-use crate::chain::Blockchain;
+use crate::history::UpdateHistory;
 use crate::state::State;
 use crate::network::Network;
 use crate::api::start_api_server;
@@ -19,21 +19,14 @@ type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 use serde::Deserialize;
 
-// #[derive(Deserialize)]
-// struct MLEngineOutput {
-//     weights: std::collections::HashMap<String, f64>,
-//     model_hash: String,
-//     validation_score: f64,
-//     metadata: String,
-// }
-
+/// The JSON contract with `ml_engine.py`: the engine's final stdout line.
 #[derive(Deserialize)]
 struct MLEngineOutput {
     weights: std::collections::HashMap<String, f64>,
     model_hash: String,
     validation_score: f64,
     metadata: String,
-    compressed_delta: String, // NEW: Catching the weights from Python
+    compressed_delta: String, // The sparsified delta, base64 encoded
 }
 
 #[tokio::main]
@@ -66,31 +59,31 @@ async fn main() -> Result<(), BoxError> {
     print_banner();
 
     info!("Loading config from: {}", config_path);
-    info!("Chain ID: {}", config.chain.chain_id);
+    info!("Federation: {}", config.federation.id);
     info!("Node ID: {}", config.node.id);
     info!("Node Type: {}", config.node.node_type);
 
     // Initialize state (RocksDB)
     let state = Arc::new(RwLock::new(State::new(&config.node.data_dir)?));
 
-    // Generate or load master address
-    let master_address = {
+    // Load (or generate) this node's federation identity
+    let node_identity = {
         let mut state_guard = state.write().await;
-        let addr = state_guard.get_or_create_master_address()?;
-        info!("Master Address: {}", addr);
-        addr
+        let id = state_guard.get_or_create_node_identity()?;
+        info!("Node Identity: {}", id);
+        id
     };
 
-    config.node.id = master_address.to_string();
+    config.node.id = node_identity.to_string();
 
-    // Initialize blockchain
-    let blockchain = Arc::new(
-        RwLock::new(Blockchain::new(config.clone(), state.clone(), master_address.clone()).await?)
+    // Initialize the local update history
+    let history = Arc::new(
+        RwLock::new(UpdateHistory::new(config.clone(), state.clone(), node_identity.clone()).await?)
     );
 
     // Initialize network
     let network = Arc::new(
-        RwLock::new(crate::network::mesh::MeshNetwork::new(config.clone(), blockchain.clone(), state.clone()))
+        RwLock::new(crate::network::mesh::MeshNetwork::new(config.clone(), history.clone(), state.clone()))
     );
 
     // Start network
@@ -101,25 +94,27 @@ async fn main() -> Result<(), BoxError> {
 
     // Start API server
     let api_handle = tokio::spawn(
-        start_api_server(config.clone(), blockchain.clone(), state.clone(), network.clone())
+        start_api_server(config.clone(), history.clone(), state.clone(), network.clone())
     );
 
-    let bc = blockchain.clone();
+    let hist = history.clone();
     let net = network.clone();
     let node_id = config.node.id.clone();
 
 
     // ==========================================
-    // THREAD 2: LAYER 1 / ML EPOCHS (Every 60 seconds)
+    // FEDERATED TRAINING LOOP (one pass per epoch)
     // ==========================================
-    let bc_l1 = bc.clone();
-    let net_l1 = net.clone();
-    let node_id_l1 = node_id.clone();
-    let gpu_id_l1 = config.node.gpu_id;
-    let config_l1 = config.clone();
+    let hist_loop = hist.clone();
+    let net_loop = net.clone();
+    let node_id_loop = node_id.clone();
+    let gpu_id_loop = config.node.gpu_id;
+    let config_loop = config.clone();
 
     tokio::spawn(async move {
-        let epoch_duration = 600_u64; // Increased to 600s for LLM fine-tuning
+        let epoch_duration = config_loop.training.epoch_duration_secs;
+        let sync_deadline = config_loop.training.sync_deadline_secs;
+        let expected_peers = config_loop.training.expected_peers;
 
         loop {
             // 1. EXACT CLOCK SYNCHRONIZATION
@@ -133,80 +128,75 @@ async fn main() -> Result<(), BoxError> {
             let epoch_start = next_boundary;
             tracing::info!("🏁 NEW EPOCH STARTED (Global Time: {})", epoch_start);
 
-            // --- PHASE A: OFF-CHAIN L2C LEARNING ---
+            // --- PHASE A: LOCAL TRAINING & PEER DELTA EXCHANGE ---
             tracing::info!("🧠 Phase A: Real Local Training & Peer Exchange executing...");
 
-            let peer_deltas_dir = format!("{}/network_deltas", config_l1.node.data_dir);
+            let peer_deltas_dir = format!("{}/network_deltas", config_loop.node.data_dir);
             std::fs::create_dir_all(&peer_deltas_dir).unwrap_or_default();
 
-            // NEW: Extract received peer proposals from the blockchain and stage them for Python
+            // Stage every peer's most recent model update on disk for the ML engine
             {
-                let blockchain = bc_l1.read().await;
+                let history = hist_loop.read().await;
                 let mut extracted_count = 0u32;
                 let mut skipped_count = 0u32;
 
-                // Iterate over all chains in the lattice, instead of active_peers, to avoid libp2p ID mismatch
-                for (peer_id, chain) in &blockchain.lattice_chains {
-                    if peer_id == &node_id_l1 { continue; }
-                    
-                    // Find their latest proposal
-                    let mut found_proposal = false;
-                    for block in chain.iter().rev() {
+                // Iterate over every peer's update log so we don't depend on live mesh membership
+                for (peer_id, records) in &history.peer_updates {
+                    if peer_id == &node_id_loop { continue; }
+
+                    // Find their latest model update
+                    let mut found_update = false;
+                    for record in records.iter().rev() {
                         if
-                            let crate::chain::LatticeBlockType::Proposal {
+                            let crate::history::RecordKind::ModelUpdate {
                                 compressed_delta,
                                 ..
-                            } = &block.block_type
+                            } = &record.kind
                         {
                             let path = format!("{}/{}_delta.b64", peer_deltas_dir, peer_id);
                             let _ = std::fs::write(&path, compressed_delta);
                             tracing::info!("📥 Network Delta Extracted: Saved {} bytes from peer {} to {}", compressed_delta.len(), peer_id, path);
                             extracted_count += 1;
-                            found_proposal = true;
+                            found_update = true;
                             break;
                         }
                     }
-                    if !found_proposal {
-                        tracing::debug!("⏭️ Peer {} has {} blocks in lattice but no Proposal block", peer_id, chain.len());
+                    if !found_update {
+                        tracing::debug!("⏭️ Peer {} has {} records but no model update", peer_id, records.len());
                         skipped_count += 1;
                     }
                 }
-                tracing::info!("📊 Delta extraction summary: {} extracted, {} peers without proposals, data_dir={}", extracted_count, skipped_count, config_l1.node.data_dir);
+                tracing::info!("📊 Delta extraction summary: {} extracted, {} peers without updates, data_dir={}", extracted_count, skipped_count, config_loop.node.data_dir);
             }
 
-            let mut python_args = vec!["ml_engine.py".to_string(), node_id_l1.clone()];
+            let mut python_args = vec!["ml_engine.py".to_string(), node_id_loop.clone()];
             {
-                let blockchain = bc_l1.read().await;
-                for peer_id in blockchain.lattice_chains.keys() {
-                    if peer_id != &node_id_l1 {
+                let history = hist_loop.read().await;
+                for peer_id in history.peer_updates.keys() {
+                    if peer_id != &node_id_loop {
                         python_args.push(peer_id.clone());
                     }
                 }
             }
 
-            // let output = tokio::process::Command
-            //     ::new("python")
-            //     .args(&python_args)
-            //     .current_dir(".")
-            //     .output().await;
             let mut cmd = tokio::process::Command::new("python");
             cmd.args(&python_args).current_dir(".");
 
             // CRITICAL: Pass the data_dir to Python so it reads delta files from the correct path
-            cmd.env("IIITD_DATA_DIR", &config_l1.node.data_dir);
+            cmd.env("IIITD_DATA_DIR", &config_loop.node.data_dir);
 
             // Pin this ML process to the GPU assigned in the node config
-            if let Some(gid) = gpu_id_l1 {
+            if let Some(gid) = gpu_id_loop {
                 cmd.env("CUDA_VISIBLE_DEVICES", gid.to_string());
                 tracing::info!("🔥 ML Engine pinned to GPU {}", gid);
             }
 
             let output = cmd.output().await;
             let my_prev_hash = {
-                let blockchain = bc_l1.read().await;
-                if let Some(chain) = blockchain.lattice_chains.get(&node_id_l1) {
-                    if let Some(last_block) = chain.last() {
-                        last_block.hash.clone()
+                let history = hist_loop.read().await;
+                if let Some(records) = history.peer_updates.get(&node_id_loop) {
+                    if let Some(last_record) = records.last() {
+                        last_record.hash.clone()
                     } else {
                         "0".repeat(64)
                     }
@@ -215,29 +205,18 @@ async fn main() -> Result<(), BoxError> {
                 }
             };
 
-            // let mut my_proposal = crate::chain::LatticeBlock {
-            //     node_id: node_id_l1.clone(),
-            //     prev_hash: my_prev_hash,
-            //     block_type: crate::chain::LatticeBlockType::Proposal {
-            //         payload_hash: "error_hash".to_string(),
-            //         storage_uri: "local".to_string(),
-            //     },
-            //     signature: format!("node_signature_{}", epoch_start),
-            //     hash: String::new(),
-            // };
-            let mut my_proposal = crate::chain::LatticeBlock {
-                node_id: node_id_l1.clone(),
+            let mut my_update = crate::history::UpdateRecord {
+                node_id: node_id_loop.clone(),
                 prev_hash: my_prev_hash,
-                block_type: crate::chain::LatticeBlockType::Proposal {
-                    payload_hash: "error_hash".to_string(),
-                    // Remove storage_uri: "local".to_string(),
-                    compressed_delta: String::new(), // <--- USE THIS INSTEAD
+                kind: crate::history::RecordKind::ModelUpdate {
+                    delta_hash: "error_hash".to_string(),
+                    compressed_delta: String::new(),
                 },
                 signature: format!("node_signature_{}", epoch_start),
                 hash: String::new(),
             };
 
-            let mut evaluations = Vec::new();
+            let mut reviews = Vec::new();
 
             match output {
                 Ok(out) if out.status.success() => {
@@ -250,60 +229,60 @@ async fn main() -> Result<(), BoxError> {
                             ml_data.validation_score
                         );
 
-                        // Create Proposal Block
-                        my_proposal.block_type = crate::chain::LatticeBlockType::Proposal {
-                            payload_hash: ml_data.model_hash.clone(),
+                        // Record our own model update
+                        my_update.kind = crate::history::RecordKind::ModelUpdate {
+                            delta_hash: ml_data.model_hash.clone(),
                             compressed_delta: ml_data.compressed_delta.clone(),
                         };
-                        my_proposal.hash = my_proposal.calculate_hash();
+                        my_update.hash = my_update.calculate_hash();
 
-                        let mut current_tail_hash = my_proposal.hash.clone();
+                        let mut current_tail_hash = my_update.hash.clone();
 
-                        let blockchain = bc_l1.read().await;
+                        let history = hist_loop.read().await;
 
-                        // Create Evaluation Blocks
+                        // Record one peer review per evaluated peer
                         for (peer_id, weight) in ml_data.weights {
-                            let mut actual_proposal_hash = None;
-                            if let Some(peer_chain) = blockchain.lattice_chains.get(&peer_id) {
-                                for block in peer_chain.iter().rev() {
+                            let mut reviewed_update_hash = None;
+                            if let Some(peer_records) = history.peer_updates.get(&peer_id) {
+                                for record in peer_records.iter().rev() {
                                     if
-                                        let crate::chain::LatticeBlockType::Proposal { .. } =
-                                            &block.block_type
+                                        let crate::history::RecordKind::ModelUpdate { .. } =
+                                            &record.kind
                                     {
-                                        actual_proposal_hash = Some(block.hash.clone());
+                                        reviewed_update_hash = Some(record.hash.clone());
                                         break;
                                     }
                                 }
                             }
 
-                            let target_proposal_hash = match actual_proposal_hash {
+                            let target_update_hash = match reviewed_update_hash {
                                 Some(h) => h,
                                 None => {
                                     tracing::warn!(
-                                        "Skipping evaluation for {}, no proposal found in lattice.",
+                                        "Skipping review for {}, no model update on record.",
                                         peer_id
                                     );
                                     continue;
                                 }
                             };
 
-                            let mut eval_block = crate::chain::LatticeBlock {
-                                node_id: node_id_l1.clone(),
+                            let mut review = crate::history::UpdateRecord {
+                                node_id: node_id_loop.clone(),
                                 prev_hash: current_tail_hash.clone(),
-                                block_type: crate::chain::LatticeBlockType::Evaluation {
+                                kind: crate::history::RecordKind::PeerReview {
                                     target_node: peer_id,
-                                    proposal_hash: target_proposal_hash,
+                                    update_hash: target_update_hash,
                                     loss_drop: 0.0, // Simplified for now
                                     trust_score: weight,
                                 },
-                                signature: format!("eval_sig_{}", epoch_start),
+                                signature: format!("review_sig_{}", epoch_start),
                                 hash: String::new(),
                             };
-                            eval_block.hash = eval_block.calculate_hash();
-                            current_tail_hash = eval_block.hash.clone();
-                            evaluations.push(eval_block);
+                            review.hash = review.calculate_hash();
+                            current_tail_hash = review.hash.clone();
+                            reviews.push(review);
                         }
-                        drop(blockchain);
+                        drop(history);
                     }
                 }
                 Ok(out) => {
@@ -318,45 +297,45 @@ async fn main() -> Result<(), BoxError> {
             }
 
             {
-                let mut blockchain = bc_l1.write().await;
-                blockchain.add_lattice_block(my_proposal.clone());
-                for eval in &evaluations {
-                    blockchain.add_lattice_block(eval.clone());
+                let mut history = hist_loop.write().await;
+                history.record_update(my_update.clone());
+                for review in &reviews {
+                    history.record_update(review.clone());
                 }
             }
 
             {
-                let network_guard = net_l1.read().await;
-                let _ = network_guard.broadcast_lattice_block(&my_proposal).await;
-                for eval in &evaluations {
-                    let _ = network_guard.broadcast_lattice_block(eval).await;
+                let network_guard = net_loop.read().await;
+                let _ = network_guard.broadcast_update(&my_update).await;
+                for review in &reviews {
+                    let _ = network_guard.broadcast_update(review).await;
                 }
             }
 
             // 2. MID-EPOCH SYNC: Intelligent Sync Barrier
-            let target_l1_time = epoch_start + 300;
+            let sync_target_time = epoch_start + sync_deadline;
 
-            tracing::info!("⏳ Waiting for ML submissions to propagate across network...");
+            tracing::info!("⏳ Waiting for peer updates to propagate across the federation...");
 
             loop {
                 let current_time = chrono::Utc::now().timestamp() as u64;
 
                 let unique_count = {
-                    let blockchain = bc_l1.read().await;
-                    blockchain.lattice_chains.len()
+                    let history = hist_loop.read().await;
+                    history.peer_updates.len()
                 };
 
-                if unique_count >= 6 {
+                if unique_count >= expected_peers {
                     tracing::info!(
-                        "✅ Collected all {} unique ML submissions early!",
+                        "✅ Collected updates from all {} participants early!",
                         unique_count
                     );
                     break;
                 }
 
-                if current_time >= target_l1_time {
+                if current_time >= sync_target_time {
                     tracing::warn!(
-                        "⚠️ Hit L1 deadline with only {} submissions. Proceeding anyway...",
+                        "⚠️ Hit sync deadline with only {} participants. Proceeding anyway...",
                         unique_count
                     );
                     break;
@@ -366,35 +345,33 @@ async fn main() -> Result<(), BoxError> {
             }
 
             let now_after_wait = chrono::Utc::now().timestamp() as u64;
-            if target_l1_time > now_after_wait {
+            if sync_target_time > now_after_wait {
                 tokio::time::sleep(
-                    tokio::time::Duration::from_secs(target_l1_time - now_after_wait)
+                    tokio::time::Duration::from_secs(sync_target_time - now_after_wait)
                 ).await;
             }
 
             // ==========================================
-            // PHASE B: L1 CONSENSUS & L2 FINALIZATION
+            // PHASE B: TRUST RANKING FOR THIS EPOCH
             // ==========================================
-            let _current_l1_hash = "lattice_consensus".to_string();
-
-            let committee = {
-                let blockchain = bc_l1.read().await;
-                blockchain.get_elected_committee(crate::chain::COMMITTEE_SIZE) // 👈 Using global constant
+            let cohort = {
+                let history = hist_loop.read().await;
+                history.top_trusted_peers(crate::history::COHORT_SIZE) // 👈 Using global constant
             };
 
-            tracing::info!("🏛️ Committee Elected: {:?}", committee);
+            tracing::info!("🏅 Most-trusted cohort this epoch: {:?}", cohort);
 
-            if committee.contains(&node_id_l1) {
-                tracing::info!("⚙️ Node elected to committee for this epoch!");
+            if cohort.contains(&node_id_loop) {
+                tracing::info!("⚙️ This node ranks among the most-trusted contributors!");
             } else {
-                tracing::info!("💤 Node not in committee. Waiting for next epoch...");
+                tracing::info!("💤 This node is outside the top cohort. Waiting for next epoch...");
             }
         }
     });
 
     // Print status
     info!("==================================================");
-    info!("🟢 Node is LIVE (Federated Learning Consensus Active)");
+    info!("🟢 Node is LIVE (Peer-to-Peer Federated Learning Active)");
     info!("==================================================");
     info!("Transport: Iroh QUIC (with automatic STUN + DERP relay)");
     info!("WS:   ws://{}:{}", config.network.host, config.network.ws_port);
@@ -412,15 +389,10 @@ fn print_banner() {
         r#"
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
-║        ██╗██╗██╗████████╗██████╗                              ║
-║        ██║██║██║╚══██╔══╝██╔══██╗                             ║
-║        ██║██║██║   ██║   ██║  ██║                             ║
-║        ██║██║██║   ██║   ██║  ██║                             ║
-║        ██║██║██║   ██║   ██████╔╝                             ║
-║        ╚═╝╚═╝╚═╝   ╚═╝   ╚═════╝                              ║
+║                        S L A K S H N A                        ║
 ║                                                               ║
-║   IIITD VIRTUAL MACHINE - FEDERATED LEARNING CONSENSUS        ║
-║   A Dual-Layer Blockchain for AI & Value Transfer             ║
+║         Decentralized Peer-to-Peer Federated Learning         ║
+║      Asynchronous local training over an Iroh QUIC mesh       ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 "#

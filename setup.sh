@@ -50,11 +50,11 @@ else
 fi
 mkdir -p data logs ml_models ml_states t
 
-echo "=== 3. Compiling Rust L1 Engine (Without Layer-2 Blockchain) ==="
+echo "=== 3. Compiling Rust P2P Federated Learning Node ==="
 cargo build --release
 
 echo "=========================================================="
-echo "✅ Setup complete for Slakshna (Layer-1 FL over Bhaskera)!"
+echo "✅ Setup complete for Slakshna (P2P Federated Learning over Bhaskera)!"
 echo "To start your node:"
 echo "  1. Activate environment: source $BASE_DIR/Bhaskera/bhaskera-activate.sh (or local .venv)"
 echo "  2. Run the engine: ./target/release/iiitd --config <your_node_config.toml>"

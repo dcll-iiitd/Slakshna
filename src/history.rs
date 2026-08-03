@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::state::State;
-use crate::address::Address;
+use crate::identity::NodeId;
 use serde::{ Deserialize, Serialize };
 use sha2::{ Sha256, Digest };
 use std::sync::Arc;
@@ -9,49 +9,51 @@ use tokio::sync::RwLock;
 
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-// Global constant for committee size
-pub const COMMITTEE_SIZE: usize = 4;
+// How many of the most-trusted peers make up the aggregation cohort for an epoch.
+pub const COHORT_SIZE: usize = 4;
 
-// --- LAYER 1: ASYNCHRONOUS MODEL-LATTICE ---
+// --- LOCAL UPDATE HISTORY: ONE APPEND-ONLY LOG PER PEER ---
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum LatticeBlockType {
-    Proposal {
-        payload_hash: String,
-        compressed_delta: String, 
+pub enum RecordKind {
+    /// A sparsified, compressed model delta produced by one local training round.
+    ModelUpdate {
+        delta_hash: String,
+        compressed_delta: String,
     },
-    Evaluation {
+    /// One node's trust assessment of another node's model update.
+    PeerReview {
         target_node: String,
-        proposal_hash: String,
+        update_hash: String,
         loss_drop: f64,
         trust_score: f64,
     },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LatticeBlock {
+pub struct UpdateRecord {
     pub node_id: String,
     pub prev_hash: String,
-    pub block_type: LatticeBlockType,
+    pub kind: RecordKind,
     pub signature: String,
     pub hash: String,
 }
 
-impl LatticeBlock {
+impl UpdateRecord {
     pub fn calculate_hash(&self) -> String {
         let mut hasher = Sha256::new();
         hasher.update(&self.node_id);
         hasher.update(&self.prev_hash);
-        match &self.block_type {
-            LatticeBlockType::Proposal { payload_hash, compressed_delta } => {
-                hasher.update(b"proposal");
-                hasher.update(payload_hash);
+        match &self.kind {
+            RecordKind::ModelUpdate { delta_hash, compressed_delta } => {
+                hasher.update(b"model_update");
+                hasher.update(delta_hash);
                 hasher.update(compressed_delta);
             }
-            LatticeBlockType::Evaluation { target_node, proposal_hash, loss_drop, trust_score } => {
-                hasher.update(b"evaluation");
+            RecordKind::PeerReview { target_node, update_hash, loss_drop, trust_score } => {
+                hasher.update(b"peer_review");
                 hasher.update(target_node);
-                hasher.update(proposal_hash);
+                hasher.update(update_hash);
                 hasher.update(loss_drop.to_le_bytes());
                 hasher.update(trust_score.to_le_bytes());
             }
@@ -60,82 +62,77 @@ impl LatticeBlock {
     }
 }
 
-pub struct Blockchain {
+/// The node's local store of federated learning work.
+///
+/// Every node keeps one append-only log per participant: its own model updates
+/// and peer reviews, plus everything received over the gossip mesh. The
+/// compressed deltas staged here are what get shared with peers and what the
+/// ML engine reads back when it aggregates.
+pub struct UpdateHistory {
     pub config: Config,
     pub state: Arc<RwLock<State>>,
-    pub master_address: Address,
-    pub lattice_chains: std::collections::HashMap<String, Vec<LatticeBlock>>, // Personal chains per node
+    pub node_identity: NodeId,
+    pub peer_updates: std::collections::HashMap<String, Vec<UpdateRecord>>, // Per-node update log
 }
 
-impl Blockchain {
+impl UpdateHistory {
     pub async fn new(
         config: Config,
         state: Arc<RwLock<State>>,
-        master_address: Address
+        node_identity: NodeId
     ) -> Result<Self, BoxError> {
-        Ok(Blockchain {
+        Ok(UpdateHistory {
             config,
             state,
-            master_address,
-            lattice_chains: std::collections::HashMap::new(),
+            node_identity,
+            peer_updates: std::collections::HashMap::new(),
         })
     }
 
     // ========================================================================
-    // LAYER 1: FEDERATED LEARNING WORK
+    // FEDERATED LEARNING WORK
     // ========================================================================
 
-    
-    pub fn add_lattice_block(&mut self, block: LatticeBlock) {
-        if block.hash != block.calculate_hash() {
-            tracing::warn!("Invalid lattice block hash from {}", block.node_id);
+
+    pub fn record_update(&mut self, record: UpdateRecord) {
+        if record.hash != record.calculate_hash() {
+            tracing::warn!("Invalid update record hash from {}", record.node_id);
             return;
         }
-        
-        let chain = self.lattice_chains.entry(block.node_id.clone()).or_insert_with(Vec::new);
-        
+
+        let log = self.peer_updates.entry(record.node_id.clone()).or_insert_with(Vec::new);
+
         // Simple append for now
-        chain.push(block);
+        log.push(record);
     }
 
-    pub fn get_elected_committee(&self, k: usize) -> Vec<String> {
-        let mut global_reputation: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    pub fn top_trusted_peers(&self, k: usize) -> Vec<String> {
+        self.trust_rankings(k)
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect()
+    }
 
-        // Accumulate trust weights from all Evaluation blocks
-        for (_, chain) in &self.lattice_chains {
-            for block in chain {
-                if let LatticeBlockType::Evaluation { target_node, trust_score, .. } = &block.block_type {
-                    let rep = global_reputation.entry(target_node.clone()).or_insert(0.0);
-                    *rep += trust_score;
+    pub fn trust_rankings(&self, k: usize) -> Vec<(String, f64)> {
+        let mut global_trust: std::collections::HashMap<String, f64> =
+            std::collections::HashMap::new();
+
+        // Accumulate trust weights from every peer review on record
+        for (_, log) in &self.peer_updates {
+            for record in log {
+                if let RecordKind::PeerReview { target_node, trust_score, .. } = &record.kind {
+                    let trust = global_trust.entry(target_node.clone()).or_insert(0.0);
+                    *trust += trust_score;
                 }
             }
         }
 
-        let mut eligible_nodes: Vec<_> = global_reputation.into_iter().collect();
+        let mut ranked: Vec<_> = global_trust.into_iter().collect();
 
-        // Sort descending by score
-        eligible_nodes.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.0.cmp(&b.0)));
+        // Sort descending by trust
+        ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.0.cmp(&b.0)));
 
-        eligible_nodes.into_iter().take(k).map(|(id, _)| id).collect()
-    }
-
-    pub fn get_committee_with_reputation(&self, k: usize) -> Vec<(String, f64)> {
-        let mut global_reputation: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
-
-        for (_, chain) in &self.lattice_chains {
-            for block in chain {
-                if let LatticeBlockType::Evaluation { target_node, trust_score, .. } = &block.block_type {
-                    let rep = global_reputation.entry(target_node.clone()).or_insert(0.0);
-                    *rep += trust_score;
-                }
-            }
-        }
-
-        let mut eligible_nodes: Vec<_> = global_reputation.into_iter().collect();
-
-        eligible_nodes.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.0.cmp(&b.0)));
-
-        eligible_nodes.into_iter().take(k).collect()
+        ranked.into_iter().take(k).collect()
     }
 
 }

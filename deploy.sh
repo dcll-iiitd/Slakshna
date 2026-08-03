@@ -6,7 +6,7 @@ EMAIL="iiitd.solulab@gmail.com"
 
 echo ""
 echo "╔══════════════════════════════════════╗"
-echo "║   IIITD Blockchain — Deploy Script     ║"
+echo "║   SLAKSHNA — Deploy Script             ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 echo "  Domain: $DOMAIN"

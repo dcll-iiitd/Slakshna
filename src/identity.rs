@@ -5,14 +5,16 @@ use sha2::{ Sha256, Digest };
 use serde::{ Deserialize, Serialize };
 use std::fmt;
 
-const ADDRESS_HRP: &str = "slakshna";
+const NODE_ID_HRP: &str = "slakshna";
 
+/// A node's stable federation identity, derived from its Ed25519 public key.
+/// Every model update, peer review, and staged delta file is keyed by this id.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct Address(pub String);
+pub struct NodeId(pub String);
 
-impl Address {
+impl NodeId {
     pub fn new(s: &str) -> Self {
-        Address(s.to_string())
+        NodeId(s.to_string())
     }
 
     pub fn from_public_key(public_key: &[u8]) -> Self {
@@ -21,26 +23,14 @@ impl Address {
         let hash = hasher.finalize();
         let hash_bytes = &hash[..20];
 
-        let hrp = Hrp::parse(ADDRESS_HRP).unwrap();
+        let hrp = Hrp::parse(NODE_ID_HRP).unwrap();
         let encoded = bech32::encode::<Bech32>(hrp, hash_bytes).unwrap();
-        Address(encoded)
+        NodeId(encoded)
     }
 
     pub fn is_valid(&self) -> bool {
-        if !self.0.starts_with(ADDRESS_HRP) {
+        if !self.0.starts_with(NODE_ID_HRP) {
             return false;
-        }
-        // Contract and token addresses use hex format, not bech32
-        if self.0.starts_with("iiitd1contract") || self.0.starts_with("iiitd1token") {
-            return self.0.len() > 12 &&
-                self.0
-                    .chars()
-                    .skip(4)
-                    .all(|c| c.is_ascii_alphanumeric());
-        }
-        // Special addresses
-        if self.0 == "iiitd1faucet" {
-            return true;
         }
         bech32::decode(&self.0).is_ok()
     }
@@ -50,7 +40,7 @@ impl Address {
     }
 }
 
-impl fmt::Display for Address {
+impl fmt::Display for NodeId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -94,8 +84,8 @@ impl Keypair {
         Self::from_bytes(&key_bytes)
     }
 
-    pub fn address(&self) -> Address {
-        Address::from_public_key(self.verifying_key.as_bytes())
+    pub fn node_id(&self) -> NodeId {
+        NodeId::from_public_key(self.verifying_key.as_bytes())
     }
 
     pub fn public_key_hex(&self) -> String {
@@ -132,15 +122,15 @@ mod tests {
     #[test]
     fn test_keypair_generation() {
         let keypair = Keypair::generate();
-        let address = keypair.address();
-        assert!(address.is_valid());
-        assert!(address.0.starts_with(ADDRESS_HRP));
+        let node_id = keypair.node_id();
+        assert!(node_id.is_valid());
+        assert!(node_id.0.starts_with(NODE_ID_HRP));
     }
 
     #[test]
     fn test_sign_and_verify() {
         let keypair = Keypair::generate();
-        let message = b"Hello, IIITD!";
+        let message = b"Hello, SLAKSHNA!";
         let signature = keypair.sign(message);
         assert!(keypair.verify(message, &signature));
     }

@@ -29,13 +29,13 @@ Now we have our `Delta + Error`, but it is still too large to send over the P2P 
 1. The script runs **Top-K Sparsification**, which looks at the tensor and forces the smallest 90% of the weights to exactly `0.0`. It only keeps the top 10% most important updates.
 2. **Residual Error Storage:** The 90% of the data that was zeroed out is calculated (`Dense_Value - Sparse_Value`) and saved back to `ml_states/{my_id}_error_feedback.pth` so it can be added to the *next* epoch's training.
 
-### Step 6: Serialization & Blockchain Sharing (Rust Boundary)
+### Step 6: Serialization & Peer Sharing (Rust Boundary)
 1. The highly compressed 10% sparse delta is saved to a Python byte buffer and encoded into a **Base64 String**.
 2. Python prints a JSON string to `stdout` containing the Base64 string, the trust weights, and a validation score.
-3. Your **Rust Node** intercepts this JSON, extracts the Base64 string, packs it into a `LatticeBlock` (as a Proposal), and broadcasts it across the Gossip network to all peers.
+3. Your **Rust Node** intercepts this JSON, extracts the Base64 string, records it in the local update history as a `ModelUpdate`, and broadcasts it across the Gossip network to all peers.
 
 ### Step 7: Extraction & Security Verification
-1. When your Rust node receives a Proposal block from a peer, it extracts the Base64 string and writes it to a file on your hard drive at `network_deltas/{peer_id}_delta.b64`.
+1. When your Rust node receives a model update from a peer, it extracts the Base64 string and writes it to a file on your hard drive at `network_deltas/{peer_id}_delta.b64`.
 2. Later, when your Python script enters the Aggregation phase, it scans this `network_deltas` folder, reads the `.b64` files, and decodes them back into PyTorch tensors.
 3. **Security Validation:** Python runs a sanity check (`validate_peer_delta`) to ensure the peer hasn't sent exploded gradients (norm validation) to poison your model.
 

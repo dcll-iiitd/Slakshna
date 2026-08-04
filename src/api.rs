@@ -1,4 +1,4 @@
-use crate::chain::{ Blockchain, BoxError };
+use crate::history::{ UpdateHistory, BoxError };
 use crate::config::Config;
 use crate::state::State;
 use crate::network::Network;
@@ -20,21 +20,20 @@ type SharedState = Arc<AppState>;
 
 struct AppState {
     config: Config,
-    blockchain: Arc<RwLock<Blockchain>>,
+    history: Arc<RwLock<UpdateHistory>>,
     state: Arc<RwLock<State>>,
     network: Arc<RwLock<crate::network::mesh::MeshNetwork>>,
 }
 
 pub async fn start_api_server(
     config: Config,
-    blockchain: Arc<RwLock<Blockchain>>,
+    history: Arc<RwLock<UpdateHistory>>,
     state: Arc<RwLock<State>>,
-    // network: Arc<RwLock<StarNetwork>>,
     network: Arc<RwLock<crate::network::mesh::MeshNetwork>>
 ) -> Result<(), BoxError> {
     let app_state = Arc::new(AppState {
         config: config.clone(),
-        blockchain,
+        history,
         state,
         network,
     });
@@ -42,9 +41,9 @@ pub async fn start_api_server(
     let app = Router::new()
         .route("/", get(index))
         .route("/status", get(get_status))
-        .route("/block/:height", get(get_block))
-        .route("/block/latest", get(get_latest_block))
-        .route("/blocks", get(get_blocks))
+        .route("/updates/:index", get(get_update))
+        .route("/updates/latest", get(get_latest_update))
+        .route("/updates", get(get_updates))
         .route("/leaderboard", get(get_leaderboard))
         .route("/ws", get(ws_handler))
         .layer(CorsLayer::permissive())
@@ -63,13 +62,13 @@ async fn index() -> impl IntoResponse {
         serde_json::json!({
         "name": "SLAKSHNA Federated Learning System",
         "version": "1.0.0",
-        "architecture": "Asynchronous Model-Lattice",
+        "architecture": "Asynchronous Peer-to-Peer Federated Learning",
         "endpoints": {
-            "chain": {
+            "history": {
                 "status": "GET /status",
-                "blocks": "GET /blocks",
-                "block": "GET /block/:height",
-                "latest": "GET /block/latest"
+                "updates": "GET /updates",
+                "update": "GET /updates/:index",
+                "latest": "GET /updates/latest"
             },
             "network": {
                 "leaderboard": "GET /leaderboard",
@@ -82,9 +81,9 @@ async fn index() -> impl IntoResponse {
 
 #[derive(Serialize)]
 struct StatusResponse {
-    chain_id: String,
-    chain_name: String,
-    height: u64,
+    federation_id: String,
+    federation_name: String,
+    round: u64,
     peers: usize,
     browsers: usize,
     node_type: String,
@@ -92,7 +91,7 @@ struct StatusResponse {
 
 async fn get_status(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
     let state_guard = state.state.read().await;
-    let height = state_guard.get_height().unwrap_or(0);
+    let round = state_guard.get_round().unwrap_or(0);
     drop(state_guard);
 
     let network = state.network.read().await;
@@ -101,31 +100,33 @@ async fn get_status(AxumState(state): AxumState<SharedState>) -> impl IntoRespon
     drop(network);
 
     Json(StatusResponse {
-        chain_id: state.config.chain.chain_id.clone(),
-        chain_name: state.config.chain.chain_name.clone(),
-        height,
+        federation_id: state.config.federation.id.clone(),
+        federation_name: state.config.federation.name.clone(),
+        round,
         peers,
         browsers,
         node_type: state.config.node.node_type.clone(),
     })
 }
 
-async fn get_block(
-    Path(height): Path<u64>,
+/// Returns the record at `index` in every peer's update log — i.e. what each
+/// participant contributed in that federated round.
+async fn get_update(
+    Path(index): Path<u64>,
     AxumState(state): AxumState<SharedState>
 ) -> impl IntoResponse {
-    let chain_guard = state.blockchain.read().await;
-    let index = height as usize;
-    let mut matching_blocks = Vec::new();
-    for (_node, blocks) in chain_guard.lattice_chains.iter() {
-        if let Some(block) = blocks.get(index) {
-            matching_blocks.push(block.clone());
+    let history_guard = state.history.read().await;
+    let idx = index as usize;
+    let mut matching_records = Vec::new();
+    for (_node, records) in history_guard.peer_updates.iter() {
+        if let Some(record) = records.get(idx) {
+            matching_records.push(record.clone());
         }
     }
-    if !matching_blocks.is_empty() {
+    if !matching_records.is_empty() {
         Json(serde_json::json!({
             "success": true,
-            "blocks": matching_blocks
+            "updates": matching_records
         })).into_response()
     } else {
         (
@@ -133,28 +134,28 @@ async fn get_block(
             Json(serde_json::json!({
                 "success": false,
                 "error": "not_found",
-                "message": format!("No lattice blocks found at index/height {}", height)
+                "message": format!("No update records found at index {}", index)
             }))
         ).into_response()
     }
 }
 
-async fn get_latest_block(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
-    let chain_guard = state.blockchain.read().await;
-    let mut latest_block = None;
+async fn get_latest_update(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
+    let history_guard = state.history.read().await;
+    let mut latest_record = None;
     let mut max_len = 0;
-    for (_node, blocks) in chain_guard.lattice_chains.iter() {
-        if blocks.len() >= max_len {
-            if let Some(block) = blocks.last() {
-                max_len = blocks.len();
-                latest_block = Some(block.clone());
+    for (_node, records) in history_guard.peer_updates.iter() {
+        if records.len() >= max_len {
+            if let Some(record) = records.last() {
+                max_len = records.len();
+                latest_record = Some(record.clone());
             }
         }
     }
-    if let Some(block) = latest_block {
+    if let Some(record) = latest_record {
         Json(serde_json::json!({
             "success": true,
-            "block": block
+            "update": record
         })).into_response()
     } else {
         (
@@ -162,33 +163,36 @@ async fn get_latest_block(AxumState(state): AxumState<SharedState>) -> impl Into
             Json(serde_json::json!({
                 "success": false,
                 "error": "not_found",
-                "message": "No lattice blocks available yet"
+                "message": "No update records available yet"
             }))
         ).into_response()
     }
 }
 
-async fn get_blocks(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
-    let chain_guard = state.blockchain.read().await;
-    let mut all_blocks = Vec::new();
-    for (_node, blocks) in chain_guard.lattice_chains.iter() {
-        all_blocks.extend(blocks.clone());
+async fn get_updates(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
+    let history_guard = state.history.read().await;
+    let mut all_records = Vec::new();
+    for (_node, records) in history_guard.peer_updates.iter() {
+        all_records.extend(records.clone());
     }
     Json(serde_json::json!({
         "success": true,
-        "blocks": all_blocks
+        "updates": all_records
     })).into_response()
 }
 
 async fn get_leaderboard(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
-    let chain_guard = state.blockchain.read().await;
-    let committee = chain_guard.get_committee_with_reputation(100);
-    let rankings: Vec<_> = committee.into_iter().map(|(node, score)| {
-        serde_json::json!({
-            "node": node,
-            "reputation_score": score
+    let history_guard = state.history.read().await;
+    let rankings: Vec<_> = history_guard
+        .trust_rankings(100)
+        .into_iter()
+        .map(|(node, score)| {
+            serde_json::json!({
+                "node": node,
+                "trust_score": score
+            })
         })
-    }).collect();
+        .collect();
     Json(serde_json::json!({
         "success": true,
         "leaderboard": rankings
@@ -219,11 +223,11 @@ async fn handle_browser_socket(
 
     let status = {
         let state_guard = state.read().await;
-        let height = state_guard.get_height().unwrap_or(0);
+        let round = state_guard.get_round().unwrap_or(0);
         serde_json::json!({
             "type": "welcome",
-            "height": height,
-            "chain_id": config.chain.chain_id
+            "round": round,
+            "federation_id": config.federation.id
         })
     };
     let _ = sender.send(Message::Text(status.to_string())).await;

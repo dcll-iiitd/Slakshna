@@ -1,0 +1,3 @@
+cargo:rustc-check-cfg=cfg(wasm_browser)
+cargo:rustc-check-cfg=cfg(with_crypto_provider)
+cargo:rustc-cfg=with_crypto_provider

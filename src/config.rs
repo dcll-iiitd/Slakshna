@@ -5,66 +5,62 @@ type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    pub chain: ChainConfig,
-    pub block: BlockConfig,
-    pub rewards: RewardsConfig,
-    pub genesis: GenesisConfig,
-    pub faucet: FaucetConfig,
-    pub token: TokenConfig,
+    pub federation: FederationConfig,
+    #[serde(default)]
+    pub training: TrainingConfig,
     pub node: NodeConfig,
     pub network: NetworkConfig,
-    pub validators: ValidatorsConfig,
-    pub pruning: PruningConfig,
     pub logging: LoggingConfig,
 }
 
+/// Identifies the federation a node participates in. Every node sharing an `id`
+/// derives the same gossip topic and therefore trains together.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChainConfig {
-    pub chain_id: String,
-    pub chain_name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BlockConfig {
-    pub block_time: u64,
-    pub gas_limit: u64,
-    pub max_txs_per_block: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RewardsConfig {
-    pub block_reward: u64,
-    pub validator_percent: u64,
-    pub service_pool_percent: u64,
-    pub top_nodes: usize,
-    pub rank_1_percent: u64,
-    pub rank_2_percent: u64,
-    pub rank_3_percent: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GenesisConfig {
-    pub master_address: String,
-    pub master_balance: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FaucetConfig {
-    pub enabled: bool,
-    pub amount: u64,
-    pub cooldown: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TokenConfig {
+pub struct FederationConfig {
+    pub id: String,
     pub name: String,
-    pub symbol: String,
-    pub decimals: u8,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrainingConfig {
+    /// Length of a federated epoch. Nodes align to this on the wall clock so
+    /// that independently started peers land on the same boundary.
+    #[serde(default = "default_epoch_duration")]
+    pub epoch_duration_secs: u64,
+    /// How far into the epoch a node waits for peer updates to arrive before
+    /// aggregating with whatever it has.
+    #[serde(default = "default_sync_deadline")]
+    pub sync_deadline_secs: u64,
+    /// Number of participants expected in the federation. Once updates from
+    /// this many nodes are on record, the sync barrier is released early.
+    #[serde(default = "default_expected_peers")]
+    pub expected_peers: usize,
+}
+
+fn default_epoch_duration() -> u64 {
+    600
+}
+fn default_sync_deadline() -> u64 {
+    300
+}
+fn default_expected_peers() -> usize {
+    6
+}
+
+impl Default for TrainingConfig {
+    fn default() -> Self {
+        TrainingConfig {
+            epoch_duration_secs: default_epoch_duration(),
+            sync_deadline_secs: default_sync_deadline(),
+            expected_peers: default_expected_peers(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeConfig {
     pub id: String,
+    /// "bootstrap" for a node peers dial into first, "peer" for everyone else.
     #[serde(rename = "type")]
     pub node_type: String,
     pub data_dir: String,
@@ -79,33 +75,23 @@ pub struct NetworkConfig {
     pub p2p_port: u16,
     pub ws_port: u16,
     pub api_port: u16,
-    /// Iroh NodeId strings of peers to connect to on startup.
-    /// Replaces the old libp2p multiaddress boot_nodes.
+    /// Iroh NodeId strings of peers to connect to on startup,
+    /// optionally suffixed with `@host:port` for a direct dial.
     #[serde(default)]
     pub boot_nodes: Option<Vec<String>>,
-    #[serde(default)]
-    pub star: Option<StarConfig>,
     /// Optional list of allowed Iroh NodeId strings.
     /// If non-empty, only these peers may connect (whitelisting).
     #[serde(default)]
     pub allowed_peers: Option<Vec<String>>,
+    // Keep the nested table last: TOML requires values to precede sub-tables,
+    // so `Config::save` would otherwise emit a file it cannot read back.
+    #[serde(default)]
+    pub star: Option<StarConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StarConfig {
     pub master_url: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidatorsConfig {
-    pub addresses: Vec<String>,
-    pub max_validators: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PruningConfig {
-    pub keep_blocks: u64,
-    pub keep_txs: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

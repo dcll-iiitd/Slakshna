@@ -1,9 +1,9 @@
 [package]
-name = "iiitd-blockchain"
+name = "slakshna"
 version = "0.1.0"
 edition = "2021"
 authors = ["MANant Jain"]
-description = "IIITD Virtual Machine - A blockchain with IIITD-20 token standard"
+description = "SLAKSHNA - Decentralized peer-to-peer federated learning over an Iroh QUIC mesh"
 
 [[bin]]
 name = "iiitd"

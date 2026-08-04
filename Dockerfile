@@ -1,4 +1,4 @@
-# ── Build stage ──────────────────────────────────────────
+# ── Build stage: SLAKSHNA P2P federated learning node ────
 FROM rust:1.93-bookworm AS builder
 
 RUN apt-get update && apt-get install -y \

@@ -1,0 +1,12 @@
+/mnt/d/code_projects/slakshna/Slakshna/target/release/deps/async_trait-9a82c442f698ebe9.d: /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/lib.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/args.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/bound.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/expand.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/lifetime.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/parse.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/receiver.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/verbatim.rs
+
+/mnt/d/code_projects/slakshna/Slakshna/target/release/deps/libasync_trait-9a82c442f698ebe9.so: /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/lib.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/args.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/bound.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/expand.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/lifetime.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/parse.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/receiver.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/verbatim.rs
+
+/home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/lib.rs:
+/home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/args.rs:
+/home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/bound.rs:
+/home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/expand.rs:
+/home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/lifetime.rs:
+/home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/parse.rs:
+/home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/receiver.rs:
+/home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-trait-0.1.91/src/verbatim.rs:

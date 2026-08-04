@@ -1,0 +1,10 @@
+/mnt/d/code_projects/slakshna/Slakshna/target/release/deps/rustls_cert_file_reader-9ca8ff7882d72145.d: /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/lib.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/format.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/pem.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/reader.rs
+
+/mnt/d/code_projects/slakshna/Slakshna/target/release/deps/librustls_cert_file_reader-9ca8ff7882d72145.rlib: /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/lib.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/format.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/pem.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/reader.rs
+
+/mnt/d/code_projects/slakshna/Slakshna/target/release/deps/librustls_cert_file_reader-9ca8ff7882d72145.rmeta: /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/lib.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/format.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/pem.rs /home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/reader.rs
+
+/home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/lib.rs:
+/home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/format.rs:
+/home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/pem.rs:
+/home/bapi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustls-cert-file-reader-0.4.2/src/reader.rs:

@@ -110,6 +110,7 @@ async fn main() -> Result<(), BoxError> {
     let node_id_loop = node_id.clone();
     let gpu_id_loop = config.node.gpu_id;
     let config_loop = config.clone();
+    let config_path_loop = config_path.clone();
 
     tokio::spawn(async move {
         let epoch_duration = config_loop.training.epoch_duration_secs;
@@ -128,10 +129,27 @@ async fn main() -> Result<(), BoxError> {
             let epoch_start = next_boundary;
             tracing::info!("🏁 NEW EPOCH STARTED (Global Time: {})", epoch_start);
 
+            // Dynamically reload network permissions from disk
+            let mut current_allowed = config_loop.network.allowed_peers.clone();
+            let mut current_blocked = config_loop.network.blocked_peers.clone();
+            
+            if let Ok(latest_config) = crate::config::Config::load(&config_path_loop) {
+                current_allowed = latest_config.network.allowed_peers.clone();
+                current_blocked = latest_config.network.blocked_peers.clone();
+
+                let net = net_loop.read().await;
+                net.update_permissions(
+                    latest_config.network.allowed_peers,
+                    latest_config.network.blocked_peers
+                ).await;
+                tracing::debug!("🔄 Reloaded permissions from {}", config_path_loop);
+            }
+
             // --- PHASE A: LOCAL TRAINING & PEER DELTA EXCHANGE ---
             tracing::info!("🧠 Phase A: Real Local Training & Peer Exchange executing...");
 
             let peer_deltas_dir = format!("{}/network_deltas", config_loop.node.data_dir);
+            let _ = std::fs::remove_dir_all(&peer_deltas_dir);
             std::fs::create_dir_all(&peer_deltas_dir).unwrap_or_default();
 
             // Stage every peer's most recent model update on disk for the ML engine
@@ -144,9 +162,26 @@ async fn main() -> Result<(), BoxError> {
                 for (peer_id, records) in &history.peer_updates {
                     if peer_id == &node_id_loop { continue; }
 
-                    // Find their latest model update
+                    if let Some(ref allowed) = current_allowed {
+                        if !allowed.is_empty() && !allowed.contains(peer_id) {
+                            tracing::debug!("🚫 Peer {} is not in allowed list, skipping delta extraction", peer_id);
+                            continue;
+                        }
+                    }
+                    if let Some(ref blocked) = current_blocked {
+                        if blocked.contains(peer_id) {
+                            tracing::debug!("🚫 Peer {} is blacklisted, skipping delta extraction", peer_id);
+                            continue;
+                        }
+                    }
+
+                    // Find their latest model update for the previous epoch
+                    let target_epoch = epoch_start - epoch_duration;
                     let mut found_update = false;
                     for record in records.iter().rev() {
+                        if record.epoch != target_epoch {
+                            continue;
+                        }
                         if
                             let crate::history::RecordKind::ModelUpdate {
                                 compressed_delta,
@@ -207,6 +242,7 @@ async fn main() -> Result<(), BoxError> {
 
             let mut my_update = crate::history::UpdateRecord {
                 node_id: node_id_loop.clone(),
+                epoch: epoch_start,
                 prev_hash: my_prev_hash,
                 kind: crate::history::RecordKind::ModelUpdate {
                     delta_hash: "error_hash".to_string(),
@@ -241,10 +277,14 @@ async fn main() -> Result<(), BoxError> {
                         let history = hist_loop.read().await;
 
                         // Record one peer review per evaluated peer
+                        let target_epoch = epoch_start - epoch_duration;
                         for (peer_id, weight) in ml_data.weights {
                             let mut reviewed_update_hash = None;
                             if let Some(peer_records) = history.peer_updates.get(&peer_id) {
                                 for record in peer_records.iter().rev() {
+                                    if record.epoch != target_epoch {
+                                        continue;
+                                    }
                                     if
                                         let crate::history::RecordKind::ModelUpdate { .. } =
                                             &record.kind
@@ -268,6 +308,7 @@ async fn main() -> Result<(), BoxError> {
 
                             let mut review = crate::history::UpdateRecord {
                                 node_id: node_id_loop.clone(),
+                                epoch: epoch_start,
                                 prev_hash: current_tail_hash.clone(),
                                 kind: crate::history::RecordKind::PeerReview {
                                     target_node: peer_id,

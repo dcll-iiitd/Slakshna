@@ -281,6 +281,8 @@ pub struct MeshNetwork {
     command_tx: Option<mpsc::Sender<P2PMessage>>,
     active_peers: Arc<RwLock<Vec<String>>>,
     node_id_iroh: Arc<RwLock<Option<String>>>,
+    dynamic_allowed_peers: Arc<RwLock<Option<Vec<String>>>>,
+    dynamic_blocked_peers: Arc<RwLock<Option<Vec<String>>>>,
     _router: Option<iroh::protocol::Router>,
     _endpoint: Option<iroh::Endpoint>,
 }
@@ -292,6 +294,8 @@ impl MeshNetwork {
         state: Arc<RwLock<State>>,
     ) -> Self {
         MeshNetwork {
+            dynamic_allowed_peers: Arc::new(RwLock::new(config.network.allowed_peers.clone())),
+            dynamic_blocked_peers: Arc::new(RwLock::new(config.network.blocked_peers.clone())),
             config,
             history,
             state,
@@ -301,6 +305,13 @@ impl MeshNetwork {
             _router: None,
             _endpoint: None,
         }
+    }
+
+    pub async fn update_permissions(&self, allowed: Option<Vec<String>>, blocked: Option<Vec<String>>) {
+        let mut wl = self.dynamic_allowed_peers.write().await;
+        *wl = allowed;
+        let mut bl = self.dynamic_blocked_peers.write().await;
+        *bl = blocked;
     }
 }
 
@@ -355,12 +366,29 @@ impl Network for MeshNetwork {
 
         // 5. Resolve bootstrap peers (if any provided in config)
         let mut bootstrap_peers = Vec::new();
+        let allowed_peers_conf = self.config.network.allowed_peers.clone();
+        let blocked_peers_conf = self.config.network.blocked_peers.clone();
+        
         if let Some(boot_nodes) = &self.config.network.boot_nodes {
             for node_id_str in boot_nodes {
                 if node_id_str.is_empty() { continue; }
                 let parts: Vec<&str> = node_id_str.split('@').collect();
                 match parts[0].parse::<iroh::EndpointId>() {
                     Ok(peer_node_id) => {
+                        let peer_id_str = peer_node_id.to_string();
+                        if let Some(ref allowed) = allowed_peers_conf {
+                            if !allowed.is_empty() && !allowed.contains(&peer_id_str) {
+                                warn!("🚫 Boot node not in whitelist: {}", peer_id_str);
+                                continue;
+                            }
+                        }
+                        if let Some(ref blocked) = blocked_peers_conf {
+                            if blocked.contains(&peer_id_str) {
+                                warn!("🚫 Boot node is blacklisted: {}", peer_id_str);
+                                continue;
+                            }
+                        }
+                        
                         info!("🔗 Adding bootstrap peer: {}", peer_node_id);
                         if parts.len() > 1 {
                             match parts[1].parse::<std::net::SocketAddr>() {
@@ -398,7 +426,8 @@ impl Network for MeshNetwork {
 
         let history_clone = self.history.clone();
         let peers_clone = self.active_peers.clone();
-        let allowed_peers = self.config.network.allowed_peers.clone();
+        let dyn_allowed = self.dynamic_allowed_peers.clone();
+        let dyn_blocked = self.dynamic_blocked_peers.clone();
 
         // 8. Main event loop (background task)
         tokio::spawn(async move {
@@ -428,21 +457,33 @@ impl Network for MeshNetwork {
                                     iroh_gossip::api::Event::Received(msg) => {
                                         let from_id = msg.delivered_from.to_string();
 
-                                        // Whitelisting check
-                                        if let Some(ref allowed) = allowed_peers {
-                                            if !allowed.is_empty() && !allowed.contains(&from_id) {
-                                                warn!("🚫 Blocked message from unauthorized peer: {}", from_id);
-                                                continue;
-                                            }
-                                        }
+                                        let allowed_peers = dyn_allowed.read().await;
+                                        let blocked_peers = dyn_blocked.read().await;
+
                                         let size_bytes = msg.content.len();
                                         let size_mb = size_bytes as f64 / 1_048_576.0;
-                                        info!("📡 Gossiped model update received from {} | Network Payload Size: {} bytes ({:.2} MB)", from_id, size_bytes, size_mb);
+                                        // info!("📡 Gossiped model update received from {} | Network Payload Size: {} bytes ({:.2} MB)", from_id, size_bytes, size_mb);
 
                                         if let Ok(p2p_msg) = serde_json::from_slice::<P2PMessage>(&msg.content) {
                                             match p2p_msg {
                                                 P2PMessage::NewUpdate(record) => {
-                                                    info!("📡 Gossiped model update received from {}", from_id);
+                                                    // Application-layer Blacklist Check
+                                                    if let Some(ref blocked) = *blocked_peers {
+                                                        if blocked.contains(&record.node_id) {
+                                                            warn!("🚫 Ignored model update from blacklisted author: {}", record.node_id);
+                                                            continue;
+                                                        }
+                                                    }
+                                                    
+                                                    // Application-layer Whitelist Check
+                                                    if let Some(ref allowed) = *allowed_peers {
+                                                        if !allowed.is_empty() && !allowed.contains(&record.node_id) {
+                                                            warn!("🚫 Ignored model update from unauthorized author: {}", record.node_id);
+                                                            continue;
+                                                        }
+                                                    }
+
+                                                    info!("📡 Gossiped model update received from author {}", record.node_id);
                                                     let mut history = history_clone.write().await;
                                                     history.record_update(record);
                                                 }
@@ -452,6 +493,24 @@ impl Network for MeshNetwork {
                                     }
                                     iroh_gossip::api::Event::NeighborUp(node_id) => {
                                         let peer_str = node_id.to_string();
+                                        
+                                        let allowed_peers = dyn_allowed.read().await;
+                                        let blocked_peers = dyn_blocked.read().await;
+
+                                        // Whitelisting & Blacklisting for neighbors
+                                        if let Some(ref allowed) = *allowed_peers {
+                                            if !allowed.is_empty() && !allowed.contains(&peer_str) {
+                                                warn!("🚫 Unauthorized peer joined gossip mesh (ignored): {}", peer_str);
+                                                continue;
+                                            }
+                                        }
+                                        if let Some(ref blocked) = *blocked_peers {
+                                            if blocked.contains(&peer_str) {
+                                                warn!("🚫 Blacklisted peer joined gossip mesh (ignored): {}", peer_str);
+                                                continue;
+                                            }
+                                        }
+
                                         info!("🔗 Peer joined gossip mesh: {}", peer_str);
                                         let mut peers = peers_clone.write().await;
                                         if !peers.contains(&peer_str) {

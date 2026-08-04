@@ -3,9 +3,9 @@ id = "slakshna-fl-1"
 name = "SLAKSHNA Federation"
 
 [training]
-epoch_duration_secs = 600   # Length of one federated epoch
-sync_deadline_secs = 300    # How long into the epoch to wait for peer updates
-expected_peers = 6          # Release the sync barrier early once this many nodes have reported
+epoch_duration_secs = 120   # Length of one federated epoch
+sync_deadline_secs = 90    # How long into the epoch to wait for peer updates
+expected_peers = 3          # Release the sync barrier early once this many nodes have reported
 
 [node]
 id = "node-4"

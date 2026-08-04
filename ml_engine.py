@@ -16,6 +16,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.environ["HF_HOME"] = os.path.join(BASE_DIR, "hf_cache")
 os.environ["XDG_CACHE_HOME"] = os.path.join(BASE_DIR, "cache")
 
+bhaskera_src_path = os.path.join(BASE_DIR, "Bhaskera", "src")
+if bhaskera_src_path not in sys.path:
+    sys.path.insert(0, bhaskera_src_path)
+
+current_pythonpath = os.environ.get("PYTHONPATH", "")
+if bhaskera_src_path not in current_pythonpath:
+    os.environ["PYTHONPATH"] = f"{bhaskera_src_path}:{current_pythonpath}".strip(":")
+
 # Isolate temp directories per node to prevent Ray GCS collisions
 # CRITICAL: Linux AF_UNIX sockets strictly fail if path > 107 chars! 
 # We must keep the temp path ultra-short by using just the last 6 chars of the node ID.
@@ -174,9 +182,9 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning"):
     # Force it to save by steps instead of waiting for an epoch.
     # We must allow the epoch to naturally finish to trigger the hardcoded save.
     # Set max_steps higher than 10 so it doesn't artificially terminate early.
-    config["training"]["max_steps"] = 50
+    config["training"]["max_steps"] = 2
     config["training"]["save_strategy"] = "steps"
-    config["training"]["save_steps"] = 5
+    config["training"]["save_steps"] = 2
     config["training"]["save_total_limit"] = 1
     
     # Lower the learning rate drastically to prevent the massive intra-epoch loss spikes.

@@ -33,6 +33,7 @@ pub enum RecordKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateRecord {
     pub node_id: String,
+    pub epoch: u64,
     pub prev_hash: String,
     pub kind: RecordKind,
     pub signature: String,
@@ -43,6 +44,7 @@ impl UpdateRecord {
     pub fn calculate_hash(&self) -> String {
         let mut hasher = Sha256::new();
         hasher.update(&self.node_id);
+        hasher.update(self.epoch.to_le_bytes());
         hasher.update(&self.prev_hash);
         match &self.kind {
             RecordKind::ModelUpdate { delta_hash, compressed_delta } => {

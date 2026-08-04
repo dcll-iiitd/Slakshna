@@ -83,6 +83,10 @@ pub struct NetworkConfig {
     /// If non-empty, only these peers may connect (whitelisting).
     #[serde(default)]
     pub allowed_peers: Option<Vec<String>>,
+    /// Optional list of blocked Iroh NodeId strings.
+    /// Messages from these peers are ignored (blacklisting).
+    #[serde(default)]
+    pub blocked_peers: Option<Vec<String>>,
     // Keep the nested table last: TOML requires values to precede sub-tables,
     // so `Config::save` would otherwise emit a file it cannot read back.
     #[serde(default)]

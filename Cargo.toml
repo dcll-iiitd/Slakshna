@@ -2,7 +2,7 @@
 name = "slakshna"
 version = "0.1.0"
 edition = "2021"
-authors = ["MANant Jain"]
+authors = [""]
 description = "SLAKSHNA - Decentralized peer-to-peer federated learning over an Iroh QUIC mesh"
 
 [[bin]]

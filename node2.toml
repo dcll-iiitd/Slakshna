@@ -3,9 +3,9 @@ id = "slakshna-fl-1"
 name = "SLAKSHNA Federation"
 
 [training]
-epoch_duration_secs = 600   # Length of one federated epoch
-sync_deadline_secs = 300    # How long into the epoch to wait for peer updates
-expected_peers = 6          # Release the sync barrier early once this many nodes have reported
+epoch_duration_secs = 120   # Length of one federated epoch
+sync_deadline_secs = 90    # How long into the epoch to wait for peer updates
+expected_peers = 3          # Release the sync barrier early once this many nodes have reported
 
 [node]
 id = "node-2"
@@ -21,8 +21,10 @@ p2p_port = 9001
 ws_port = 8547
 api_port = 8555
 boot_nodes = [
-    "de168a6b9c9989e074cf8a877d97e82deaea6a67d32090b0e757a6bfffdf9fc9@127.0.0.1:9000"
+    "50e2b094aeac8556cbbb23dda2488cff1ffa38af162e667d17e53f69772bd46c@127.0.0.1:9000"
 ]
+
+blocked_peers = ["slakshna1lp2cvw88n7ev4yzzkn89d3wppttsrea2haj0cu"]
 
 [network.star]
 master_url = "http://192.168.22.23:8545"

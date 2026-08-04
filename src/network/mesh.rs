@@ -288,7 +288,7 @@ impl Network for MeshNetwork {
                             if peer_id == my_endpoint_id {
                                 continue;
                             }
-                            info!("📻 Discovered federation peer on the local network: {}", peer_id.fmt_short());
+                            debug!("📻 Discovered federation peer on the local network: {}", peer_id.fmt_short());
                             remember_peer(&state, &peer_id.to_string()).await;
                             if let Err(e) = sender.join_peers(vec![peer_id]).await {
                                 warn!("⚠️ Failed to join discovered peer {}: {:?}", peer_id.fmt_short(), e);

@@ -20,6 +20,10 @@ bash setup.sh                 # pip deps + creates data/ logs/ ml_models/ ml_sta
 cargo build --release         # binary is target/release/iiitd (bin name != package name `slakshna`)
 cargo check                   # fast iteration on the Rust side
 
+# rocksdb -> zstd-sys -> bindgen needs libclang. If the build dies with
+# "Unable to find libclang", point it at the installed LLVM:
+export LIBCLANG_PATH=/usr/lib/llvm-18/lib
+
 ./target/release/iiitd --config node1.toml    # arg parsing is positional: exactly `--config <path>`, else config.toml
 ```
 
@@ -38,7 +42,7 @@ python orchestrator.py             # spawns N local Rust nodes from config.toml 
 python plots_script/plot_loss.py   # plots read logs/*.csv, write results/*.png
 ```
 
-There is no test suite beyond two unit tests in `src/identity.rs` (`cargo test`).
+There is no test suite beyond three unit tests in `src/identity.rs` (`cargo test`).
 
 ## Architecture
 
@@ -67,13 +71,29 @@ Anything printed to stdout after it breaks parsing silently (the Rust side just 
 
 `main.rs` overwrites the TOML `node.id` with a bech32 `NodeId` (hrp `slakshna`) derived from an Ed25519 keypair persisted in `{data_dir}/rocksdb` (`state.rs::get_or_create_node_identity`). So the `id` in the TOML is cosmetic; the real ID is stable per `data_dir` and **deleting `data_dir` gives the node a new identity**, orphaning its `ml_models/ckpt_*` and `ml_states/*` files. This ID is what's passed to Python and what keys every file under `ml_models/`, `ml_states/`, and `logs/`.
 
-Separately, the **Iroh NodeId** (a different Ed25519 key, regenerated per process by `Endpoint::bind`) is what peers dial. It's printed at startup and goes in a peer's `boot_nodes` as `<iroh_node_id>@<ip:port>`.
+Separately, the **Iroh EndpointId** is what peers dial. It is a different Ed25519 key, but no longer a random one: `mesh.rs` derives it from the same persisted keypair via `Keypair::transport_seed()` (`sha256("slakshna/iroh-endpoint/v1" || signing_key)`), so it is **stable across restarts** as long as `data_dir` survives. That stability is what makes a bootstrap-free federation possible — cached peer entries and published `peers` values stay valid. It's printed at startup, served at `GET /status`, and goes in a peer's `peers` list as a bare id (or `<endpoint_id>@<ip:port>` to pin an address).
 
 ### Networking (`src/network/mesh.rs`)
 
-The top ~250 lines are a commented-out earlier revision; live code starts at the second `use` block. Gossip topic = `sha256(federation.id)`, so **all nodes must share a `[federation] id` to see each other**. Relays are `Disabled` and address lookup cleared despite the `presets::N0` builder — peers only connect via explicit `boot_nodes` direct addresses (typically a Playit.gg static tunnel; see README). `star.rs` is a legacy WebSocket star topology that `main.rs` never instantiates (it always builds `MeshNetwork` regardless of `network.topology`); it survives because `mesh.rs` imports `P2PMessage` from it.
+**There is no bootstrap node and no node type.** Every participant is symmetric; membership is decided by the shared `[federation] id`, which is hashed into both the gossip topic (`sha256(federation.id)`) and the mDNS service label (`sl<hex10>`, kept under the 15-char DNS-SD limit). All nodes must share a `[federation] id` to see each other.
 
-`node.type` is `"bootstrap"` (the node peers dial first) or `"peer"`. Only `star.rs` reads it, and it still accepts the old `"master"` spelling.
+`start()` layers four independent ways to find peers, none of which needs a designated host:
+
+1. **mDNS** (`iroh-mdns-address-lookup`) — LAN/same-host discovery. Its `subscribe()` stream is drained by a background task that calls `GossipSender::join_peers` and caches the peer.
+2. **Peer cache** — every peer seen via mDNS or gossip `NeighborUp` is written to RocksDB under `peer:{endpoint_id}` (`state.rs::remember_peer` / `known_peers`) and re-offered on the next start.
+3. **Gossip peer exchange** — iroh-gossip's own membership layer, once any single peer is reachable.
+4. **Mainline DHT + pkarr/DNS** (`iroh-mainline-address-lookup`, `presets::N0`) — global EndpointId → address resolution.
+
+Each is switchable in `[discovery]` (`mdns`/`dht`/`dns`/`relay`, all default true). Addresses pinned as `<endpoint_id>@<ip:port>` in `network.peers` go into a `MemoryLookup` (still supported for Playit.gg-style tunnels; see README).
+
+Two details that matter:
+
+- `gossip.subscribe(...)`, **not** `subscribe_and_join` — the latter blocks until a neighbour exists, which would make a lone node hang forever. A node must be able to start first and be found later.
+- A `REJOIN_INTERVAL` (60 s) task re-offers the whole remembered peer set to the membership layer. This is what heals partitions with no coordinator.
+
+`network.peers` accepts `boot_nodes` as a serde alias, so older config files still load.
+
+The legacy `star.rs` WebSocket star topology has been deleted — a star is the thing this design is removing — along with `network.topology` and `[network.star]`. `P2PMessage` now lives in `src/network/mod.rs`.
 
 ### `ml_engine.py` pipeline
 

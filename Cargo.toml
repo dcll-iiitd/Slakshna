@@ -51,3 +51,9 @@ url = "2.4"
 iroh = { version = "1.0.2", features = ["test-utils"] }
 iroh-gossip = "0.101.0"
 iroh-blobs = "0.103.0"
+
+# Serverless peer discovery: mDNS on the local network, BitTorrent mainline DHT
+# globally. Together with gossip peer exchange these remove any need for a
+# privileged bootstrap node.
+iroh-mdns-address-lookup = "0.4"
+iroh-mainline-address-lookup = "0.4"

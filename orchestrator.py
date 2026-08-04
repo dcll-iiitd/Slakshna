@@ -1,3 +1,4 @@
+import copy
 import subprocess
 import os
 import time
@@ -27,17 +28,18 @@ def setup_nodes(num_nodes):
 
     for i in range(num_nodes):
         node_id = f"node-{i}"
-        node_config = base_config.copy()
-        
+        node_config = copy.deepcopy(base_config)
+
         # Update unique fields
         node_config["node"]["id"] = node_id
         node_config["node"]["data_dir"] = f"{DATA_DIR}/{node_id}"
         node_config["network"]["p2p_port"] = BASE_PORT_P2P + i
         node_config["network"]["api_port"] = BASE_PORT_API + i
-        
-        # For mesh connectivity, master nodes need to know a neighbor
-        if i > 0:
-            node_config["network"]["star"]["master_url"] = f"http://localhost:{BASE_PORT_API}"
+
+        # No seed peers and no designated first node: every node advertises
+        # itself over mDNS and finds the others on its own.
+        node_config["network"]["peers"] = []
+        node_config.setdefault("discovery", {})["mdns"] = True
 
         config_path = f"{CONFIG_DIR}/{node_id}.toml"
         with open(config_path, "w") as f:

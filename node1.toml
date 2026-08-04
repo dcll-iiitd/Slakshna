@@ -9,21 +9,24 @@ expected_peers = 6          # Release the sync barrier early once this many node
 
 [node]
 id = "1"
-type = "bootstrap"
 data_dir = "./data-node1"
-
 gpu_id = 3
 
 [network]
-topology = "mesh"
 host = "0.0.0.0"
 p2p_port = 9000
 ws_port = 8546
 api_port = 8545
-boot_nodes = []
+# Optional seed peers, as Iroh EndpointIds. Every entry is an equal member —
+# no node here is privileged. Leave empty and this node is still reachable:
+# it advertises itself over mDNS and the DHT, and remembers every peer it meets.
+peers = []
 
-[network.star]
-master_url = ""
+[discovery]
+mdns = true                 # Zero-config discovery of federation members on the local network
+dht = true                  # Serverless global lookup over the BitTorrent mainline DHT
+dns = true                  # Number 0's public pkarr/DNS lookup; set false for a self-contained federation
+relay = true                # Public relays as a fallback transport when hole punching fails
 
 [logging]
 level = "info"

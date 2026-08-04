@@ -1,9 +1,17 @@
 use crate::identity::{ NodeId, Keypair };
-use rocksdb::{ DB, Options };
+use rocksdb::{ DB, Direction, IteratorMode, Options };
 use serde::{ Deserialize, Serialize };
 use std::path::Path;
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
+const PEER_PREFIX: &[u8] = b"peer:";
+
+fn peer_key(endpoint_id: &str) -> Vec<u8> {
+    let mut key = PEER_PREFIX.to_vec();
+    key.extend_from_slice(endpoint_id.as_bytes());
+    key
+}
 
 pub struct State {
     db: DB,
@@ -71,6 +79,39 @@ impl State {
         } else {
             Ok(0)
         }
+    }
+
+    /// Remember a peer we have actually reached, keyed by its Iroh EndpointId.
+    ///
+    /// This is the federation's memory of itself: every peer met over gossip or
+    /// mDNS is written here, so a restarted node redials the swarm from its own
+    /// history instead of depending on a well-known node being up.
+    pub fn remember_peer(&mut self, endpoint_id: &str) -> Result<(), BoxError> {
+        let last_seen = chrono::Utc::now().timestamp();
+        self.db.put(peer_key(endpoint_id), last_seen.to_le_bytes())?;
+        Ok(())
+    }
+
+    /// Every peer this node has ever reached, most-recently-seen first.
+    pub fn known_peers(&self) -> Vec<String> {
+        let mut peers: Vec<(String, i64)> = Vec::new();
+
+        let iter = self.db.iterator(IteratorMode::From(PEER_PREFIX, Direction::Forward));
+        for item in iter {
+            let Ok((key, value)) = item else { continue };
+            if !key.starts_with(PEER_PREFIX) {
+                break;
+            }
+            let Ok(endpoint_id) = std::str::from_utf8(&key[PEER_PREFIX.len()..]) else { continue };
+            let last_seen = value[..]
+                .try_into()
+                .map(i64::from_le_bytes)
+                .unwrap_or(0);
+            peers.push((endpoint_id.to_string(), last_seen));
+        }
+
+        peers.sort_by(|a, b| b.1.cmp(&a.1));
+        peers.into_iter().map(|(id, _)| id).collect()
     }
 
     // History snapshot for sync

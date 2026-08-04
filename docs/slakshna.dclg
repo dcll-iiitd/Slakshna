@@ -1,0 +1,748 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doclang version="0.7">
+<head>
+  <title>SLAKSHNA — Decentralized Geo-Localised Personalized Federated Learning</title>
+</head>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 1. TITLE & ABSTRACT                                                -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading>SLAKSHNA — Decentralized Geo-Localised Personalized Federated Learning</heading>
+
+<text>
+  A <bold>Peer-to-Peer Federated Learning Framework</bold> built in <bold>Rust</bold>
+  and integrated with a high-performance Python Machine Learning Engine
+  (<bold>Bhaskera</bold>). SLAKSHNA enables decentralized, privacy-preserving,
+  weighted-aggregation Federated Learning without centralized aggregators or
+  synchronous blocking rounds. It runs across geo-localized machines and
+  institutional clusters (including SLURM-managed supercomputers and
+  Kubernetes-managed clusters) separated by complex firewalls, securely sharing
+  compressed model updates without any central coordinator.
+</text>
+
+<text>
+  <bold>License:</bold> Apache License 2.0
+</text>
+
+<text>
+  <bold>Author:</bold> MANant Jain
+</text>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 2. KEY FEATURES                                                    -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Key Features and Architectural Highlights</heading>
+
+<list>
+  <ldiv><marker>•</marker></ldiv>
+  <text>
+    <bold>Asynchronous P2P Training</bold> — Instead of traditional synchronous FL
+    rounds that wait for slow participants, SLAKSHNA operates asynchronously.
+    Nodes continuously train on local data, broadcast compressed model deltas to
+    the network, and evaluate peers dynamically.
+  </text>
+
+  <ldiv><marker>•</marker></ldiv>
+  <text>
+    <bold>Iroh QUIC Mesh and Gossip Network</bold> — Built on Iroh v1.0.2, the
+    framework utilises QUIC transport, direct NAT traversal (STUN/DERP), and
+    <code>iroh-gossip</code> topic swarms. Nodes discover peers dynamically using
+    cryptographic Ed25519 EndpointId public keys.
+  </text>
+
+  <ldiv><marker>•</marker></ldiv>
+  <text>
+    <bold>No Bootstrap Node</bold> — Every participant is identical: there is no
+    coordinator, no first node, and no node type. Membership follows from the
+    shared <code>[federation] id</code> alone. Nodes find each other through mDNS
+    on the local network, the BitTorrent mainline DHT and pkarr/DNS globally, and
+    gossip peer exchange once connected — each node remembers every peer it has
+    ever met in its own RocksDB.
+  </text>
+
+  <ldiv><marker>•</marker></ldiv>
+  <text>
+    <bold>Universal Firewall and VPN Traversal (Playit.gg)</bold> — SLAKSHNA
+    natively supports static public UDP/TCP tunnelling via Playit.gg, providing
+    fixed, persistent public addresses for nodes across different cities without
+    requiring root access or complex router configurations.
+  </text>
+
+  <ldiv><marker>•</marker></ldiv>
+  <text>
+    <bold>Bhaskera ML Engine</bold> — A robust Python engine bridging the Rust
+    networking layer with distributed GPU/CPU training. Powered by Ray Train
+    (TorchTrainer), PyTorch, and parameter-efficient training algorithms, it
+    executes local pre-training and fine-tuning on tokenised datasets while
+    streaming real-time epoch loss tracking.
+  </text>
+
+  <ldiv><marker>•</marker></ldiv>
+  <text>
+    <bold>SLURM Supercomputer and Multi-Core Cluster Support</bold> — Fully
+    compatible with HPC SLURM clusters. SLURM isolates allocated GPUs seamlessly
+    and maps to cluster-assigned resources without port collisions or resource
+    deadlocks.
+  </text>
+
+  <ldiv><marker>•</marker></ldiv>
+  <text>
+    <bold>Weighted Aggregation</bold> — Peers asynchronously evaluate incoming
+    model updates by computing cosine similarity against their local gradient
+    direction and tracking validation loss improvements. Nodes dynamically update
+    peer weights and aggregate updates accordingly.
+  </text>
+
+  <ldiv><marker>•</marker></ldiv>
+  <text>
+    <bold>Sparsification and Compression</bold> — Before broadcasting, local
+    weight updates are sparsified to retain only the most significant weights
+    (SparseLoCo Top-K, e.g. sparsity=0.01). Sparse tensors are encoded (fp16/fp8)
+    and base64-compressed, reducing network bandwidth requirements by over 98%.
+  </text>
+
+  <ldiv><marker>•</marker></ldiv>
+  <text>
+    <bold>Differential Privacy (DP)</bold> — L2 norm clipping and Gaussian noise
+    augmentation ensure Differential Privacy for local gradients, protecting
+    against membership inference and model inversion attacks. The system also
+    supports integration with Opacus PrivacyEngine and opt-einsum.
+  </text>
+</list>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 3. SYSTEM ARCHITECTURE                                             -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">System Architecture</heading>
+
+<text>
+  The system is organised into two primary engines connected by a process bridge:
+</text>
+
+<code>
+  <label value="Text"/>
+  <content>
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Axum HTTP &amp; WS Server                         │
+│                     (Node Status, Leaderboard)                        │
+├──────────────────────────────┬─────────────────────────────────────────┤
+│       Rust P2P Engine        │          Python ML Engine               │
+│                              │                                        │
+│  • Iroh Mesh &amp; Gossip       │  • ml_engine.py Bridge                 │
+│  • Decentralised Sync        │  • Bhaskera (Ray Train / PyTorch)      │
+│  • Local State Persistence   │  • LoRA Fine-Tuning &amp; SparseLoCo      │
+│  • Asynchronous Evaluation   │  • Differential Privacy                │
+├──────────────────────────────┴─────────────────────────────────────────┤
+│                    Iroh Network (iroh-gossip)                          │
+│          (QUIC / Ed25519 TLS 1.3 / mDNS / STUN / Playit.gg)          │
+└────────────────────────────────────────────────────────────────────────┘</content>
+</code>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 4. TECHNOLOGY STACK                                                -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Technology Stack</heading>
+
+<table>
+  <ched/>Layer<ched/>Technologies Used<nl/>
+  <fcel/>Networking Core<fcel/>Rust (edition 2021), Tokio async runtime<nl/>
+  <fcel/>P2P Communication<fcel/>Iroh v1.0.2, iroh-gossip, iroh-relay, QUIC, Ed25519 TLS 1.3, Playit.gg (static tunnels)<nl/>
+  <fcel/>Peer Discovery<fcel/>mDNS (iroh-mdns-address-lookup), BitTorrent mainline DHT (iroh-mainline-address-lookup), pkarr/DNS, gossip peer exchange, on-disk peer cache (RocksDB)<nl/>
+  <fcel/>API and WebSockets<fcel/>Axum 0.7, Hyper, tokio-tungstenite (WebSocket), Serde / Serde JSON<nl/>
+  <fcel/>ML Engine and FL<fcel/>Python 3.11+, PyTorch, Ray / Ray Train (TorchTrainer), setproctitle<nl/>
+  <fcel/>Transformers and PEFT<fcel/>HuggingFace Transformers, PEFT (LoRA), PyArrow (Parquet caching), PyYAML<nl/>
+  <fcel/>Differential Privacy<fcel/>Gradient clipping, noise injection, Opacus (PrivacyEngine), opt-einsum<nl/>
+  <fcel/>Persistence<fcel/>RocksDB 0.22 (keypair, peer cache, round counter)<nl/>
+  <fcel/>Cryptography<fcel/>ed25519-dalek 2.1, sha2, bech32 (NodeId encoding)<nl/>
+  <fcel/>Containerisation<fcel/>Docker (multi-stage Rust build), Docker Compose, Nginx, Certbot (Let's Encrypt SSL)<nl/>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 5. REPOSITORY STRUCTURE                                            -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Repository Structure</heading>
+
+<heading level="3">Rust Source (src/)</heading>
+
+<table>
+  <ched/>File<ched/>Description<nl/>
+  <fcel/><code>src/main.rs</code><fcel/>Node entry point, federated epoch loop, P2P orchestrator, ML Engine bridge, and network broadcast<nl/>
+  <fcel/><code>src/config.rs</code><fcel/>TOML configuration loader — FederationConfig, TrainingConfig, NodeConfig, NetworkConfig, DiscoveryConfig, LoggingConfig<nl/>
+  <fcel/><code>src/identity.rs</code><fcel/>Ed25519 keypair generation, bech32-encoded NodeId (HRP "slakshna"), message signing/verification, deterministic Iroh transport seed<nl/>
+  <fcel/><code>src/history.rs</code><fcel/>Local update history — per-peer append-only log of ModelUpdate and PeerReview records, SHA-256 hash-chained integrity, trust ranking<nl/>
+  <fcel/><code>src/state.rs</code><fcel/>RocksDB-backed persistent state — keypair storage, round counter, peer memory cache (remember_peer / known_peers)<nl/>
+  <fcel/><code>src/api.rs</code><fcel/>Axum HTTP REST endpoints and real-time WebSocket broadcast server for dashboards<nl/>
+  <fcel/><code>src/network/mod.rs</code><fcel/>P2PMessage wire format (Hello, Welcome, NewUpdate, GetState, Ping/Pong) and the Network trait<nl/>
+  <fcel/><code>src/network/mesh.rs</code><fcel/>MeshNetwork — Iroh Endpoint binding, gossip subscription, mDNS and DHT discovery, periodic peer re-join, inbound/outbound message loop, peer whitelisting<nl/>
+</table>
+
+<heading level="3">Python ML Engine</heading>
+
+<table>
+  <ched/>File<ched/>Description<nl/>
+  <fcel/><code>ml_engine.py</code><fcel/>Python ML bridge executing Bhaskera distributed LoRA/full-parameter training, DP clipping, SparseLoCo sparsification, error-feedback compression, peer evaluation via cosine similarity, trust-weighted federated averaging<nl/>
+  <fcel/><code>node_template.yaml</code><fcel/>Base YAML template for HuggingFace / Ray / PEFT / Bhaskera training arguments<nl/>
+  <fcel/><code>orchestrator.py</code><fcel/>Local multi-node benchmark launcher — generates per-node TOML configs, starts N processes on the same machine using mDNS for discovery<nl/>
+</table>
+
+<heading level="3">Configuration and Deployment</heading>
+
+<table>
+  <ched/>File<ched/>Description<nl/>
+  <fcel/><code>node1.toml</code> — <code>node5.toml</code><fcel/>Per-node TOML configuration files<nl/>
+  <fcel/><code>Cargo.toml</code><fcel/>Rust package manifest with all dependencies<nl/>
+  <fcel/><code>Dockerfile</code><fcel/>Multi-stage Docker build (rust:1.93-bookworm builder, debian:bookworm-slim runtime)<nl/>
+  <fcel/><code>docker-compose.yml</code><fcel/>Docker Compose stack — backend, nginx reverse proxy, certbot SSL<nl/>
+  <fcel/><code>setup.sh</code><fcel/>Main installation script for Python environment and Rust build<nl/>
+  <fcel/><code>deploy.sh</code><fcel/>Full deployment automation — Docker, swap, SSL certificates, cron renewal<nl/>
+  <fcel/><code>Bhaskera/</code><fcel/>Embedded ML training framework (distributed LLM training, tokenisation, checkpointing)<nl/>
+</table>
+
+<heading level="3">Analysis and Results</heading>
+
+<table>
+  <ched/>Directory<ched/>Description<nl/>
+  <fcel/><code>scripts/</code><fcel/>Benchmarking scripts (benchmark.py, run_ml_sweep.py, run_latency_sweep.py, test_shield_debug.py)<nl/>
+  <fcel/><code>plots_script/</code><fcel/>Visualisation scripts (loss plots, trust scores, latency/throughput, malicious sweep, honest accuracy)<nl/>
+  <fcel/><code>results/</code><fcel/>Generated plots and evaluation metric graphs<nl/>
+  <fcel/><code>logs/</code><fcel/>Runtime communication logs, epoch loss tracking CSVs, trust score CSVs<nl/>
+  <fcel/><code>benchmark_configs/</code><fcel/>Auto-generated node configs for multi-node benchmarking<nl/>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 6. SECURITY AND PRIVACY ARCHITECTURE                              -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Security and Privacy Architecture</heading>
+
+<text>
+  SLAKSHNA is built from the ground up to operate securely over untrusted public
+  networks, proxies, and shared supercomputers:
+</text>
+
+<heading level="3">End-to-End Cryptographic Transport (TLS 1.3 over QUIC)</heading>
+
+<text>
+  Every node generates an Ed25519 cryptographic keypair upon startup
+  (<code>src/identity.rs</code>). All communication across the Iroh mesh is wrapped
+  in end-to-end TLS 1.3 encryption. Public proxy services (Playit.gg) act purely
+  as raw packet forwarders — they cannot read, decrypt, or tamper with model
+  weights because they do not hold the private keys.
+</text>
+
+<heading level="3">Poisoning Defence</heading>
+
+<text>
+  When a node receives a peer's delta, <code>ml_engine.py</code> evaluates the
+  update against local validation metrics (Cosine Similarity and Validation Loss).
+  If a node submits poisoned or erratic updates, its trust score (alpha) drops,
+  rendering its weight in the Federated Averaging formula close to 0.0.
+  Additionally, peer deltas are validated for NaN/Inf injection and extreme norm
+  anomalies (<code>validate_peer_delta</code>, max_allowed_norm=10.0).
+</text>
+
+<heading level="3">Differential Privacy against Data Reconstruction</heading>
+
+<text>
+  By combining sparsification/compression with differential privacy (L2 norm
+  clipping and configurable Gaussian noise injection), raw local dataset samples
+  can never be reconstructed by eavesdroppers or peer nodes.
+</text>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 7. RUST MODULE REFERENCE                                           -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Rust Module Reference</heading>
+
+<heading level="3">config — Configuration (src/config.rs)</heading>
+
+<text>
+  Loads a per-node TOML file and deserialises it into the following structs:
+</text>
+
+<table>
+  <ched/>Struct<ched/>Fields<ched/>Purpose<nl/>
+  <fcel/><code>Config</code><fcel/>federation, training, node, network, discovery, logging<fcel/>Top-level configuration container<nl/>
+  <fcel/><code>FederationConfig</code><fcel/>id, name<fcel/>Identifies the federation; nodes sharing the same id train together<nl/>
+  <fcel/><code>TrainingConfig</code><fcel/>epoch_duration_secs (default 600), sync_deadline_secs (default 300), expected_peers (default 6)<fcel/>Federated epoch timing and sync barrier<nl/>
+  <fcel/><code>NodeConfig</code><fcel/>id, data_dir, gpu_id<fcel/>Per-node identity, storage path, and GPU assignment<nl/>
+  <fcel/><code>NetworkConfig</code><fcel/>host, p2p_port, ws_port, api_port, peers, allowed_peers<fcel/>Network binding and optional seed peers / whitelist<nl/>
+  <fcel/><code>DiscoveryConfig</code><fcel/>mdns, dht, dns, relay (all default true)<fcel/>Toggle serverless discovery mechanisms<nl/>
+  <fcel/><code>LoggingConfig</code><fcel/>level<fcel/>Log verbosity (debug, info, warn, error)<nl/>
+</table>
+
+<heading level="3">identity — Node Identity (src/identity.rs)</heading>
+
+<text>
+  Provides cryptographic identity for each node:
+</text>
+
+<list>
+  <ldiv><marker>•</marker></ldiv>
+  <text><bold>NodeId</bold> — bech32-encoded (HRP "slakshna") truncated SHA-256 of the Ed25519 public key. Stable across restarts as long as the data_dir persists.</text>
+  <ldiv><marker>•</marker></ldiv>
+  <text><bold>Keypair</bold> — Ed25519 signing/verifying key pair. Supports generation, serialisation from bytes/hex, signing, verification, and a domain-separated <code>transport_seed()</code> for deriving a stable Iroh EndpointId.</text>
+</list>
+
+<heading level="3">history — Update History (src/history.rs)</heading>
+
+<text>
+  Maintains a per-peer append-only log of federated learning records:
+</text>
+
+<list>
+  <ldiv><marker>•</marker></ldiv>
+  <text><bold>RecordKind::ModelUpdate</bold> — Contains delta_hash and the base64-encoded compressed_delta.</text>
+  <ldiv><marker>•</marker></ldiv>
+  <text><bold>RecordKind::PeerReview</bold> — Contains target_node, update_hash, loss_drop, and trust_score.</text>
+  <ldiv><marker>•</marker></ldiv>
+  <text><bold>UpdateRecord</bold> — Hash-chained (prev_hash → SHA-256 hash) with node_id and signature.</text>
+  <ldiv><marker>•</marker></ldiv>
+  <text><bold>trust_rankings(k)</bold> — Accumulates trust scores from all PeerReview records and returns the top-k peers.</text>
+  <ldiv><marker>•</marker></ldiv>
+  <text><bold>COHORT_SIZE</bold> = 4 — Number of most-trusted peers in the aggregation cohort per epoch.</text>
+</list>
+
+<heading level="3">state — Persistent State (src/state.rs)</heading>
+
+<text>
+  RocksDB-backed storage under <code>{data_dir}/rocksdb</code>:
+</text>
+
+<list>
+  <ldiv><marker>•</marker></ldiv>
+  <text><code>meta:keypair</code> — 32-byte Ed25519 signing key, generated once and reused.</text>
+  <ldiv><marker>•</marker></ldiv>
+  <text><code>meta:round</code> — u64 completed federated epoch counter.</text>
+  <ldiv><marker>•</marker></ldiv>
+  <text><code>peer:&lt;EndpointId&gt;</code> — Timestamp of last contact; every peer ever met is stored and redialled on restart.</text>
+</list>
+
+<heading level="3">network::mesh — Iroh Mesh Network (src/network/mesh.rs)</heading>
+
+<text>
+  The MeshNetwork struct implements the Network trait and manages the entire P2P
+  lifecycle:
+</text>
+
+<list class="ordered">
+  <ldiv><marker>1.</marker></ldiv>
+  <text>Derive a deterministic transport SecretKey from the persisted federation keypair.</text>
+  <ldiv><marker>2.</marker></ldiv>
+  <text>Bind an Iroh Endpoint with configurable mDNS, DHT, DNS, relay, and MemoryLookup discovery.</text>
+  <ldiv><marker>3.</marker></ldiv>
+  <text>Spawn a Gossip instance with 10 MB max message size, attached to the ALPN-routed protocol Router.</text>
+  <ldiv><marker>4.</marker></ldiv>
+  <text>Derive the gossip TopicId from SHA-256 of the federation id — membership is entirely configuration-driven.</text>
+  <ldiv><marker>5.</marker></ldiv>
+  <text>Subscribe to the topic with seed peers (config + RocksDB cache), using <code>subscribe</code> (not subscribe_and_join) so a node starts alone if needed.</text>
+  <ldiv><marker>6.</marker></ldiv>
+  <text>Run background tasks: mDNS event forwarding, periodic re-join of all remembered peers (every 60s), and the main inbound/outbound select loop.</text>
+  <ldiv><marker>7.</marker></ldiv>
+  <text>Enforce optional peer whitelisting via <code>allowed_peers</code>.</text>
+</list>
+
+<heading level="3">api — HTTP REST and WebSocket API (src/api.rs)</heading>
+
+<table>
+  <ched/>Method<ched/>Endpoint<ched/>Description<nl/>
+  <fcel/>GET<fcel/><code>/</code><fcel/>Returns system name, version, and available endpoints<nl/>
+  <fcel/>GET<fcel/><code>/status</code><fcel/>Returns federation id, completed round, active Iroh peer count, and EndpointId<nl/>
+  <fcel/>GET<fcel/><code>/updates</code><fcel/>Returns every model update and peer review on record<nl/>
+  <fcel/>GET<fcel/><code>/updates/latest</code><fcel/>Returns the most recent record in the local update history<nl/>
+  <fcel/>GET<fcel/><code>/updates/:index</code><fcel/>Returns what each participant contributed at that position in its log<nl/>
+  <fcel/>GET<fcel/><code>/leaderboard</code><fcel/>Returns node trust score rankings (alpha / w_i)<nl/>
+  <fcel/>GET<fcel/><code>/peers</code><fcel/>Returns connected peers, EndpointId, and all known (cached) peers<nl/>
+  <fcel/>WS<fcel/><code>ws://host:ws_port/ws</code><fcel/>Live WebSocket stream emitting peer evaluation updates<nl/>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 8. ML ENGINE REFERENCE                                             -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">ML Engine Reference (ml_engine.py)</heading>
+
+<heading level="3">Execution Flow</heading>
+
+<text>
+  The Rust node spawns <code>python ml_engine.py &lt;my_id&gt; [peer_id ...]</code>
+  once per federated epoch. The engine's final stdout line is a JSON object
+  conforming to the <code>MLEngineOutput</code> contract:
+</text>
+
+<code>
+  <label value="JSON"/>
+  <content><![CDATA[{
+  "weights":          { "<peer_id>": <w_i_float>, ... },
+  "model_hash":       "<sha256_hex>",
+  "validation_score": <float>,
+  "metadata":         "<string>",
+  "compressed_delta": "<base64_encoded_sparse_tensor>"
+}]]></content>
+</code>
+
+<heading level="3">Pipeline Stages</heading>
+
+<list class="ordered">
+  <ldiv><marker>1.</marker></ldiv>
+  <text><bold>State Initialisation</bold> — Load or create per-node state (alpha weights, grad_alpha, score, round counter). Compute softmax trust weights w_i.</text>
+
+  <ldiv><marker>2.</marker></ldiv>
+  <text><bold>Bhaskera Config Preparation</bold> — Generate a per-node YAML config from node_template.yaml, overriding dataset paths, checkpoint directories, learning rate, max_steps, Ray ports, and GPU assignment.</text>
+
+  <ldiv><marker>3.</marker></ldiv>
+  <text><bold>Dataset Tokenisation</bold> — Run <code>bhaskera.launcher.tokenize</code> if no cached parquet files exist. Truncate to 80 rows for fast iteration.</text>
+
+  <ldiv><marker>4.</marker></ldiv>
+  <text><bold>Distributed Training</bold> — Launch <code>bhaskera.launcher.train</code> via subprocess with real-time stdout parsing for epoch loss tracking. Runs on a private per-node Ray cluster.</text>
+
+  <ldiv><marker>5.</marker></ldiv>
+  <text><bold>Delta Extraction</bold> — Compute true delta (new_weights − old_weights) for either LoRA adapters (fine-tuning mode) or full parameters (pre-training mode via DCP checkpoints).</text>
+
+  <ldiv><marker>6.</marker></ldiv>
+  <text><bold>Differential Privacy</bold> — Apply L2 norm clipping (max_norm=100.0) and optional Gaussian noise injection to the delta.</text>
+
+  <ldiv><marker>7.</marker></ldiv>
+  <text><bold>Error Feedback and SparseLoCo</bold> — Add residual error from the previous epoch, apply Top-K sparsification (sparsity=0.1), save the new residual for the next epoch, and encode to fp16 + base64 for network transmission.</text>
+
+  <ldiv><marker>8.</marker></ldiv>
+  <text><bold>Peer Delta Aggregation</bold> — Load peer deltas from <code>{data_dir}/network_deltas/{peer_id}_delta.b64</code>, validate (NaN/Inf check, norm threshold), and compute trust-weighted federated average.</text>
+
+  <ldiv><marker>9.</marker></ldiv>
+  <text><bold>Model Update</bold> — Apply the aggregated delta to the base model (LoRA checkpoint or full-parameter safetensors).</text>
+
+  <ldiv><marker>10.</marker></ldiv>
+  <text><bold>Peer Evaluation</bold> — Compute cosine similarity between local delta and each peer's delta. Update trust scores with exponential decay (beta=0.1, decay=0.98).</text>
+</list>
+
+<heading level="3">Key Functions</heading>
+
+<table>
+  <ched/>Function<ched/>Purpose<nl/>
+  <fcel/><code>get_device(my_id)</code><fcel/>Map node to a dedicated GPU (CUDA_VISIBLE_DEVICES or hash-based assignment)<nl/>
+  <fcel/><code>prepare_bhaskera_config(my_id, is_malicious, training_mode)</code><fcel/>Generate per-node YAML config with isolated paths, ports, and training hyperparameters<nl/>
+  <fcel/><code>apply_differential_privacy_and_clipping(delta_dict, max_norm, noise_multiplier)</code><fcel/>L2 norm clipping and Gaussian noise for DP-SGD<nl/>
+  <fcel/><code>validate_peer_delta(delta_dict, max_allowed_norm)</code><fcel/>Reject deltas with NaN/Inf or extreme norms<nl/>
+  <fcel/><code>sparsify_tensor(tensor, sparsity)</code><fcel/>SparseLoCo Top-K: keep only the top sparsity fraction of weights<nl/>
+  <fcel/><code>flatten_tensors(delta_dict)</code><fcel/>Concatenate all tensors into a single vector for cosine similarity computation<nl/>
+  <fcel/><code>get_adapter_path(ckpt_dir)</code><fcel/>Recursively find the most recent safetensors or bin checkpoint file<nl/>
+  <fcel/><code>extract_training_metrics(ckpt_dir)</code><fcel/>Read final loss from epoch_loss_tracking.csv and compute perplexity<nl/>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 9. FEDERATED EPOCH LIFECYCLE                                       -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Federated Epoch Lifecycle</heading>
+
+<text>
+  Each node independently runs a continuous loop in <code>src/main.rs</code>:
+</text>
+
+<list class="ordered">
+  <ldiv><marker>1.</marker></ldiv>
+  <text><bold>Clock Synchronisation</bold> — Align to the next wall-clock epoch boundary (<code>epoch_duration_secs</code>).</text>
+
+  <ldiv><marker>2.</marker></ldiv>
+  <text><bold>Phase A — Local Training and Peer Exchange</bold> — Extract peer deltas from the update history to <code>{data_dir}/network_deltas/</code>, then invoke <code>python ml_engine.py</code>.</text>
+
+  <ldiv><marker>3.</marker></ldiv>
+  <text><bold>Record and Broadcast</bold> — Append the local ModelUpdate and any PeerReview records to the history, then broadcast each via the gossip swarm.</text>
+
+  <ldiv><marker>4.</marker></ldiv>
+  <text><bold>Sync Barrier</bold> — Wait until <code>expected_peers</code> updates are collected or <code>sync_deadline_secs</code> elapses.</text>
+
+  <ldiv><marker>5.</marker></ldiv>
+  <text><bold>Phase B — Trust Ranking</bold> — Compute the top-trusted cohort (COHORT_SIZE=4) from accumulated peer reviews.</text>
+</list>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 10. P2P WIRE PROTOCOL                                              -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">P2P Wire Protocol</heading>
+
+<text>
+  All inter-node messages are JSON-serialised and broadcast via
+  <code>iroh-gossip</code>. The wire format is defined in
+  <code>src/network/mod.rs</code>:
+</text>
+
+<table>
+  <ched/>Variant<ched/>Fields<ched/>Direction<nl/>
+  <fcel/><code>Hello</code><fcel/>node_id<fcel/>Outbound on join<nl/>
+  <fcel/><code>Welcome</code><fcel/>node_id, round, peers<fcel/>Reply to Hello<nl/>
+  <fcel/><code>GetState</code><fcel/>(none)<fcel/>Request<nl/>
+  <fcel/><code>HistorySnapshot</code><fcel/>round, recent_updates<fcel/>Reply to GetState<nl/>
+  <fcel/><code>NewUpdate</code><fcel/>UpdateRecord<fcel/>Broadcast (model deltas and peer reviews)<nl/>
+  <fcel/><code>GetUpdate</code><fcel/>index<fcel/>Request<nl/>
+  <fcel/><code>Ping</code><fcel/>(none)<fcel/>Keepalive<nl/>
+  <fcel/><code>Pong</code><fcel/>(none)<fcel/>Reply to Ping<nl/>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 11. PEER DISCOVERY                                                 -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Peer Discovery Mechanisms</heading>
+
+<text>
+  A node never depends on a particular other node being up. Four independent
+  mechanisms find peers, in rough order of speed:
+</text>
+
+<table>
+  <ched/>Mechanism<ched/>Scope<ched/>Depends on<nl/>
+  <fcel/>mDNS (discovery.mdns)<fcel/>Same LAN or same host<fcel/>Nothing — multicast only<nl/>
+  <fcel/>Remembered peers<fcel/>Anywhere<fcel/>{data_dir}/rocksdb; every peer ever met is redialled on start<nl/>
+  <fcel/>Gossip peer exchange<fcel/>Anywhere<fcel/>One reachable member; the swarm hands over the rest<nl/>
+  <fcel/>Mainline DHT / pkarr DNS<fcel/>Internet<fcel/>Public DHT; no server operated by the project<nl/>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 12. CONFIGURATION REFERENCE                                        -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">TOML Configuration Reference</heading>
+
+<text>
+  Every node requires its own <code>.toml</code> configuration file. There is no
+  bootstrap node and no node type — membership is decided entirely by the shared
+  <code>[federation] id</code>.
+</text>
+
+<code>
+  <label value="TOML"/>
+  <content><![CDATA[[federation]
+id = "slakshna-fl-1"        # Nodes sharing this id derive the same gossip topic
+name = "SLAKSHNA Federation"
+
+[training]
+epoch_duration_secs = 600   # Length of one federated epoch (wall-clock aligned)
+sync_deadline_secs = 300    # Wait for peer updates before aggregating
+expected_peers = 6          # Release sync barrier early once this many report
+
+[node]
+id = "1"
+data_dir = "./data-node1"   # Dedicated delta storage directory
+gpu_id = 3                  # GPU assigned to this node
+
+[network]
+host = "0.0.0.0"
+p2p_port = 9000             # Iroh QUIC router listening port
+api_port = 8545             # Axum HTTP REST API port
+ws_port = 8546              # WebSocket port
+peers = []                  # Optional seeds; empty is fine
+
+[discovery]
+mdns = true                 # Zero-config LAN discovery
+dht = true                  # Serverless global lookup via BitTorrent mainline DHT
+dns = true                  # pkarr/DNS lookup
+relay = true                # Public relays as fallback transport
+
+[logging]
+level = "info"]]></content>
+</code>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 13. INSTALLATION AND BUILD                                         -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Installation and Build</heading>
+
+<heading level="3">Prerequisites</heading>
+
+<list>
+  <ldiv><marker>•</marker></ldiv>
+  <text>Rust toolchain (edition 2021) with Cargo</text>
+  <ldiv><marker>•</marker></ldiv>
+  <text>Python 3.11+ with pip or uv</text>
+  <ldiv><marker>•</marker></ldiv>
+  <text>CMake, clang, libclang-dev (for RocksDB compilation)</text>
+  <ldiv><marker>•</marker></ldiv>
+  <text>CUDA-capable GPU (optional, CPU fallback available)</text>
+</list>
+
+<heading level="3">Build Steps</heading>
+
+<code>
+  <label value="Shell"/>
+  <content><![CDATA[# 1. Navigate to the Bhaskera ML engine directory
+cd Bhaskera
+
+# 2. Run the Bhaskera setup script (installs Python dependencies)
+bash setup.sh
+
+# 3. Activate the Bhaskera Python virtual environment
+source bhaskera-activate.sh
+
+# 4. Move back to the SLAKSHNA root directory
+cd ..
+
+# 5. Run the SLAKSHNA root setup script
+bash setup.sh
+
+# 6. Build the Rust P2P node binary in release mode
+cargo build --release
+
+# 7. Start your node
+./target/release/iiitd --config node1.toml]]></content>
+</code>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 14. RUNNING THE SYSTEM                                             -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Running the System</heading>
+
+<heading level="3">Local (Single Machine, Multiple Nodes)</heading>
+
+<code>
+  <label value="Shell"/>
+  <content><![CDATA[# Option A: Use the orchestrator
+python orchestrator.py
+# Enter number of nodes when prompted
+
+# Option B: Start individually (mDNS finds peers on the LAN)
+./target/release/iiitd --config node1.toml &
+./target/release/iiitd --config node2.toml &
+./target/release/iiitd --config node3.toml &]]></content>
+</code>
+
+<heading level="3">Cross-City Deployment (via Playit.gg)</heading>
+
+<list class="ordered">
+  <ldiv><marker>1.</marker></ldiv>
+  <text>Start the Playit tunnel on the main machine: <code>cd ~/playit &amp;&amp; ./playit start</code>. Create a UDP/TCP tunnel pointing to your local p2p_port (e.g. 9000). Note the assigned public endpoint.</text>
+
+  <ldiv><marker>2.</marker></ldiv>
+  <text>Start the tunnelled node: <code>./target/release/iiitd --config node1.toml</code>. Note its printed EndpointId.</text>
+
+  <ldiv><marker>3.</marker></ldiv>
+  <text>On remote machines, set <code>peers = ["&lt;EndpointId&gt;@&lt;playit_ip&gt;:&lt;playit_port&gt;"]</code> in the TOML config and start.</text>
+</list>
+
+<heading level="3">SLURM Supercomputer</heading>
+
+<code>
+  <label value="Shell"/>
+  <content><![CDATA[# Set gpu_id = 0 in your .toml file (SLURM maps the allocated GPU to index 0)
+srun -p gpu --gres=gpu:1 --time=04:00:00 ./target/release/iiitd --config config.toml]]></content>
+</code>
+
+<heading level="3">Docker Deployment</heading>
+
+<code>
+  <label value="Shell"/>
+  <content><![CDATA[# Build and start with Docker Compose
+docker compose up -d --build
+
+# Or use the full deploy script (includes SSL, swap, cron)
+sudo bash deploy.sh]]></content>
+</code>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 15. TESTING MODEL POISONING                                        -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Testing Model Poisoning and Defence</heading>
+
+<text>
+  Simulate a malicious node by setting the <code>MALICIOUS_NODES</code>
+  environment variable:
+</text>
+
+<code>
+  <label value="Shell"/>
+  <content><![CDATA[MALICIOUS_NODES="node-2" ./target/release/iiitd --config node2.toml]]></content>
+</code>
+
+<text>
+  When <code>node-2</code> runs in malicious mode, it injects a destructive
+  learning rate (1.0). Other nodes automatically detect negative cosine
+  similarity alignment, slash the attacker's trust score, and down-weight its
+  updates in the final model aggregation.
+</text>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 16. TRUST SCORE MATHEMATICS                                        -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Trust Score Mathematics</heading>
+
+<text>
+  The trust-weighted aggregation follows this formulation:
+</text>
+
+<text>
+  Given a set of nodes <formula>J</formula>, each node <formula>i</formula>
+  maintains raw trust scores <formula>\alpha_j</formula> for every peer
+  <formula>j \in J</formula>. Normalised weights are computed as:
+</text>
+
+<formula>
+  w_j = \frac{e^{\alpha_j}}{\sum_{k \in J} e^{\alpha_k}}
+</formula>
+
+<text>
+  After each epoch, trust is updated based on the cosine similarity
+  <formula>\Delta L_j</formula> between local and peer gradient directions:
+</text>
+
+<formula>
+  \alpha_j \leftarrow 0.98 \cdot \left( \alpha_j + \beta \cdot \Delta L_j \cdot w_j \cdot (1 - w_j) \right)
+</formula>
+
+<text>
+  where <formula>\beta = 0.1</formula> is the trust learning rate and
+  <formula>0.98</formula> is the exponential decay factor. The aggregated model
+  update is:
+</text>
+
+<formula>
+  \Delta_{\text{agg}} = \sum_{j \in J} w_j \cdot \Delta_j
+</formula>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 17. LOGGING AND MONITORING                                         -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Logging and Monitoring</heading>
+
+<table>
+  <ched/>Log File<ched/>Contents<nl/>
+  <fcel/><code>logs/trust_scores_new.csv</code><fcel/>Per-epoch trust weights (timestamp, observer, peer, weight)<nl/>
+  <fcel/><code>logs/epoch_loss_tracking.csv</code><fcel/>Real-time per-step training loss (timestamp, node_id, epoch, step, loss)<nl/>
+  <fcel/><code>logs/accuracy_scores.csv</code><fcel/>Per-round accuracy metrics<nl/>
+  <fcel/><code>logs/ml_performance.csv</code><fcel/>Training performance (loss, perplexity per node per round)<nl/>
+  <fcel/><code>logs/runtime_comm.log</code><fcel/>Structured runtime events (node_start, ray_started, delta_encoded, peer_delta_loaded, etc.)<nl/>
+  <fcel/><code>logs/malicious_nodes.txt</code><fcel/>Detected malicious node identifiers<nl/>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- 18. DEPENDENCY MANIFEST                                            -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<heading level="2">Rust Dependency Manifest (Cargo.toml)</heading>
+
+<table>
+  <ched/>Category<ched/>Crate<ched/>Version<nl/>
+  <fcel/>Async Runtime<fcel/>tokio (full), rayon<fcel/>1.35, 1.10.0<nl/>
+  <fcel/>Web Server<fcel/>axum (ws), tower-http (cors, trace)<fcel/>0.7, 0.5<nl/>
+  <fcel/>Serialisation<fcel/>serde (derive), serde_json, toml<fcel/>1.0, 1.0, 0.8<nl/>
+  <fcel/>Cryptography<fcel/>sha2, ed25519-dalek (serde, rand_core), rand, hex, bech32, rand_chacha<fcel/>0.10, 2.1, 0.8, 0.4, 0.11, 0.3<nl/>
+  <fcel/>Database<fcel/>rocksdb<fcel/>0.22<nl/>
+  <fcel/>Logging<fcel/>tracing, tracing-subscriber (env-filter)<fcel/>0.1, 0.3<nl/>
+  <fcel/>Time<fcel/>chrono (serde)<fcel/>0.4<nl/>
+  <fcel/>Utilities<fcel/>uuid (v4, serde), async-trait, thiserror, futures, tokio-tungstenite, url<fcel/>1.6, 0.1, 1.0, 0.3, 0.21, 2.4<nl/>
+  <fcel/>Iroh P2P<fcel/>iroh (test-utils), iroh-gossip, iroh-blobs<fcel/>1.0.2, 0.101.0, 0.103.0<nl/>
+  <fcel/>Discovery<fcel/>iroh-mdns-address-lookup, iroh-mainline-address-lookup<fcel/>0.4, 0.4<nl/>
+</table>
+
+</doclang>

@@ -5,27 +5,28 @@ name = "SLAKSHNA Federation"
 [training]
 epoch_duration_secs = 600   # Length of one federated epoch
 sync_deadline_secs = 300    # How long into the epoch to wait for peer updates
-expected_peers = 6          # Release the sync barrier early once this many nodes have reported
+expected_peers = 3          # Release the sync barrier early once this many nodes have reported
 
 [node]
 id = "node-2"
-type = "peer"
 data_dir = "./data-node2"
-
 gpu_id = 1
 
 [network]
-topology = "mesh"
 host = "0.0.0.0"
 p2p_port = 9001
 ws_port = 8547
 api_port = 8555
-boot_nodes = [
-    "de168a6b9c9989e074cf8a877d97e82deaea6a67d32090b0e757a6bfffdf9fc9@127.0.0.1:9000"
-]
+# Optional seed peers, as Iroh EndpointIds. Every entry is an equal member —
+# no node here is privileged. Leave empty and this node is still reachable:
+# it advertises itself over mDNS and the DHT, and remembers every peer it meets.
+peers = []
 
-[network.star]
-master_url = "http://192.168.22.23:8545"
+[discovery]
+mdns = true                 # Zero-config discovery of federation members on the local network
+dht = true                  # Serverless global lookup over the BitTorrent mainline DHT
+dns = true                  # Number 0's public pkarr/DNS lookup; set false for a self-contained federation
+relay = false               # Public relays as a fallback transport when hole punching fails
 
 [logging]
 level = "info"

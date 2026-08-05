@@ -10,6 +10,8 @@ pub struct Config {
     pub training: TrainingConfig,
     pub node: NodeConfig,
     pub network: NetworkConfig,
+    #[serde(default)]
+    pub discovery: DiscoveryConfig,
     pub logging: LoggingConfig,
 }
 
@@ -60,9 +62,6 @@ impl Default for TrainingConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeConfig {
     pub id: String,
-    /// "bootstrap" for a node peers dial into first, "peer" for everyone else.
-    #[serde(rename = "type")]
-    pub node_type: String,
     pub data_dir: String,
     #[serde(default)]
     pub gpu_id: Option<u32>,
@@ -70,28 +69,57 @@ pub struct NodeConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkConfig {
-    pub topology: String,
     pub host: String,
     pub p2p_port: u16,
     pub ws_port: u16,
     pub api_port: u16,
-    /// Iroh NodeId strings of peers to connect to on startup,
-    /// optionally suffixed with `@host:port` for a direct dial.
-    #[serde(default)]
-    pub boot_nodes: Option<Vec<String>>,
-    /// Optional list of allowed Iroh NodeId strings.
+    /// Optional seed peers, as Iroh EndpointId strings, each optionally suffixed
+    /// with `@host:port` to pin a direct address on closed networks.
+    ///
+    /// Every entry is an equal member of the federation — there is no privileged
+    /// node here. The list may be empty: a node that finds no seeds still starts,
+    /// advertises itself over mDNS and the mainline DHT, and merges into the swarm
+    /// as soon as any peer shows up. Peers learned at runtime are remembered in
+    /// `{data_dir}/rocksdb` and redialled automatically on the next start.
+    #[serde(default, alias = "boot_nodes")]
+    pub peers: Option<Vec<String>>,
+    /// Optional list of allowed Iroh EndpointId strings.
     /// If non-empty, only these peers may connect (whitelisting).
     #[serde(default)]
     pub allowed_peers: Option<Vec<String>>,
-    // Keep the nested table last: TOML requires values to precede sub-tables,
-    // so `Config::save` would otherwise emit a file it cannot read back.
-    #[serde(default)]
-    pub star: Option<StarConfig>,
 }
 
+/// Which serverless discovery mechanisms this node participates in. All of them
+/// are symmetric: a node both advertises itself and looks others up.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StarConfig {
-    pub master_url: String,
+pub struct DiscoveryConfig {
+    /// mDNS on the local network. Zero-config discovery of federation members on
+    /// the same LAN or the same host, scoped to the federation id.
+    #[serde(default = "default_true")]
+    pub mdns: bool,
+    /// BitTorrent mainline DHT. Resolves an EndpointId to its current address
+    /// anywhere on the internet without contacting any server we operate.
+    #[serde(default = "default_true")]
+    pub dht: bool,
+    /// Number 0's public pkarr/DNS address lookup. Fastest resolution path, but
+    /// it is third-party infrastructure — turn it off for a fully self-contained
+    /// federation and rely on `mdns` + `dht`.
+    #[serde(default = "default_true")]
+    pub dns: bool,
+    /// Use public relay servers as a fallback transport when direct hole punching
+    /// fails. Relays only forward encrypted QUIC; they cannot read traffic.
+    #[serde(default = "default_true")]
+    pub relay: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for DiscoveryConfig {
+    fn default() -> Self {
+        DiscoveryConfig { mdns: true, dht: true, dns: true, relay: true }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git mv *)",
+      "Bash(python3 *)",
+      "Read(//root/**)",
+      "Bash(find / -maxdepth 4 -name \"cargo\" -type f -perm -u+x)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(cargo build *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(mount)",
+      "Bash(chmod +x /tmp/claude-1000/-mnt-d-code-projects-slakshna-Slakshna/a6385a9e-30df-410e-9bb9-808e53a267d9/scratchpad/build2.sh)",
+      "Bash(/tmp/claude-1000/-mnt-d-code-projects-slakshna-Slakshna/a6385a9e-30df-410e-9bb9-808e53a267d9/scratchpad/build2.sh)"
+    ]
+  }
+}

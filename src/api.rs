@@ -45,6 +45,7 @@ pub async fn start_api_server(
         .route("/updates/latest", get(get_latest_update))
         .route("/updates", get(get_updates))
         .route("/leaderboard", get(get_leaderboard))
+        .route("/peers", get(get_peers))
         .route("/ws", get(ws_handler))
         .layer(CorsLayer::permissive())
         .with_state(app_state);
@@ -72,6 +73,7 @@ async fn index() -> impl IntoResponse {
             },
             "network": {
                 "leaderboard": "GET /leaderboard",
+                "peers": "GET /peers",
                 "ws": "GET /ws"
             }
         }
@@ -86,7 +88,8 @@ struct StatusResponse {
     round: u64,
     peers: usize,
     browsers: usize,
-    node_type: String,
+    /// This node's Iroh EndpointId — hand it to any other node to have it join.
+    endpoint_id: Option<String>,
 }
 
 async fn get_status(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
@@ -97,6 +100,7 @@ async fn get_status(AxumState(state): AxumState<SharedState>) -> impl IntoRespon
     let network = state.network.read().await;
     let peers = network.peer_count();
     let browsers = network.browser_count();
+    let endpoint_id = network.endpoint_id().await;
     drop(network);
 
     Json(StatusResponse {
@@ -105,7 +109,7 @@ async fn get_status(AxumState(state): AxumState<SharedState>) -> impl IntoRespon
         round,
         peers,
         browsers,
-        node_type: state.config.node.node_type.clone(),
+        endpoint_id,
     })
 }
 
@@ -197,6 +201,28 @@ async fn get_leaderboard(AxumState(state): AxumState<SharedState>) -> impl IntoR
         "success": true,
         "leaderboard": rankings
     })).into_response()
+}
+
+/// Live gossip neighbours plus every peer this node has ever reached.
+/// The `known` set is what the node redials on its next start — it is the
+/// federation's own memory of its membership, held by no central party.
+async fn get_peers(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
+    let network = state.network.read().await;
+    let connected = network.get_active_peer_ids().await;
+    let endpoint_id = network.endpoint_id().await;
+    drop(network);
+
+    let known = {
+        let state_guard = state.state.read().await;
+        state_guard.known_peers()
+    };
+
+    Json(serde_json::json!({
+        "success": true,
+        "endpoint_id": endpoint_id,
+        "connected": connected,
+        "known": known
+    }))
 }
 
 async fn ws_handler(

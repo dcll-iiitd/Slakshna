@@ -10,7 +10,10 @@ A **Peer-to-Peer Federated Learning Framework** built in **Rust** and integrated
   Instead of traditional synchronous FL rounds waiting for slow participants, SLAKSHNA operates asynchronously. Nodes continuously train on local data, broadcast compressed model deltas to the network, and evaluate peers dynamically.
 
 - **Iroh QUIC Mesh & Gossip Network (`iroh-gossip`)** 
-  Built on **Iroh v1.0.2**, the framework utilizes **QUIC (Quick UDP (User Datagram Protocol) Internet Connections)** transport, direct NAT (Network Address Translation) traversal (STUN/DERP), and `iroh-gossip` topic swarms. Nodes discover peers dynamically using cryptographic Ed25519 `NodeId` public keys.
+  Built on **Iroh v1.0.2**, the framework utilizes **QUIC (Quick UDP (User Datagram Protocol) Internet Connections)** transport, direct NAT (Network Address Translation) traversal (STUN/DERP), and `iroh-gossip` topic swarms. Nodes discover peers dynamically using cryptographic Ed25519 `EndpointId` public keys.
+
+- **No Bootstrap Node**  
+  Every participant is identical: there is no coordinator, no first node, and no node type. Membership follows from the shared `[federation] id` alone. Nodes find each other through **mDNS** on the local network, the **BitTorrent mainline DHT** and pkarr/DNS globally, and **gossip peer exchange** once connected — and each node remembers every peer it has ever met in its own RocksDB, so a restarted federation reassembles itself with no configuration and no privileged host.
 
 - **Universal Firewall & VPN Traversal (`Playit.gg`)**  
   Academic and enterprise networks (such as university campus firewalls or remote VPNs) often block inbound UDP/TCP hole-punching and standard DERP relay traffic. SLAKSHNA natively supports static public UDP/TCP tunneling via **Playit.gg**, providing fixed, persistent public addresses (`<ip>:<port>`) for nodes across different cities without requiring root/sudo access or complex router configurations.
@@ -71,36 +74,37 @@ SLAKSHNA is built from the ground up to operate securely over untrusted public n
 
 ## Technology Stack
 
-| Layer | Technologies Used |
-| :--- | :--- |
-| **Networking Core** | **Rust** (`edition = 2021`), **Tokio** async runtime |
-| **P2P Communication** | **Iroh** (`iroh v1.0.2`, `iroh-gossip`, `iroh-relay`), **QUIC**, **Ed25519 TLS 1.3**, **Playit.gg** (Static Tunnels) |
-| **API & WebSockets** | **Axum 0.7**, **Hyper**, **tokio-tungstenite** (`WebSocket`), **Serde / Serde JSON** |
-| **ML Engine & FL** | **Python 3.11+**, **PyTorch**, **Ray / Ray Train** (`ray.train.torch.TorchTrainer`), **setproctitle** |
-| **Transformers & PEFT** | **HuggingFace Transformers**, **PEFT** (`LoRA`), **PyArrow** (Parquet caching), **PyYAML** |
-| **Differential Privacy** | **Gradient clipping**, **Noice injection**, **Opacus** (`PrivacyEngine`), **opt-einsum**|
+| Layer                    | Technologies Used                                                                                                                                            |
+| :----------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Networking Core**      | **Rust** (`edition = 2021`), **Tokio** async runtime                                                                                                         |
+| **P2P Communication**    | **Iroh** (`iroh v1.0.2`, `iroh-gossip`, `iroh-relay`), **QUIC**, **Ed25519 TLS 1.3**, **Playit.gg** (Static Tunnels)                                         |
+| **Peer Discovery**       | **mDNS** (`iroh-mdns-address-lookup`), **BitTorrent mainline DHT** (`iroh-mainline-address-lookup`), **pkarr/DNS**, gossip peer exchange, on-disk peer cache |
+| **API & WebSockets**     | **Axum 0.7**, **Hyper**, **tokio-tungstenite** (`WebSocket`), **Serde / Serde JSON**                                                                         |
+| **ML Engine & FL**       | **Python 3.11+**, **PyTorch**, **Ray / Ray Train** (`ray.train.torch.TorchTrainer`), **setproctitle**                                                        |
+| **Transformers & PEFT**  | **HuggingFace Transformers**, **PEFT** (`LoRA`), **PyArrow** (Parquet caching), **PyYAML**                                                                   |
+| **Differential Privacy** | **Gradient clipping**, **Noice injection**, **Opacus** (`PrivacyEngine`), **opt-einsum**                                                                     |
 
 ---
 
 ## Repository Structure
 
-| Path | Description |
-| :--- | :--- |
-| `src/main.rs` | Rust Node entry point, federated epoch loop, P2P orchestrator, and network broadcast |
-| `src/history.rs` | Local update history — the per-peer append-only log of model updates and peer reviews |
-| `src/identity.rs` | Ed25519 keypair and the node's stable federation identity (`NodeId`) |
-| `src/network/` | Iroh QUIC + Gossip network implementation (`mesh.rs`, `mod.rs`, `star.rs`) for secure peer synchronization |
-| `src/api.rs` | Axum HTTP REST endpoints and real-time WebSocket broadcast server for dashboards |
-| `src/config.rs` | TOML configuration loader for federation, training cadence, network ports, IDs, and storage paths |
-| `ml_engine.py` | Python ML bridge executing Bhaskera distributed LoRA training, DP clipping, sparsification, and peer evaluation |
-| `setup.sh` | Main installation script for system dependencies and virtual environments |
-| `Bhaskera/` | Submodule / embedded repository containing the distributed LLM training framework |
-| `node_template.yaml` | Base YAML template for HuggingFace / Ray / PEFT training arguments |
-| `node1.toml` | Node-1 configuration file |
-| `node2.toml`, `node3.toml` | Peer node configuration files |
-| `logs/` | Directory containing runtime communication logs and real-time epoch loss tracking CSVs |
-| `plots_script/` | Python scripts for visualizing training metrics, trust scores, and system performance |
-| `results/` | Output directory containing generated plots and evaluation metric graphs |
+| Path                       | Description                                                                                                                     |
+| :------------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
+| `src/main.rs`              | Rust Node entry point, federated epoch loop, P2P orchestrator, and network broadcast                                            |
+| `src/history.rs`           | Local update history — the per-peer append-only log of model updates and peer reviews                                           |
+| `src/identity.rs`          | Ed25519 keypair and the node's stable federation identity (`NodeId`)                                                            |
+| `src/network/`             | Iroh QUIC + Gossip network implementation (`mesh.rs`, `mod.rs`) — peer discovery, gossip swarm, and secure peer synchronization |
+| `src/api.rs`               | Axum HTTP REST endpoints and real-time WebSocket broadcast server for dashboards                                                |
+| `src/config.rs`            | TOML configuration loader for federation, training cadence, network ports, IDs, and storage paths                               |
+| `ml_engine.py`             | Python ML bridge executing Bhaskera distributed LoRA training, DP clipping, sparsification, and peer evaluation                 |
+| `setup.sh`                 | Main installation script for system dependencies and virtual environments                                                       |
+| `Bhaskera/`                | Submodule / embedded repository containing the distributed LLM training framework                                               |
+| `node_template.yaml`       | Base YAML template for HuggingFace / Ray / PEFT training arguments                                                              |
+| `node1.toml`               | Node-1 configuration file                                                                                                       |
+| `node2.toml`, `node3.toml` | Peer node configuration files                                                                                                   |
+| `logs/`                    | Directory containing runtime communication logs and real-time epoch loss tracking CSVs                                          |
+| `plots_script/`            | Python scripts for visualizing training metrics, trust scores, and system performance                                           |
+| `results/`                 | Output directory containing generated plots and evaluation metric graphs                                                        |
 ---
 
 ## Environment & Prerequisites Setup
@@ -155,7 +159,9 @@ cargo build --release
 
 Every node requires its own `.toml` configuration file (`config.toml`, `node2.toml`, etc.).
 
-### Bootstrap Node (`config.toml`)
+Every node file has the same shape. **There is no bootstrap node and no node type** —
+membership is decided entirely by the shared `[federation] id`.
+
 ```toml
 [federation]
 id = "slakshna-fl-1"        # Nodes sharing this id derive the same gossip topic and train together
@@ -168,52 +174,73 @@ expected_peers = 6          # Release the sync barrier early once this many node
 
 [node]
 id = "node-1"
-type = "bootstrap"          # The node other peers dial into first
 data_dir = "./data-node1"   # Dedicated delta storage directory
 gpu_id = 0                  # GPU assigned to this node for local training
 
 [network]
-topology = "mesh"
 host = "0.0.0.0"
 p2p_port = 9000             # Iroh QUIC router listening port
 api_port = 8545             # Axum HTTP REST API port
 ws_port = 8546              # WebSocket port
-boot_nodes = []             # The bootstrap node has no initial boot nodes
+peers = []                  # Optional seeds; empty is fine — see "Joining a federation"
+
+[discovery]
+mdns = true                 # Zero-config discovery of federation members on the local network
+dht = true                  # Serverless global lookup over the BitTorrent mainline DHT
+dns = true                  # Number 0's public pkarr/DNS lookup
+relay = true                # Public relays as a fallback transport when hole punching fails
 
 [logging]
 level = "info"
 ```
 
 > Every node in a federation must share the same `[federation] id` — it is hashed into the
-> 32-byte gossip topic, so a mismatch silently puts nodes in different swarms.
+> 32-byte gossip topic *and* into the mDNS service label, so a mismatch silently puts nodes
+> in different swarms.
 
-### Remote Peer Node (`node2.toml` / `node3.toml`)
-When connecting a remote node over the internet or across campuses, point `boot_nodes` directly to the Master Node's **Ed25519 `NodeId`** (printed by the master node upon startup) or its public static tunnel (`Playit.gg`):
+### Joining a federation
+
+A node never depends on a particular other node being up. Start it with `peers = []`
+and it comes up alone, advertises itself, and merges into the swarm as soon as any
+member appears. Four independent mechanisms find peers, in rough order of speed:
+
+| Mechanism                                                       | Scope                 | Depends on                                                      |
+| :-------------------------------------------------------------- | :-------------------- | :-------------------------------------------------------------- |
+| **mDNS** (`discovery.mdns`)                                     | Same LAN or same host | Nothing — multicast only                                        |
+| **Remembered peers**                                            | Anywhere              | `{data_dir}/rocksdb`; every peer ever met is redialled on start |
+| **Gossip peer exchange**                                        | Anywhere              | One reachable member; the swarm hands over the rest             |
+| **Mainline DHT / pkarr DNS** (`discovery.dht`, `discovery.dns`) | Internet              | Public DHT; no server we operate                                |
+
+On a LAN, that means nothing to configure: launch the nodes in any order and they find
+each other. Across the internet, hand any one member's EndpointId to a joining node —
+any member, not a designated one:
 
 ```toml
-[node]
-id = "node-2"
-type = "peer"
-data_dir = "./data-node2"   # MUST be unique per node
-gpu_id = 0                  # Set to 0 if running inside SLURM (--gres=gpu:1), or 1 if multi-GPU server
-
 [network]
-topology = "mesh"
-host = "0.0.0.0"
-p2p_port = 9001             
-api_port = 8555             
-ws_port = 8547              
-
-# Point boot_nodes to the Master Node's Iroh PublicKey (NodeId):
-# Iroh automatically discovers the route via direct IP, mDNS, STUN, or public Playit tunnel
-boot_nodes = ["<NODE1_IROH_PUBLIC_KEY>@<tunnel address>"]
+peers = ["a65a49db0894467a3b6d95eda3924c309a5589e265f734332f2b65100364be90"]
 ```
+
+Each node prints its own EndpointId at startup and serves it at `GET /status`;
+`GET /peers` lists both live neighbours and the remembered set. The EndpointId is
+derived from the keypair in `{data_dir}/rocksdb`, so **it is stable across restarts** —
+publish it once and it stays valid.
+
+Peers may still be pinned to an explicit address with `<EndpointId>@<host>:<port>` when
+no discovery mechanism can reach them (see the tunnelling section below).
 
 ---
 
 ## Running the System across Geo-Localized Machines
 
-If your machines are located in different cities (e.g., Delhi $\leftrightarrow$ Mumbai) and are separated by strict university or corporate firewalls (NAT/Deep Packet Inspection) that block peer-to-peer discovery, you must use a reverse proxy tunnel.
+Try it without a tunnel first: relays plus DHT/pkarr lookup traverse most NATs on their
+own, and no node needs a public address. The steps below are the fallback for machines
+behind strict university or corporate firewalls (NAT/Deep Packet Inspection) that block
+hole punching and relay traffic outright.
+
+Note that the tunnelled node is **not** a bootstrap node — it is an ordinary member that
+happens to have a reachable address. Any member with a working address can serve as an
+entry point, and once a joining node is in the swarm it learns every other member
+through gossip.
 
 **What is Playit.gg?**  
 [Playit.gg](https://playit.gg) is a service that creates a secure outbound tunnel from your local machine to a public cloud server. It gives your local node a static public IP address on the internet, completely bypassing incoming firewall restrictions. Because SLAKSHNA uses Iroh (End-to-End Encryption), passing data through Playit's public servers is 100% secure.
@@ -226,33 +253,38 @@ If your machines are located in different cities (e.g., Delhi $\leftrightarrow$ 
 3. Follow the CLI prompt to create a tunnel. Create a **UDP/TCP tunnel** pointing to your local Iroh `p2p_port` (e.g., `9000` or `9001` based on your config).
 4. Playit will assign you a public endpoint. **Note down this IP and Port** (e.g., `147.185.221.225:42060`).
 
-### Step 2: Start the Master Node (Main Machine)
+### Step 2: Start the Tunnelled Node (Main Machine)
 With the tunnel running in the background, start your node:
 ```bash
 ./target/release/iiitd --config node1.toml
 ```
-When started, the node will output its unique cryptographic Iroh `NodeId` (Public Key):
+When started, the node prints its Iroh `EndpointId` (public key) — stable across restarts:
 ```
-INFO 🔑 Iroh NodeId: a65a49db0894467a3b6d95eda3924c309a5589e265f734332f2b65100364be90
+INFO 🔑 Iroh EndpointId: a65a49db0894467a3b6d95eda3924c309a5589e265f734332f2b65100364be90
+INFO 🤝 Any peer can join this federation with: peers = ["a65a49db…64be90"]
 ```
 
-### Step 3: Connect Peer Nodes (e.g., Mumbai Machine)
-On your secondary machines, open their TOML configuration file (e.g., `node2.toml`).
+### Step 3: Connect Other Nodes (e.g., Mumbai Machine)
+On the other machines, open their TOML configuration file (e.g., `node2.toml`).
 
-You need to tell this machine exactly how to reach the Main Machine. Combine the **NodeId** (from Step 2) and the **Playit Public IP:Port** (from Step 1) using the format `<node_id>@<playit_ip>:<playit_port>`.
+Combine the **EndpointId** (from Step 2) and the **Playit Public IP:Port** (from Step 1)
+in the form `<EndpointId>@<playit_ip>:<playit_port>` to pin the address, bypassing
+discovery entirely:
 
-Update the `boot_nodes` field:
 ```toml
 [network]
-# Format: ["<NodeId>@<Playit_IP>:<Playit_Port>"]
-boot_nodes = ["a65a49db0894467a3b6d95eda3924c309a5589e265f734332f2b65100364be90@147.185.221.225:42060"]
+# Format: ["<EndpointId>@<Playit_IP>:<Playit_Port>"]
+peers = ["a65a49db0894467a3b6d95eda3924c309a5589e265f734332f2b65100364be90@147.185.221.225:42060"]
 ```
 
-Now, start the peer node:
+Now, start the other node:
 ```bash
 ./target/release/iiitd --config node2.toml
 ```
-The peer node will dial the public Playit IP, encrypt the traffic using the NodeId, and establish a direct connection to the main machine!
+It dials the public Playit IP, encrypts the traffic against the EndpointId, and joins the
+swarm. From there gossip peer exchange introduces it to every other member, and the peers
+it meets are cached in its own `data_dir` — so on the next start it no longer needs this
+entry at all.
 
 ---
 
@@ -272,14 +304,14 @@ When deploying SLAKSHNA on a SLURM cluster login node:
 
 The node exposes an Axum-powered API for monitoring trust evaluations and system status:
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/status` | Returns federation id, completed round, active Iroh P2P peer count, and node status |
-| `GET` | `/updates` | Returns every model update and peer review on record |
-| `GET` | `/updates/latest` | Returns the most recent record in the local update history |
-| `GET` | `/updates/:index` | Returns what each participant contributed at that position in its log |
-| `GET` | `/leaderboard` | Returns node trust score rankings (`alpha` / `w_i`) |
-| `WS` | `ws://localhost:8546/ws` | Live WebSocket stream emitting peer evaluation updates |
+| Method | Endpoint                 | Description                                                                         |
+| :----- | :----------------------- | :---------------------------------------------------------------------------------- |
+| `GET`  | `/status`                | Returns federation id, completed round, active Iroh P2P peer count, and node status |
+| `GET`  | `/updates`               | Returns every model update and peer review on record                                |
+| `GET`  | `/updates/latest`        | Returns the most recent record in the local update history                          |
+| `GET`  | `/updates/:index`        | Returns what each participant contributed at that position in its log               |
+| `GET`  | `/leaderboard`           | Returns node trust score rankings (`alpha` / `w_i`)                                 |
+| `WS`   | `ws://localhost:8546/ws` | Live WebSocket stream emitting peer evaluation updates                              |
 
 ---
 

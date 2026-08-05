@@ -113,7 +113,26 @@ impl Keypair {
     pub fn to_bytes(&self) -> [u8; 32] {
         self.signing_key.to_bytes()
     }
+
+    /// Seed for this node's Iroh transport key, derived from the persisted
+    /// federation keypair so that the EndpointId peers dial stays the same
+    /// across restarts. Without this the node would get a fresh EndpointId
+    /// every process and every peer's cached address for it would go stale —
+    /// which is exactly what a bootstrap node used to paper over.
+    ///
+    /// Domain-separated so the transport key is never the signing key itself.
+    pub fn transport_seed(&self) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        hasher.update(TRANSPORT_KEY_DOMAIN);
+        hasher.update(self.signing_key.to_bytes());
+        let hash = hasher.finalize();
+        let mut seed = [0u8; 32];
+        seed.copy_from_slice(&hash);
+        seed
+    }
 }
+
+const TRANSPORT_KEY_DOMAIN: &[u8] = b"slakshna/iroh-endpoint/v1";
 
 #[cfg(test)]
 mod tests {
@@ -125,6 +144,19 @@ mod tests {
         let node_id = keypair.node_id();
         assert!(node_id.is_valid());
         assert!(node_id.0.starts_with(NODE_ID_HRP));
+    }
+
+    #[test]
+    fn test_transport_seed_is_stable_and_distinct() {
+        let keypair = Keypair::generate();
+        let reloaded = Keypair::from_bytes(&keypair.to_bytes()).unwrap();
+
+        // Same persisted keypair must always yield the same Iroh EndpointId,
+        // otherwise peers lose the node across restarts.
+        assert_eq!(keypair.transport_seed(), reloaded.transport_seed());
+        // ...but it must not be the signing key itself.
+        assert_ne!(keypair.transport_seed(), keypair.to_bytes());
+        assert_ne!(keypair.transport_seed(), Keypair::generate().transport_seed());
     }
 
     #[test]

@@ -61,7 +61,6 @@ async fn main() -> Result<(), BoxError> {
     info!("Loading config from: {}", config_path);
     info!("Federation: {}", config.federation.id);
     info!("Node ID: {}", config.node.id);
-    info!("Node Type: {}", config.node.node_type);
 
     // Initialize state (RocksDB)
     let state = Arc::new(RwLock::new(State::new(&config.node.data_dir)?));
@@ -374,6 +373,13 @@ async fn main() -> Result<(), BoxError> {
     info!("🟢 Node is LIVE (Peer-to-Peer Federated Learning Active)");
     info!("==================================================");
     info!("Transport: Iroh QUIC (with automatic STUN + DERP relay)");
+    info!(
+        "Discovery: mdns={} dht={} dns={} relay={}",
+        config.discovery.mdns,
+        config.discovery.dht,
+        config.discovery.dns,
+        config.discovery.relay
+    );
     info!("WS:   ws://{}:{}", config.network.host, config.network.ws_port);
     info!("API:  http://{}:{}", config.network.host, config.network.api_port);
     info!("==================================================");

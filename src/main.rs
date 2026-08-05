@@ -26,7 +26,7 @@ struct MLEngineOutput {
     model_hash: String,
     validation_score: f64,
     metadata: String,
-    compressed_delta: String, // The sparsified delta, base64 encoded
+    compressed_delta: String, // Versioned sparse-quantized payload, base64 encoded
 }
 
 #[tokio::main]
@@ -183,6 +183,12 @@ async fn main() -> Result<(), BoxError> {
 
             // CRITICAL: Pass the data_dir to Python so it reads delta files from the correct path
             cmd.env("IIITD_DATA_DIR", &config_loop.node.data_dir);
+            cmd.env("SLAKSHNA_COMPRESSION_ENABLED", config_loop.compression.enabled.to_string());
+            cmd.env("SLAKSHNA_DELTA_SPARSITY", config_loop.compression.sparsity.to_string());
+            cmd.env("SLAKSHNA_DELTA_QUANTIZATION", &config_loop.compression.quantization);
+            cmd.env("SLAKSHNA_ALLOW_LEGACY_DELTA_FORMAT", config_loop.compression.allow_legacy_delta_format.to_string());
+            cmd.env("SLAKSHNA_MAX_DELTA_PAYLOAD_BYTES", config_loop.compression.max_payload_bytes.to_string());
+            cmd.env("SLAKSHNA_MAX_DELTA_TENSOR_ELEMENTS", config_loop.compression.max_tensor_elements.to_string());
 
             // Pin this ML process to the GPU assigned in the node config
             if let Some(gid) = gpu_id_loop {

@@ -8,6 +8,8 @@ pub struct Config {
     pub federation: FederationConfig,
     #[serde(default)]
     pub training: TrainingConfig,
+    #[serde(default)]
+    pub compression: CompressionConfig,
     pub node: NodeConfig,
     pub network: NetworkConfig,
     #[serde(default)]
@@ -55,6 +57,44 @@ impl Default for TrainingConfig {
             epoch_duration_secs: default_epoch_duration(),
             sync_deadline_secs: default_sync_deadline(),
             expected_peers: default_expected_peers(),
+        }
+    }
+}
+
+/// Settings for model-delta transport.  The payload itself remains opaque to
+/// the Rust gossip layer; these values are passed to the Python ML engine.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompressionConfig {
+    #[serde(default = "default_compression_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_sparsity")]
+    pub sparsity: f64,
+    #[serde(default = "default_quantization")]
+    pub quantization: String,
+    #[serde(default)]
+    pub allow_legacy_delta_format: bool,
+    #[serde(default = "default_max_payload_bytes")]
+    pub max_payload_bytes: usize,
+    #[serde(default = "default_max_tensor_elements")]
+    pub max_tensor_elements: usize,
+}
+
+fn default_compression_enabled() -> bool { true }
+fn default_sparsity() -> f64 { 0.1 }
+fn default_quantization() -> String { "symmetric_int8".to_string() }
+// Base64 expands by roughly 4/3; retain room under gossip's 10 MiB message cap.
+fn default_max_payload_bytes() -> usize { 7 * 1024 * 1024 }
+fn default_max_tensor_elements() -> usize { 10_000_000 }
+
+impl Default for CompressionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_compression_enabled(),
+            sparsity: default_sparsity(),
+            quantization: default_quantization(),
+            allow_legacy_delta_format: false,
+            max_payload_bytes: default_max_payload_bytes(),
+            max_tensor_elements: default_max_tensor_elements(),
         }
     }
 }
@@ -131,6 +171,23 @@ impl Config {
     pub fn load(path: &str) -> Result<Self, BoxError> {
         let content = fs::read_to_string(path)?;
         let config: Config = toml::from_str(&content)?;
+        if !config.compression.sparsity.is_finite()
+            || config.compression.sparsity <= 0.0
+            || config.compression.sparsity > 1.0
+        {
+            return Err("compression.sparsity must be finite and in (0, 1]".into());
+        }
+        if config.compression.quantization != "symmetric_int8" {
+            return Err("compression.quantization must be symmetric_int8".into());
+        }
+        if config.compression.max_payload_bytes == 0
+            || config.compression.max_payload_bytes > 7 * 1024 * 1024
+        {
+            return Err("compression.max_payload_bytes must be between 1 and 7340032".into());
+        }
+        if config.compression.max_tensor_elements == 0 {
+            return Err("compression.max_tensor_elements must be positive".into());
+        }
         Ok(config)
     }
 

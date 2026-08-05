@@ -21,11 +21,14 @@ api_port = 8545
 # no node here is privileged. Leave empty and this node is still reachable:
 # it advertises itself over mDNS and the DHT, and remembers every peer it meets.
 peers = []
+# Optional list of blocked Iroh EndpointId strings.
+# Peers in this list will be ignored.
+blocked_peers = ["slakshna1l0tt0y8zqyu5gdna955qsrthmvt70jhkkhgrv9"]
 
 [discovery]
 mdns = true                 # Zero-config discovery of federation members on the local network
 dht = true                  # Serverless global lookup over the BitTorrent mainline DHT
-dns = true                  # Number 0's public pkarr/DNS lookup; set false for a self-contained federation
+dns = false                  # Number 0's public pkarr/DNS lookup; set false for a self-contained federation
 relay = false               # Public relays as a fallback transport when hole punching fails
 
 [logging]

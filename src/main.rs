@@ -109,6 +109,7 @@ async fn main() -> Result<(), BoxError> {
     let node_id_loop = node_id.clone();
     let gpu_id_loop = config.node.gpu_id;
     let config_loop = config.clone();
+    let config_path_loop = config_path.clone();
 
     tokio::spawn(async move {
         let epoch_duration = config_loop.training.epoch_duration_secs;
@@ -126,6 +127,16 @@ async fn main() -> Result<(), BoxError> {
 
             let epoch_start = next_boundary;
             tracing::info!("🏁 NEW EPOCH STARTED (Global Time: {})", epoch_start);
+
+            // Dynamic permissions reload
+            if let Ok(latest_config) = crate::config::Config::load(&config_path_loop) {
+                let net = net_loop.read().await;
+                net.update_permissions(
+                    latest_config.network.allowed_peers,
+                    latest_config.network.blocked_peers
+                ).await;
+                tracing::debug!("🔄 Reloaded permissions from {}", config_path_loop);
+            }
 
             // --- PHASE A: LOCAL TRAINING & PEER DELTA EXCHANGE ---
             tracing::info!("🧠 Phase A: Real Local Training & Peer Exchange executing...");

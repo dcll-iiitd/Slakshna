@@ -87,6 +87,10 @@ pub struct NetworkConfig {
     /// If non-empty, only these peers may connect (whitelisting).
     #[serde(default)]
     pub allowed_peers: Option<Vec<String>>,
+    /// Optional list of blocked Iroh EndpointId strings.
+    /// If non-empty, peers in this list will be explicitly blocked (blacklisting).
+    #[serde(default)]
+    pub blocked_peers: Option<Vec<String>>,
 }
 
 /// Which serverless discovery mechanisms this node participates in. All of them

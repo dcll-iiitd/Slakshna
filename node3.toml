@@ -5,7 +5,7 @@ name = "SLAKSHNA Federation"
 [training]
 epoch_duration_secs = 600   # Length of one federated epoch
 sync_deadline_secs = 300    # How long into the epoch to wait for peer updates
-expected_peers = 6          # Release the sync barrier early once this many nodes have reported
+expected_peers = 3          # Release the sync barrier early once this many nodes have reported
 
 [compression]
 enabled = true
@@ -34,7 +34,7 @@ peers = []
 mdns = true                 # Zero-config discovery of federation members on the local network
 dht = true                  # Serverless global lookup over the BitTorrent mainline DHT
 dns = true                  # Number 0's public pkarr/DNS lookup; set false for a self-contained federation
-relay = true                # Public relays as a fallback transport when hole punching fails
+relay = false               # Public relays as a fallback transport when hole punching fails
 
 [logging]
 level = "info"

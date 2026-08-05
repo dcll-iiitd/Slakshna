@@ -21,6 +21,7 @@ api_port = 8555
 # no node here is privileged. Leave empty and this node is still reachable:
 # it advertises itself over mDNS and the DHT, and remembers every peer it meets.
 peers = []
+blocked_peers = [""]
 
 [discovery]
 mdns = true                 # Zero-config discovery of federation members on the local network

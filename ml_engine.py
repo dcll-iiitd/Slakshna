@@ -571,6 +571,7 @@ def main():
             # CRITICAL: Isolate Bhaskera's CWD to prevent race conditions 
             # and use Popen to parse stdout line-by-line for REAL-TIME loss tracking!
             env = os.environ.copy()
+            env["CUDA_VISIBLE_DEVICES"] = "1,2,3"
             
             process = subprocess.Popen(
                 [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", "1"], 
@@ -647,51 +648,39 @@ def main():
     # torch.save(delta_i_fp16, my_delta_path)
     # 4. Extract and Sparsify LoRA Weights
     from pathlib import Path
-    from bhaskera.distributed.checkpoint import _dcp_load, _dcp_save, _STEP_RE
+    from bhaskera.distributed.checkpoint import _dcp_load, _STEP_RE
 
     step_dirs = sorted([
         p for p in Path(ckpt_dir).iterdir()
         if p.is_dir() and _STEP_RE.search(p.name) and (p / ".complete").exists()
     ], key=lambda p: int(_STEP_RE.search(p.name).group(1)))
 
-    if step_dirs:
+    if step_dirs and TRAINING_MODE == "pretraining":
         latest_step_dir = str(step_dirs[-1])
         
-        if TRAINING_MODE == "pretraining":
-            # Pretraining (GaLore): Compute full-parameter difference
-            local_model_dir = os.path.join(MODEL_DIR, f"{my_id}_base_full")
-            from safetensors.torch import load_file
-            import glob
-            base_model_sd = {}
-            sf_files = glob.glob(os.path.join(local_model_dir, "*.safetensors"))
-            if sf_files:
-                for sf in sf_files:
-                    base_model_sd.update(load_file(sf))
-            else:
-                bin_files = glob.glob(os.path.join(local_model_dir, "*.bin"))
-                for bin_file in bin_files:
-                    base_model_sd.update(torch.load(bin_file, map_location="cpu", weights_only=True))
-                    
-            # DCP requires the exact structure to be pre-allocated!
-            model_sd = {k: torch.zeros_like(v) for k, v in base_model_sd.items()}
-            _dcp_load({"model": model_sd}, os.path.join(latest_step_dir, "model"))
-            
-            delta_i = {}
-            for k, v in model_sd.items():
-                if k in base_model_sd:
-                    # delta = new - old
-                    delta_i[k] = v.to(device) - base_model_sd[k].to(device)
+        # Pretraining (GaLore): Compute full-parameter difference
+        local_model_dir = os.path.join(MODEL_DIR, f"{my_id}_base_full")
+        from safetensors.torch import load_file
+        import glob
+        base_model_sd = {}
+        sf_files = glob.glob(os.path.join(local_model_dir, "*.safetensors"))
+        if sf_files:
+            for sf in sf_files:
+                base_model_sd.update(load_file(sf))
         else:
-            # Finetuning (LoRA): DCP Loading
-            model_sd = {k: torch.zeros_like(v) for k, v in old_sd.items()}
-            _dcp_load({"model": model_sd}, os.path.join(latest_step_dir, "model"))
-            
-            delta_i = {}
-            for k, v in model_sd.items():
-                if k in old_sd:
-                    delta_i[k] = v.to(device) - old_sd[k].to(device)
-                else:
-                    delta_i[k] = v.to(device)
+            bin_files = glob.glob(os.path.join(local_model_dir, "*.bin"))
+            for bin_file in bin_files:
+                base_model_sd.update(torch.load(bin_file, map_location="cpu", weights_only=True))
+                
+        # DCP requires the exact structure to be pre-allocated!
+        model_sd = {k: torch.zeros_like(v) for k, v in base_model_sd.items()}
+        _dcp_load({"model": model_sd}, os.path.join(latest_step_dir, "model"))
+        
+        delta_i = {}
+        for k, v in model_sd.items():
+            if k in base_model_sd:
+                # delta = new - old
+                delta_i[k] = v.to(device) - base_model_sd[k].to(device)
     else:
         adapter_path = get_adapter_path(ckpt_dir)
         if adapter_path:
@@ -862,17 +851,13 @@ def main():
                 final_sd[k] = delta_agg[k].cpu()
         
         # Overwrite the latest checkpoint so Bhaskera resumes from the globally aggregated state
-        if step_dirs:
-            latest_step_dir = str(step_dirs[-1])
-            _dcp_save({"model": final_sd}, os.path.join(latest_step_dir, "model"))
-        else:
-            adapter_path = get_adapter_path(ckpt_dir)
-            if adapter_path:
-                if adapter_path.endswith(".safetensors"):
-                    from safetensors.torch import save_file
-                    save_file(final_sd, adapter_path)
-                else:
-                    torch.save(final_sd, adapter_path)
+        adapter_path = get_adapter_path(ckpt_dir)
+        if adapter_path:
+            if adapter_path.endswith(".safetensors"):
+                from safetensors.torch import save_file
+                save_file(final_sd, adapter_path)
+            else:
+                torch.save(final_sd, adapter_path)
         
         # Also keep a copy in models dir just for backwards compatibility
         my_model_path = os.path.join(MODEL_DIR, f"{my_id}_base_lora.pth")

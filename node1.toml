@@ -23,7 +23,7 @@ api_port = 8545
 peers = []
 # Optional list of blocked Iroh EndpointId strings.
 # Peers in this list will be ignored.
-blocked_peers = ["slakshna1l0tt0y8zqyu5gdna955qsrthmvt70jhkkhgrv9"]
+blocked_peers = ["slakshna1sxlaaxacysc8l7nvlnhscza9qjyk0fw95ufcsr", "slakshna1a7huc3s3lwfekhxsup2sqja4s9j2tdxwzkvgfy"]
 
 [discovery]
 mdns = true                 # Zero-config discovery of federation members on the local network

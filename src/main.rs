@@ -142,6 +142,7 @@ async fn main() -> Result<(), BoxError> {
             tracing::info!("🧠 Phase A: Real Local Training & Peer Exchange executing...");
 
             let peer_deltas_dir = format!("{}/network_deltas", config_loop.node.data_dir);
+            let _ = std::fs::remove_dir_all(&peer_deltas_dir); // Clear stale deltas from previous epochs
             std::fs::create_dir_all(&peer_deltas_dir).unwrap_or_default();
 
             // Stage every peer's most recent model update on disk for the ML engine
@@ -150,9 +151,29 @@ async fn main() -> Result<(), BoxError> {
                 let mut extracted_count = 0u32;
                 let mut skipped_count = 0u32;
 
+                let mut current_allowed = config_loop.network.allowed_peers.clone();
+                let mut current_blocked = config_loop.network.blocked_peers.clone();
+                if let Ok(latest_config) = crate::config::Config::load(&config_path_loop) {
+                    current_allowed = latest_config.network.allowed_peers;
+                    current_blocked = latest_config.network.blocked_peers;
+                }
+
                 // Iterate over every peer's update log so we don't depend on live mesh membership
                 for (peer_id, records) in &history.peer_updates {
                     if peer_id == &node_id_loop { continue; }
+
+                    if let Some(ref blocked) = current_blocked {
+                        if blocked.contains(peer_id) {
+                            tracing::warn!("🚫 Skipping extraction for blacklisted peer: {}", peer_id);
+                            continue;
+                        }
+                    }
+                    if let Some(ref allowed) = current_allowed {
+                        if !allowed.is_empty() && !allowed.contains(peer_id) {
+                            tracing::warn!("🚫 Skipping extraction for unauthorized peer: {}", peer_id);
+                            continue;
+                        }
+                    }
 
                     // Find their latest model update
                     let mut found_update = false;

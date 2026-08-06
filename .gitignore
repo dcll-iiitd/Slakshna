@@ -22,3 +22,6 @@ benchmark_data
 config_*
 patch_*
 hf_cache
+/.claude
+/docs
+Claude.md

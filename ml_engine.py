@@ -699,7 +699,6 @@ def main():
                             pass
                             
             env = os.environ.copy()
-            env["CUDA_VISIBLE_DEVICES"] = "1,2,3"
             
             process = subprocess.Popen(
                 [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", "1"], 

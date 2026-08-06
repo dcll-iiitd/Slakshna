@@ -10,15 +10,11 @@ try:
 except ImportError:
     pass
 
-# CRITICAL: Force all caching and temp files to the massive disk1 drive 
-# because the root /home/ partition is 100% full!
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.environ["HF_HOME"] = os.path.join(BASE_DIR, "hf_cache")
 os.environ["XDG_CACHE_HOME"] = os.path.join(BASE_DIR, "cache")
 
-# Isolate temp directories per node to prevent Ray GCS collisions
-# CRITICAL: Linux AF_UNIX sockets strictly fail if path > 107 chars! 
-# We must keep the temp path ultra-short by using just the last 6 chars of the node ID.
+
 if len(sys.argv) > 1 and sys.argv[1] != "--help":
     my_id_arg = sys.argv[1]
     short_id = my_id_arg[-6:] if len(my_id_arg) > 6 else my_id_arg
@@ -302,7 +298,7 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning"):
     config["training"]["output_dir"] = node_ckpt_dir
     config["output_dir"] = node_ckpt_dir
     
-    # FIX: Provide resume_path to Bhaskera so it loads the aggregated weights!
+    # Ensure the ML Engine initializes training from the aggregated base weights of the previous epoch
     if "lora" not in config: config["lora"] = {}
     config["lora"]["resume_path"] = os.path.join(MODEL_DIR, f"{my_id}_base_lora.pth")
     
@@ -616,9 +612,6 @@ def main():
         if not has_parquets:
             subprocess.run([sys.executable, "-m", "bhaskera.launcher.tokenize", "--config", config_path], check=True)
 
-        # WORKAROUND: Bhaskera-train has a bug where it expects parquets to be directly in tokenized_path,
-        # but bhaskera-tokenize puts them in a subfolder (e.g. ultrachat_xxx). 
-        # We must update the YAML config to point directly to that subfolder!
         if os.path.exists(tokenized_path):
             subfolders = [f.path for f in os.scandir(tokenized_path) if f.is_dir() and not f.name.startswith('.')]
             if subfolders:
@@ -705,8 +698,6 @@ def main():
                         except Exception:
                             pass
                             
-            # CRITICAL: Isolate Bhaskera's CWD to prevent race conditions 
-            # and use Popen to parse stdout line-by-line for REAL-TIME loss tracking!
             env = os.environ.copy()
             env["CUDA_VISIBLE_DEVICES"] = "1,2,3"
             
@@ -809,7 +800,7 @@ def main():
             for bin_file in bin_files:
                 base_model_sd.update(torch.load(bin_file, map_location="cpu", weights_only=True))
                 
-        # DCP requires the exact structure to be pre-allocated!
+        # DCP requires the exact structure to be pre-allocated! (sd: state_dict)
         model_sd = {k: torch.zeros_like(v) for k, v in base_model_sd.items()}
         _dcp_load({"model": model_sd}, os.path.join(latest_step_dir, "model"))
         
@@ -830,7 +821,9 @@ def main():
                 sd = torch.load(adapter_path, map_location=device, weights_only=True)
                 
             if TRAINING_MODE == "finetuning":
-                # Compute true delta
+                # [Local Training -> Delta Extraction]
+                # Isolate the exact knowledge learned in this epoch by subtracting the initial base parameters 
+                # (old_sd) from the newly trained parameters (sd) on a tensor-by-tensor basis.
                 delta_i = {}
                 for k, v in sd.items():
                     if k in old_sd:
@@ -858,8 +851,9 @@ def main():
         else:
             delta_i = {"dummy": torch.zeros(1, device=device)}
 
-    # Apply Differential Privacy (DP-SGD) & L2 Norm Clipping before sharing delta
-    # FIX: Increased max_norm to 100.0 (LLM LoRA gradients are large) and disabled noise so it can converge perfectly.
+    # [Security & DP] 
+    # Apply L2 Norm Clipping to the isolated delta parameters. This prevents local node poisoning 
+    # (Byzantine anomalies) from overpowering the global model consensus by capping extreme parameter updates.
     dp_delta_i = apply_differential_privacy_and_clipping(delta_i, max_norm=100.0, noise_multiplier=0.0)
 
     # Error Feedback: Load previous residual errors
@@ -874,7 +868,9 @@ def main():
     residual_input = {}
     new_error = {}
     
-    # Apply Error Feedback & Sparsify OUR delta to send to the Rust Node
+    # [Error Feedback]
+    # Add the un-transmitted residual gradients from the previous epoch back into the current delta 
+    # to ensure no local learning is permanently lost due to the sparsification step.
     for k, v in dp_delta_i.items():
         if not torch.is_tensor(v) or not v.is_floating_point():
             print(f"[{my_id}] Skipping non-floating delta tensor {k}", file=sys.stderr)
@@ -887,11 +883,14 @@ def main():
         residual_input[k] = dense_val
 
     if COMPRESSION_ENABLED:
+        # [Sparsification, Quantization & Serialization]
+        # Extracts the top-K highest magnitude parameters, reduces their precision (e.g., FP16/INT8), 
+        # and serializes the tensor dictionary into a Base64 string for P2P network transmission.
         b64_delta, sparse_delta, transport_metrics = encode_delta_envelope(
             residual_input, sender=my_id, round_number=state.get("round")
         )
     else:
-        # Deliberate migration path only; peers must opt in to legacy decoding.
+        # Legacy serialization fallback (Top-K Sparsity -> FP16 -> BytesIO -> Base64)
         sparse_delta = {k: sparsify_tensor(v, DELTA_SPARSITY).half() for k, v in residual_input.items()}
         buffer = io.BytesIO()
         torch.save(sparse_delta, buffer)
@@ -950,8 +949,9 @@ def main():
         network_deltas_dir=NETWORK_DELTAS_DIR,
     )
 
-    # FIX: We MUST aggregate our own SPARSE delta, otherwise we double-count gradients 
-    # since we already saved the dense-sparse difference into the Error Feedback buffer!
+    # [Self-Aggregation]
+    # We aggregate our own *sparsified* delta rather than our dense delta. The dropped weights 
+    # (dense - sparse) have already been saved to the error feedback buffer for the next epoch.
     available_deltas = {my_id: decode_delta_envelope(b64_delta, device, allow_legacy=True)}
     for j in neighbors:
         n_delta_path = os.path.join(NETWORK_DELTAS_DIR, f"{j}_delta.b64")
@@ -980,7 +980,9 @@ def main():
                     file=sys.stderr,
                 )
 
-    # Compute Trust-Weighted LoRA updates
+    # [Network Aggregation & Peer Evaluation]
+    # Multiply each received peer's delta by its local trust score (reputation), 
+    # then sum them together to form the global model update.
     delta_agg = {}
     for j, d_j in available_deltas.items():
         weight = w_i.get(j, 0.0)

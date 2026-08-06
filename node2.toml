@@ -7,6 +7,14 @@ epoch_duration_secs = 600   # Length of one federated epoch
 sync_deadline_secs = 300    # How long into the epoch to wait for peer updates
 expected_peers = 3          # Release the sync barrier early once this many nodes have reported
 
+[compression]
+enabled = true
+sparsity = 0.1
+quantization = "symmetric_int8"
+allow_legacy_delta_format = false
+max_payload_bytes = 7340032
+max_tensor_elements = 10000000
+
 [node]
 id = "node-2"
 data_dir = "./data-node2"

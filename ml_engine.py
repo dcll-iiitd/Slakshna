@@ -10,15 +10,11 @@ try:
 except ImportError:
     pass
 
-# CRITICAL: Force all caching and temp files to the massive disk1 drive 
-# because the root /home/ partition is 100% full!
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.environ["HF_HOME"] = os.path.join(BASE_DIR, "hf_cache")
 os.environ["XDG_CACHE_HOME"] = os.path.join(BASE_DIR, "cache")
 
-# Isolate temp directories per node to prevent Ray GCS collisions
-# CRITICAL: Linux AF_UNIX sockets strictly fail if path > 107 chars! 
-# We must keep the temp path ultra-short by using just the last 6 chars of the node ID.
+
 if len(sys.argv) > 1 and sys.argv[1] != "--help":
     my_id_arg = sys.argv[1]
     short_id = my_id_arg[-6:] if len(my_id_arg) > 6 else my_id_arg
@@ -47,6 +43,7 @@ import subprocess
 import yaml
 import base64
 import io
+import math
 
 # CONFIGURATION
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -65,6 +62,145 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(STATE_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
+
+# Delta transport wire format.  `torch.save` is retained only as a container;
+# receivers validate this schema before materializing any dense tensors.
+DELTA_FORMAT = "slakshna.sparse-quantized"
+DELTA_VERSION = 1
+QUANTIZATION = "symmetric_int8"
+
+
+def _env_bool(name, default=False):
+    return os.environ.get(name, str(default)).lower() in ("1", "true", "yes", "on")
+
+
+COMPRESSION_ENABLED = _env_bool("SLAKSHNA_COMPRESSION_ENABLED", True)
+DELTA_SPARSITY = float(os.environ.get("SLAKSHNA_DELTA_SPARSITY", "0.1"))
+DELTA_QUANTIZATION = os.environ.get("SLAKSHNA_DELTA_QUANTIZATION", QUANTIZATION)
+ALLOW_LEGACY_DELTA_FORMAT = _env_bool("SLAKSHNA_ALLOW_LEGACY_DELTA_FORMAT", False)
+MAX_DELTA_PAYLOAD_BYTES = int(os.environ.get("SLAKSHNA_MAX_DELTA_PAYLOAD_BYTES", str(7 * 1024 * 1024)))
+MAX_DELTA_TENSOR_ELEMENTS = int(os.environ.get("SLAKSHNA_MAX_DELTA_TENSOR_ELEMENTS", "10000000"))
+MAX_DELTA_TENSORS = 100000
+
+
+def topk_indices_and_values(tensor, sparsity=0.01):
+    """Return deterministic flattened top-k indices and their float32 values."""
+    if not tensor.is_floating_point():
+        raise ValueError("only floating-point tensors may be encoded as deltas")
+    flat = tensor.detach().contiguous().reshape(-1).float().cpu()
+    if flat.numel() == 0:
+        return torch.empty(0, dtype=torch.int64), flat
+    if not 0.0 < sparsity <= 1.0:
+        raise ValueError("delta sparsity must be in (0, 1]")
+    k = max(1, int(math.floor(flat.numel() * sparsity)))
+    # stable=True makes equal magnitudes deterministic: lower original index wins.
+    indices = torch.argsort(flat.abs(), descending=True, stable=True)[:k]
+    return indices, flat[indices]
+
+
+def quantize_symmetric_int8(values):
+    values = values.detach().float().cpu()
+    if not torch.isfinite(values).all():
+        raise ValueError("cannot quantize NaN or Inf values")
+    max_abs = values.abs().max().item() if values.numel() else 0.0
+    scale = max_abs / 127.0 if max_abs else 1.0
+    return torch.round(values / scale).clamp(-127, 127).to(torch.int8), float(scale)
+
+
+def encode_delta_envelope(delta_dict, sparsity=DELTA_SPARSITY, sender=None, round_number=None):
+    """Encode sparse int8 records and return (base64 payload, reconstructed delta, metrics)."""
+    if DELTA_QUANTIZATION != QUANTIZATION:
+        raise ValueError(f"unsupported delta quantization: {DELTA_QUANTIZATION}")
+    tensors, reconstructed = {}, {}
+    selected_count = index_bytes = value_bytes = dense_bytes = 0
+    for name, tensor in delta_dict.items():
+        if not torch.is_tensor(tensor) or not tensor.is_floating_point():
+            continue
+        source = tensor.detach().float().cpu().contiguous()
+        indices, values = topk_indices_and_values(source, sparsity)
+        quantized, scale = quantize_symmetric_int8(values)
+        dequantized = quantized.float() * scale
+        sparse = torch.zeros(source.numel(), dtype=torch.float32)
+        sparse.scatter_(0, indices, dequantized)
+        reconstructed[name] = sparse.reshape(source.shape)
+        tensors[name] = {
+            "shape": list(source.shape), "numel": source.numel(),
+            "indices": indices.to(torch.int32), "values": quantized,
+            "scale": scale, "zero_point": 0,
+        }
+        selected_count += indices.numel()
+        index_bytes += indices.numel() * 4
+        value_bytes += quantized.numel()
+        dense_bytes += source.numel() * source.element_size()
+    envelope = {
+        "format": DELTA_FORMAT, "version": DELTA_VERSION,
+        "quantization": QUANTIZATION, "sender": sender, "round": round_number,
+        "tensors": tensors,
+    }
+    buffer = io.BytesIO()
+    torch.save(envelope, buffer)
+    raw = buffer.getvalue()
+    if len(raw) > MAX_DELTA_PAYLOAD_BYTES:
+        raise ValueError(f"encoded delta is {len(raw)} bytes; limit is {MAX_DELTA_PAYLOAD_BYTES}")
+    return base64.b64encode(raw).decode("ascii"), reconstructed, {
+        "dense_bytes": dense_bytes, "selected_count": selected_count,
+        "index_bytes": index_bytes, "quantized_value_bytes": value_bytes,
+        "serialized_bytes": len(raw), "base64_bytes": len(base64.b64encode(raw)),
+    }
+
+
+def decode_delta_envelope(payload_b64, device, allow_legacy=ALLOW_LEGACY_DELTA_FORMAT):
+    """Strictly decode v1 payload before allocating its reconstructed tensors."""
+    if not isinstance(payload_b64, str) or len(payload_b64) > ((MAX_DELTA_PAYLOAD_BYTES + 2) // 3) * 4:
+        raise ValueError("invalid or oversized base64 delta")
+    try:
+        raw = base64.b64decode(payload_b64.encode("ascii"), validate=True)
+    except Exception as exc:
+        raise ValueError("invalid base64 delta") from exc
+    if len(raw) > MAX_DELTA_PAYLOAD_BYTES:
+        raise ValueError("decoded delta exceeds payload limit")
+    loaded = torch.load(io.BytesIO(raw), map_location="cpu", weights_only=True)
+    if not isinstance(loaded, dict) or loaded.get("format") != DELTA_FORMAT:
+        if not allow_legacy:
+            raise ValueError("unsupported legacy or malformed delta format")
+        if not isinstance(loaded, dict) or any(not isinstance(k, str) or not torch.is_tensor(v) for k, v in loaded.items()):
+            raise ValueError("invalid legacy delta")
+        return {k: v.float().to(device) for k, v in loaded.items()}
+    if loaded.get("version") != DELTA_VERSION or loaded.get("quantization") != QUANTIZATION:
+        raise ValueError("unsupported delta format version or quantizer")
+    records = loaded.get("tensors")
+    if not isinstance(records, dict) or len(records) > MAX_DELTA_TENSORS:
+        raise ValueError("invalid tensor records")
+    result, total_elements = {}, 0
+    for name, record in records.items():
+        if not isinstance(name, str) or not isinstance(record, dict):
+            raise ValueError("invalid tensor record")
+        shape, numel = record.get("shape"), record.get("numel")
+        indices, values, scale, zero_point = (record.get("indices"), record.get("values"),
+                                              record.get("scale"), record.get("zero_point"))
+        if (not isinstance(shape, list) or any(not isinstance(d, int) or d < 0 for d in shape)
+                or not isinstance(numel, int) or numel < 0 or not isinstance(scale, (float, int))
+                or not math.isfinite(scale) or scale <= 0 or zero_point != 0):
+            raise ValueError(f"invalid metadata for tensor {name}")
+        calculated_numel = math.prod(shape)
+        if calculated_numel != numel or numel > MAX_DELTA_TENSOR_ELEMENTS:
+            raise ValueError(f"invalid shape or element limit for tensor {name}")
+        total_elements += numel
+        if total_elements > MAX_DELTA_TENSOR_ELEMENTS:
+            raise ValueError("global tensor element limit exceeded")
+        if (not torch.is_tensor(indices) or not torch.is_tensor(values)
+                or indices.dtype not in (torch.int32, torch.int64) or values.dtype != torch.int8
+                or indices.dim() != 1 or values.dim() != 1 or indices.numel() != values.numel()):
+            raise ValueError(f"invalid sparse values for tensor {name}")
+        indices = indices.cpu().to(torch.int64)
+        if indices.numel() and (indices.min().item() < 0 or indices.max().item() >= numel):
+            raise ValueError(f"out-of-range index for tensor {name}")
+        if indices.numel() != torch.unique(indices).numel():
+            raise ValueError(f"duplicate index for tensor {name}")
+        dense = torch.zeros(numel, dtype=torch.float32)
+        dense.scatter_(0, indices, values.cpu().float() * float(scale))
+        result[name] = dense.reshape(shape).to(device)
+    return result
 
 
 def get_device(my_id):
@@ -162,7 +298,7 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning"):
     config["training"]["output_dir"] = node_ckpt_dir
     config["output_dir"] = node_ckpt_dir
     
-    # FIX: Provide resume_path to Bhaskera so it loads the aggregated weights!
+    # Ensure the ML Engine initializes training from the aggregated base weights of the previous epoch
     if "lora" not in config: config["lora"] = {}
     config["lora"]["resume_path"] = os.path.join(MODEL_DIR, f"{my_id}_base_lora.pth")
     
@@ -333,14 +469,11 @@ def get_adapter_path(ckpt_dir):
 
 
 def sparsify_tensor(tensor, sparsity=0.01):
-    """SparseLoCo Top-K Sparsification: Keeps only the top 1% of weights."""
-    if tensor.numel() == 0:
-        return tensor
-    k = max(1, int(tensor.numel() * sparsity))
-    val, idx = torch.topk(torch.abs(tensor.flatten()), k)
-    mask = torch.zeros_like(tensor.flatten())
-    mask[idx] = 1.0
-    return (tensor.flatten() * mask).reshape(tensor.shape)
+    """Compatibility helper for the disabled-compression migration path."""
+    indices, values = topk_indices_and_values(tensor, sparsity)
+    dense = torch.zeros(tensor.numel(), dtype=tensor.dtype, device=tensor.device)
+    dense.scatter_(0, indices.to(tensor.device), values.to(tensor.device, tensor.dtype))
+    return dense.reshape(tensor.shape)
 
 def extract_training_metrics(ckpt_dir):
     """Instead of relying on trainer_state.json, we now read the last loss directly from our real-time tracking CSV!"""
@@ -479,9 +612,6 @@ def main():
         if not has_parquets:
             subprocess.run([sys.executable, "-m", "bhaskera.launcher.tokenize", "--config", config_path], check=True)
 
-        # WORKAROUND: Bhaskera-train has a bug where it expects parquets to be directly in tokenized_path,
-        # but bhaskera-tokenize puts them in a subfolder (e.g. ultrachat_xxx). 
-        # We must update the YAML config to point directly to that subfolder!
         if os.path.exists(tokenized_path):
             subfolders = [f.path for f in os.scandir(tokenized_path) if f.is_dir() and not f.name.startswith('.')]
             if subfolders:
@@ -568,10 +698,7 @@ def main():
                         except Exception:
                             pass
                             
-            # CRITICAL: Isolate Bhaskera's CWD to prevent race conditions 
-            # and use Popen to parse stdout line-by-line for REAL-TIME loss tracking!
             env = os.environ.copy()
-            env["CUDA_VISIBLE_DEVICES"] = "1,2,3"
             
             process = subprocess.Popen(
                 [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", "1"], 
@@ -672,7 +799,7 @@ def main():
             for bin_file in bin_files:
                 base_model_sd.update(torch.load(bin_file, map_location="cpu", weights_only=True))
                 
-        # DCP requires the exact structure to be pre-allocated!
+        # DCP requires the exact structure to be pre-allocated! (sd: state_dict)
         model_sd = {k: torch.zeros_like(v) for k, v in base_model_sd.items()}
         _dcp_load({"model": model_sd}, os.path.join(latest_step_dir, "model"))
         
@@ -693,7 +820,9 @@ def main():
                 sd = torch.load(adapter_path, map_location=device, weights_only=True)
                 
             if TRAINING_MODE == "finetuning":
-                # Compute true delta
+                # [Local Training -> Delta Extraction]
+                # Isolate the exact knowledge learned in this epoch by subtracting the initial base parameters 
+                # (old_sd) from the newly trained parameters (sd) on a tensor-by-tensor basis.
                 delta_i = {}
                 for k, v in sd.items():
                     if k in old_sd:
@@ -721,44 +850,67 @@ def main():
         else:
             delta_i = {"dummy": torch.zeros(1, device=device)}
 
-    # Apply Differential Privacy (DP-SGD) & L2 Norm Clipping before sharing delta
-    # FIX: Increased max_norm to 100.0 (LLM LoRA gradients are large) and disabled noise so it can converge perfectly.
+    # [Security & DP] 
+    # Apply L2 Norm Clipping to the isolated delta parameters. This prevents local node poisoning 
+    # (Byzantine anomalies) from overpowering the global model consensus by capping extreme parameter updates.
     dp_delta_i = apply_differential_privacy_and_clipping(delta_i, max_norm=100.0, noise_multiplier=0.0)
 
     # Error Feedback: Load previous residual errors
     error_path = os.path.join(STATE_DIR, f"{my_id}_error_feedback.pth")
     if os.path.exists(error_path):
         saved_error = torch.load(error_path, map_location="cpu", weights_only=True)
+        if not isinstance(saved_error, dict):
+            saved_error = {}
     else:
         saved_error = {}
 
-    sparse_delta = {}
+    residual_input = {}
     new_error = {}
     
-    # Apply Error Feedback & Sparsify OUR delta to send to the Rust Node
+    # [Error Feedback]
+    # Add the un-transmitted residual gradients from the previous epoch back into the current delta 
+    # to ensure no local learning is permanently lost due to the sparsification step.
     for k, v in dp_delta_i.items():
-        dense_val = v.cpu()
-        if k in saved_error:
-            dense_val += saved_error[k]
-            
-        s_val = sparsify_tensor(dense_val, sparsity=0.1)
-        sparse_delta[k] = s_val.half()
-        
-        # Save the residual error (what we didn't send) for the next epoch
-        new_error[k] = dense_val - s_val
+        if not torch.is_tensor(v) or not v.is_floating_point():
+            print(f"[{my_id}] Skipping non-floating delta tensor {k}", file=sys.stderr)
+            continue
+        dense_val = v.detach().float().cpu()
+        previous = saved_error.get(k)
+        if (torch.is_tensor(previous) and previous.shape == dense_val.shape
+                and previous.is_floating_point() and torch.isfinite(previous).all()):
+            dense_val = dense_val + previous.float()
+        residual_input[k] = dense_val
+
+    if COMPRESSION_ENABLED:
+        # [Sparsification, Quantization & Serialization]
+        # Extracts the top-K highest magnitude parameters, reduces their precision (e.g., FP16/INT8), 
+        # and serializes the tensor dictionary into a Base64 string for P2P network transmission.
+        b64_delta, sparse_delta, transport_metrics = encode_delta_envelope(
+            residual_input, sender=my_id, round_number=state.get("round")
+        )
+    else:
+        # Legacy serialization fallback (Top-K Sparsity -> FP16 -> BytesIO -> Base64)
+        sparse_delta = {k: sparsify_tensor(v, DELTA_SPARSITY).half() for k, v in residual_input.items()}
+        buffer = io.BytesIO()
+        torch.save(sparse_delta, buffer)
+        b64_delta = base64.b64encode(buffer.getvalue()).decode("ascii")
+        transport_metrics = {"dense_bytes": 0, "selected_count": 0, "index_bytes": 0,
+                             "quantized_value_bytes": 0, "serialized_bytes": len(buffer.getvalue()),
+                             "base64_bytes": len(b64_delta)}
+
+    # Feed both pruning and int8 quantization error into the next round.
+    for k, dense_val in residual_input.items():
+        new_error[k] = (dense_val - sparse_delta[k].float().cpu()).float()
 
     # Persist the new error
     torch.save(new_error, error_path)
     
-    buffer = io.BytesIO()
-    torch.save(sparse_delta, buffer)
-    
-    b64_delta = base64.b64encode(buffer.getvalue()).decode("utf-8")
-
     log_runtime(
         my_id,
         "delta_encoded",
-        delta_b64_len=str(len(b64_delta)),
+        quantizer=DELTA_QUANTIZATION if COMPRESSION_ENABLED else "legacy_fp16_dense_mask",
+        reconstruction_error_norm=str(sum(v.norm().item() ** 2 for v in new_error.values()) ** 0.5),
+        **{key: str(value) for key, value in transport_metrics.items()},
         local_delta_path=my_delta_path,
     )
 
@@ -796,18 +948,17 @@ def main():
         network_deltas_dir=NETWORK_DELTAS_DIR,
     )
 
-    # FIX: We MUST aggregate our own SPARSE delta, otherwise we double-count gradients 
-    # since we already saved the dense-sparse difference into the Error Feedback buffer!
-    available_deltas = {my_id: {k: v.float().to(device) for k, v in sparse_delta.items()}}
+    # [Self-Aggregation]
+    # We aggregate our own *sparsified* delta rather than our dense delta. The dropped weights 
+    # (dense - sparse) have already been saved to the error feedback buffer for the next epoch.
+    available_deltas = {my_id: decode_delta_envelope(b64_delta, device, allow_legacy=True)}
     for j in neighbors:
         n_delta_path = os.path.join(NETWORK_DELTAS_DIR, f"{j}_delta.b64")
         if os.path.exists(n_delta_path):
             try:
                 with open(n_delta_path, "r") as f:
                     peer_b64 = f.read().strip()
-                peer_buffer = io.BytesIO(base64.b64decode(peer_b64))
-                loaded = torch.load(peer_buffer, weights_only=True, map_location=device)
-                peer_delta = {k: v.float().to(device) for k, v in loaded.items()}
+                peer_delta = decode_delta_envelope(peer_b64, device)
 
                 if not validate_peer_delta(peer_delta, max_allowed_norm=10.0):
                     print(f"[{my_id}] 🔒 SECURITY ALERT: Peer delta from {j} failed norm/sanity validation!", file=sys.stderr)
@@ -828,7 +979,9 @@ def main():
                     file=sys.stderr,
                 )
 
-    # Compute Trust-Weighted LoRA updates
+    # [Network Aggregation & Peer Evaluation]
+    # Multiply each received peer's delta by its local trust score (reputation), 
+    # then sum them together to form the global model update.
     delta_agg = {}
     for j, d_j in available_deltas.items():
         weight = w_i.get(j, 0.0)
@@ -948,7 +1101,7 @@ def main():
         "validation_score": float(score),
         "model_hash": model_hash,
         "weights": w_i,
-        "metadata": f"Acc: {accuracy_percentage:.1f}% | Mode: SparseLoCo",
+        "metadata": f"Acc: {accuracy_percentage:.1f}% | Mode: SparseLoCo | Delta: {DELTA_FORMAT}/v{DELTA_VERSION}",
         "compressed_delta": b64_delta  # NEW: Sending the actual weights to Rust
     }
     print(json.dumps(output))

@@ -155,6 +155,39 @@ cargo build --release
 
 ---
 
+## Running a Local Multi-Node Cluster
+
+To make local testing and simulations easy, you can use the provided cluster scripts. We have pre-configured 2-node, 4-node, and 6-node configurations in the `examples/` directory.
+
+### Requirements
+- **Rust / Cargo**: Required to compile the node binary (done automatically by the script if not found).
+- **Python / Bhaskera**: The Python environment must be set up properly as shown in the Installation steps. The script will automatically source `.venv` or `bhaskera-activate.sh`.
+
+### Starting the Cluster
+
+To start an entire cluster with a single command, use `start_cluster.sh` and pass the number of nodes (2, 4, or 6):
+
+```bash
+./start_cluster.sh 4
+```
+
+This will run all 4 nodes in the background. The script outputs logs directly into the `logs/` directory.
+You can monitor the logs of any specific node like this:
+
+```bash
+tail -f logs/node1_cluster.log
+```
+
+### Stopping the Cluster
+
+To safely shut down all the nodes started by the script, simply run:
+
+```bash
+./stop_cluster.sh
+```
+
+---
+
 ## TOML Configuration Breakdown
 
 Every node requires its own `.toml` configuration file (`config.toml`, `node2.toml`, etc.).

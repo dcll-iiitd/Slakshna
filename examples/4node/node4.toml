@@ -1,0 +1,37 @@
+[federation]
+id = "slakshna-fl-1"
+name = "SLAKSHNA Federation"
+
+[training]
+epoch_duration_secs = 600
+sync_deadline_secs = 300
+expected_peers = 4
+
+[compression]
+enabled = true
+sparsity = 0.1
+quantization = "symmetric_int8"
+allow_legacy_delta_format = false
+max_payload_bytes = 7340032
+max_tensor_elements = 10000000
+
+[node]
+id = "node-4"
+data_dir = "./data-node4"
+gpu_id = 3
+
+[network]
+host = "0.0.0.0"
+p2p_port = 9003
+ws_port = 8549
+api_port = 8557
+peers = []
+
+[discovery]
+mdns = true
+dht = true
+dns = true
+relay = false
+
+[logging]
+level = "info"

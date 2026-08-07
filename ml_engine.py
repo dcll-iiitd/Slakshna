@@ -55,8 +55,6 @@ LOG_DIR = os.path.join(BASE_DIR, "logs")
 TRUST_CSV = os.path.join(LOG_DIR, "trust_scores_new.csv")
 MALICIOUS_LOG = os.path.join(LOG_DIR, "malicious_nodes.txt")
 ACCURACY_CSV = os.path.join(LOG_DIR, "accuracy_scores.csv")
-_perf_file = os.environ.get("ML_PERFORMANCE_CSV", "ml_performance.csv")
-PERFORMANCE_CSV = os.path.join(LOG_DIR, _perf_file)
 RUNTIME_LOG = os.path.join(LOG_DIR, "runtime_comm.log")
 os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(STATE_DIR, exist_ok=True)
@@ -114,26 +112,6 @@ def log_trust_scores(my_id, weights):
         for peer_id, weight in weights.items():
             writer.writerow([timestamp, my_id, peer_id, weight])
 
-
-def log_ml_performance(node_id, current_round, loss_before, loss_after, accuracy):
-    file_exists = os.path.isfile(PERFORMANCE_CSV)
-    with open(PERFORMANCE_CSV, "a", newline="") as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(
-                [
-                    "timestamp",
-                    "node_id",
-                    "round",
-                    "loss_before",
-                    "loss_after",
-                    "accuracy",
-                ]
-            )
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        writer.writerow(
-            [timestamp, node_id, current_round, loss_before, loss_after, accuracy]
-        )
 
 
 def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning"):
@@ -314,20 +292,6 @@ def extract_training_metrics(ckpt_dir):
         return final_loss, perplexity
     return None, None
 
-def log_performance(my_id, loss, perplexity):
-    file_exists = os.path.isfile(PERFORMANCE_CSV)
-    row = {
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "node_id": my_id,
-        "loss": round(loss, 6),
-        "perplexity": round(perplexity, 6)
-    }
-    with open(PERFORMANCE_CSV, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=row.keys())
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(row)
-
 
 def main():
     if len(sys.argv) < 2:
@@ -503,7 +467,7 @@ def main():
         with open(loss_csv_path, "a", newline="") as f:
             writer = csv.writer(f)
             if not csv_exists:
-                writer.writerow(["timestamp", "node_id", "epoch", "step", "loss"])
+                writer.writerow(["timestamp", "node_id", "epoch", "step", "loss", "perplexity"])
                 
             # Delete any .complete sentinels so Bhaskera doesn't resume its own DCP checkpoints
             for root, dirs, files in os.walk(ckpt_dir):
@@ -555,8 +519,10 @@ def main():
                     if match:
                         step = match.group(2)
                         loss_val = match.group(3)
+                        loss_f = float(loss_val)
+                        perplexity_val = math.exp(loss_f) if loss_f < 20 else float('inf')
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        writer.writerow([timestamp, my_id, str(current_epoch), step, loss_val])
+                        writer.writerow([timestamp, my_id, str(current_epoch), step, loss_val, f"{perplexity_val:.4f}"])
                         f.flush()
                     
             process.wait()
@@ -567,7 +533,6 @@ def main():
         loss, perplexity = extract_training_metrics(ckpt_dir)
         if loss is not None:
             print(f"[{my_id}] Epoch Performance -> Loss: {loss:.4f} | Perplexity: {perplexity:.4f}", file=sys.stderr)
-            log_performance(my_id, loss, perplexity)
     finally:
         if 'ray' in sys.modules and ray.is_initialized():
             ray.shutdown()
@@ -844,14 +809,6 @@ def main():
         90.0 if not is_malicious else float(np.random.uniform(1.0, 50.0))
     )
     final_epoch_score = accuracy_percentage
-
-    log_ml_performance(
-        node_id=my_id,
-        current_round=state["round"],
-        loss_before=0.0,
-        loss_after=0.0,
-        accuracy=accuracy_percentage,
-    )
 
     # Compute Cosine Similarity for peer improvements
     flat_delta_i = flatten_tensors(delta_i).float()

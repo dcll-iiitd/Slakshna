@@ -4,7 +4,7 @@ import os
 import shutil
 
 # Read the CSV file
-csv_path = "logs/epoch_loss_tracking.csv"
+csv_path = "../logs/epoch_loss_tracking.csv"
 df = pd.read_csv(csv_path)
 
 # Filter for the first step of every epoch
@@ -34,7 +34,7 @@ plt.xticks(sorted(df_step1['epoch'].unique()))
 plt.legend()
 
 # Save to the current directory
-local_plot_path = "epoch_loss_step1.png"
+local_plot_path = "../results/epoch_loss_step1.png"
 plt.savefig(local_plot_path, dpi=300, bbox_inches='tight')
 print(f"Plot saved to {os.path.abspath(local_plot_path)}")
 

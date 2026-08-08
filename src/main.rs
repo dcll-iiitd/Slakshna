@@ -43,15 +43,13 @@ async fn main() -> Result<(), BoxError> {
     // Load config
     let mut config = Config::load(&config_path)?;
 
+    use tracing_subscriber::EnvFilter;
+
+    let filter = EnvFilter::new(format!("{},iroh=error", config.logging.level.as_str()));
+
     // Setup logging
     let _subscriber = FmtSubscriber::builder()
-        .with_max_level(match config.logging.level.as_str() {
-            "debug" => Level::DEBUG,
-            "info" => Level::INFO,
-            "warn" => Level::WARN,
-            "error" => Level::ERROR,
-            _ => Level::INFO,
-        })
+        .with_env_filter(filter)
         .with_target(false)
         .pretty()
         .init();

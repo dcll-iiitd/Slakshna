@@ -8,11 +8,11 @@ model:
   use_liger_kernel: false
 
 data:
-  # To be overridden by ml_engine.py
-  dataset_name: "dummy"
-  tokenized_path: "dummy"
+  dataset_name: "timdettmers/openassistant-guanaco"
+  tokenized_path: "dummy" # Overridden by ml_engine.py at runtime
   sequence_length: 512
   format_renderer: "chatml"
+  max_train_samples: 10000
 
 lora:
   enabled: true
@@ -24,8 +24,12 @@ lora:
 training:
   batch_size: 4
   gradient_accumulation_steps: 2
-  learning_rate: 2e-3
-  max_steps: 10
+  learning_rate: 1e-4
+  warmup_steps: 2
+  max_steps: 50
+  save_strategy: "steps"
+  save_steps: 5
+  save_total_limit: 1
   optimizer:
     backend: "default"
   distributed:
@@ -34,7 +38,7 @@ training:
 checkpoint:
   # To be overridden by ml_engine.py
   save_directory: "dummy"
-  save_interval: 5
+  save_interval: 1
   retention: 1
 
 logging:

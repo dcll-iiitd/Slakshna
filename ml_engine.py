@@ -132,13 +132,8 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning"):
     # os.makedirs(node_ckpt_dir, exist_ok=True)
     os.makedirs(node_cache_dir, exist_ok=True)
 
-    # Use standard open datasets for testing
-    config["data"]["dataset_name"] = "timdettmers/openassistant-guanaco"
     config["data"]["tokenized_path"] = node_cache_dir
     config["data"]["cache_dir"] = node_cache_dir  # Required by Bhaskera tokenizer
-    
-    # Force training dataset to be exactly 80 rows so 1 epoch naturally finishes in 10 steps!
-    config["data"]["max_train_samples"] = 10000
     
     # Aggressively override all possible checkpoint keys to prevent nodes from colliding in a hardcoded directory
     if "checkpoint" not in config: config["checkpoint"] = {}
@@ -155,27 +150,9 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning"):
     if "lora" not in config: config["lora"] = {}
     config["lora"]["resume_path"] = os.path.join(MODEL_DIR, f"{my_id}_base_lora.pth")
     
-    # Translate learning_rate to lr for Bhaskera
+    # Translate learning_rate to lr for Bhaskera if present in YAML
     if "learning_rate" in config["training"]:
         config["training"]["lr"] = config["training"]["learning_rate"]
-    
-    # If max_steps=10, the epoch never finishes! 
-    # Force it to save by steps instead of waiting for an epoch.
-    # We must allow the epoch to naturally finish to trigger the hardcoded save.
-    # Set max_steps higher than 10 so it doesn't artificially terminate early.
-    config["training"]["max_steps"] = 50
-    config["training"]["save_strategy"] = "steps"
-    config["training"]["save_steps"] = 5
-    config["training"]["save_total_limit"] = 1
-    
-    # Lower the learning rate drastically to prevent the massive intra-epoch loss spikes.
-    # The default 2e-3 was too aggressive. 1e-4 provides a smooth, stable descent.
-    config["training"]["lr"] = 1e-4
-    config["training"]["learning_rate"] = 1e-4
-    
-    # Re-enable a very short warmup (2 steps) so the model doesn't take massive jumps 
-    # on the very first batch, but still reaches peak LR before the 5-step epoch ends.
-    config["training"]["warmup_steps"] = 2
 
     # Prevent port collisions when multiple nodes run on the same machine
     if "monitoring" not in config:

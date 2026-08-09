@@ -105,6 +105,8 @@ pub struct NodeConfig {
     pub data_dir: String,
     #[serde(default)]
     pub gpu_id: Option<u32>,
+    #[serde(default)]
+    pub num_gpus: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

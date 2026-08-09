@@ -603,16 +603,18 @@ def _run_epoch(
         return step, best_ckpts, _step_samples_consumed, _step_tokens_consumed
 
     avg_loss = epoch_loss / epoch_steps
+    epoch_msg = f"[epoch {epoch}] avg_loss={avg_loss:.4f}"
+    epoch_metrics = {"epoch_avg_loss": avg_loss, "epoch": epoch}
+    if profile.is_moe:
+        avg_aux = epoch_aux_loss / epoch_steps
+        epoch_msg += f" avg_aux_loss={avg_aux:.4f}"
+        epoch_metrics["epoch_avg_aux_loss"] = avg_aux
+        
     if rank == 0:
-        epoch_msg = f"[epoch {epoch}] avg_loss={avg_loss:.4f}"
-        epoch_metrics = {"epoch_avg_loss": avg_loss, "epoch": epoch}
-        if profile.is_moe:
-            avg_aux = epoch_aux_loss / epoch_steps
-            epoch_msg += f" avg_aux_loss={avg_aux:.4f}"
-            epoch_metrics["epoch_avg_aux_loss"] = avg_aux
         logger.info(epoch_msg)
-        if tracker:
-            tracker.log(epoch_metrics, step=step)
+        
+    if tracker:
+        tracker.log(epoch_metrics, step=step)
 
     # ── Checkpoint ──────────────────────────────────────────────────
     if ckpt_cfg.enabled and (epoch + 1) % ckpt_cfg.save_interval == 0:

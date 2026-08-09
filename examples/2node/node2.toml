@@ -18,7 +18,8 @@ max_tensor_elements = 10000000
 [node]
 id = "node-2"
 data_dir = "./data-node2"
-gpu_id = 1
+gpu_id = 2
+num_gpus = 2
 
 [network]
 host = "0.0.0.0"

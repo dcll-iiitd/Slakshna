@@ -188,10 +188,22 @@ async fn main() -> Result<(), BoxError> {
             cmd.env("SLAKSHNA_MAX_DELTA_PAYLOAD_BYTES", config_loop.compression.max_payload_bytes.to_string());
             cmd.env("SLAKSHNA_MAX_DELTA_TENSOR_ELEMENTS", config_loop.compression.max_tensor_elements.to_string());
 
-            // Pin this ML process to the GPU assigned in the node config
+            // Multi-GPU Support
+            let num_gpus = config_loop.node.num_gpus.unwrap_or(1);
+            cmd.env("SLAKSHNA_NUM_GPUS", num_gpus.to_string());
+            
             if let Some(gid) = gpu_id_loop {
-                cmd.env("CUDA_VISIBLE_DEVICES", gid.to_string());
-                tracing::info!("🔥 ML Engine pinned to GPU {}", gid);
+                if num_gpus > 1 {
+                    let devices: Vec<String> = (gid..gid+num_gpus).map(|id| id.to_string()).collect();
+                    let devices_str = devices.join(",");
+                    cmd.env("CUDA_VISIBLE_DEVICES", &devices_str);
+                    tracing::info!("🔥 Multi-GPU Enabled: ML Engine pinned to GPUs {}", devices_str);
+                } else {
+                    cmd.env("CUDA_VISIBLE_DEVICES", gid.to_string());
+                    tracing::info!("🔥 ML Engine pinned to GPU {}", gid);
+                }
+            } else if num_gpus > 1 {
+                tracing::info!("🔥 Multi-GPU Enabled: Using {} GPUs (CUDA_VISIBLE_DEVICES not constrained)", num_gpus);
             }
 
             let output = cmd.output().await;

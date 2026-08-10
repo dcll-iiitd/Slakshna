@@ -403,9 +403,10 @@ def main():
         dash_port = 8265 + (int(hashlib.md5(my_id.encode()).hexdigest()[:8], 16) % 1000)
         
         print(f"[{my_id}] Starting private Ray cluster...", file=sys.stderr)
+        num_gpus = int(os.environ.get("SLAKSHNA_NUM_GPUS", "1"))
         context = ray.init(
             dashboard_port=dash_port,
-            num_gpus=1,
+            num_gpus=num_gpus,
             include_dashboard=False,
             ignore_reinit_error=True
         )
@@ -455,15 +456,12 @@ def main():
                         except Exception:
                             pass
                             
-            env = os.environ.copy()
-            
             process = subprocess.Popen(
-                [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", "1"], 
+                [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", str(num_gpus)], 
                 cwd=ckpt_dir, 
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                text=True,
-                env=env
+                text=True
             )
             
             import re
@@ -485,7 +483,8 @@ def main():
                                 pass
             current_epoch += 1
 
-            with open("bhaskera_crash.log", "w") as crash_log:
+            crash_log_path = os.path.join(LOG_DIR, f"{my_id}_bhaskera_crash.log")
+            with open(crash_log_path, "w") as crash_log:
                 for line in process.stdout:
                     sys.stderr.write(line)
                     sys.stderr.flush()

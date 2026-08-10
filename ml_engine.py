@@ -166,7 +166,7 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning"):
         # Poisoning the model with huge LR
         config["training"]["lr"] = 1.0
 
-    opt_name = os.environ.get("OPTIMIZER", "galore" if training_mode == "pretraining" else "adamw").lower()
+    opt_name = config.get("federated", {}).get("optimizer", "adamw").lower()
 
     if opt_name == "muon":
         config.setdefault("plugins", {})["optimizers"] = ["bhaskera.plugins.optimizers.muon"]
@@ -280,14 +280,15 @@ def main():
 
     device = get_device(my_id)
     
-    TRAINING_MODE = os.environ.get("TRAINING_MODE", "finetuning")
+    with open(os.path.join(BASE_DIR, "node_template.yaml"), "r") as f:
+        template_config = yaml.safe_load(f)
+    
+    TRAINING_MODE = template_config.get("federated", {}).get("mode", "finetuning")
     
     if TRAINING_MODE == "pretraining":
         local_model_dir = os.path.join(MODEL_DIR, f"{my_id}_base_full")
         if not os.path.exists(local_model_dir):
             print(f"[{my_id}] Base model not found locally. Downloading from HuggingFace to {local_model_dir}...", file=sys.stderr)
-            with open(os.path.join(BASE_DIR, "node_template.yaml"), "r") as f:
-                template_config = yaml.safe_load(f)
             hf_model_name = template_config.get("model", {}).get("name", "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T")
             from transformers import AutoModelForCausalLM, AutoTokenizer
             model_tmp = AutoModelForCausalLM.from_pretrained(hf_model_name, torch_dtype=torch.bfloat16)
@@ -378,25 +379,6 @@ def main():
                 cfg["data"]["tokenized_path"] = actual_tokenized_dir
                 with open(config_path, "w") as f:
                     yaml.dump(cfg, f)
-                
-                # Bhaskera refuses to save checkpoints mid-epoch.
-                # Truncate the parquet files to 80 rows so 1 epoch finishes in exactly 10 steps!
-                import glob
-                try:
-                    import pyarrow.parquet as pq
-                    parquets = glob.glob(os.path.join(actual_tokenized_dir, "*.parquet"))
-                    if parquets:
-                        # Slice the very first parquet file to 80 rows
-                        first_pq = parquets[0]
-                        table = pq.read_table(first_pq)
-                        if table.num_rows > 80:
-                            pq.write_table(table.slice(0, 80), first_pq)
-                        
-                        # DELETE all other parquet files so the total dataset is exactly 80 rows!
-                        for pf in parquets[1:]:
-                            os.remove(pf)
-                except Exception as e:
-                    print(f"[{my_id}] Skipping parquet truncation: {e}", file=sys.stderr)
 
         # Initialize a long-lived private Ray cluster strictly for Training
         import ray
@@ -781,10 +763,10 @@ def main():
         gc.collect()
 
     # Evaluate improvement (Cosine Similarity Peer Evaluation)
-    accuracy_percentage = (
-        90.0 if not is_malicious else float(np.random.uniform(1.0, 50.0))
-    )
-    final_epoch_score = accuracy_percentage
+    try:
+        final_epoch_score = loss if loss is not None else 999.0
+    except NameError:
+        final_epoch_score = 999.0
 
     # Compute Cosine Similarity for peer improvements
     flat_delta_i = flatten_tensors(delta_i).float()
@@ -808,7 +790,7 @@ def main():
             peer_improvements[j] = 0.0
 
     # Trust update
-    beta = 0.1
+    beta = template_config.get("federated", {}).get("trust_beta", 0.1)
     for j in all_nodes:
         Delta_L_j = peer_improvements.get(j, 0.0)
         # Cosine similarity gives [-1, 1], directly correlates to gradient alignment
@@ -816,7 +798,7 @@ def main():
         state["alpha"][j] += step
         state["alpha"][j] *= 0.98
 
-    score = accuracy_percentage + float(np.random.uniform(0.0001, 0.0099))
+    score = final_epoch_score
     state["score"] = score
     with open(my_state_path, "w") as f:
         json.dump(state, f)
@@ -841,7 +823,7 @@ def main():
         "validation_score": float(score),
         "model_hash": model_hash,
         "weights": w_i,
-        "metadata": f"Acc: {accuracy_percentage:.1f}% | Mode: SparseLoCo | Delta: {DELTA_FORMAT}/v{DELTA_VERSION}",
+        "metadata": f"Loss: {score:.4f} | Mode: SparseLoCo | Delta: {DELTA_FORMAT}/v{DELTA_VERSION}",
         "compressed_delta": b64_delta  # NEW: Sending the actual weights to Rust
     }
     print(json.dumps(output))

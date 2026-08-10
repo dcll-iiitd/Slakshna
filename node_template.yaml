@@ -1,3 +1,8 @@
+federated:
+  mode: "finetuning"
+  optimizer: "adamw"
+  trust_beta: 0.1
+
 plugins:
   optimizers: []
 
@@ -33,7 +38,14 @@ training:
   optimizer:
     backend: "default"
   distributed:
-    strategy: "ddp"
+    strategy: "ddp" # change to "fsdp" if you want to use fsdp
+    # fsdp:
+    #   param_dtype: "auto"
+    #   reduce_dtype: "auto"
+    #   buffer_dtype: "auto"
+    #   shard_experts_individually: true
+    #   activation_checkpointing: true
+    #   transformer_layer_cls: []
 
 checkpoint:
   # To be overridden by ml_engine.py

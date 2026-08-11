@@ -73,16 +73,9 @@ def maybe_resume(model, optimizer, save_dir: str) -> tuple[int, dict]:
     """Resume from the highest-step checkpoint directory under `save_dir`.
     Returns (step, meta_dict). meta_dict contains all meta.json keys
     including eval_lifecycle/* cursor keys when present."""
-    if not Path(save_dir).exists():
-        return 0, {}
- 
-    candidates = [p for p in Path(save_dir).iterdir() if p.is_dir() and _STEP_RE.search(p.name)]
-    if not candidates:
-        return 0, {}
- 
-    latest = max(candidates, key=_step_of)
-    logger.info(f"Resuming from {latest}")
-    return load_checkpoint(model, optimizer, str(latest))
+    # Delegate entirely to the distributed load_checkpoint which correctly 
+    # handles the .complete sentinel scanning and loading.
+    return load_checkpoint(model, optimizer, save_dir)
 
 
 def _step_of(p: Path) -> int:

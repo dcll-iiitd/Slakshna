@@ -912,6 +912,8 @@ class MuonBase(Optimizer8bit):
             "min_8bit_size": min_8bit_size,
             "max_unorm": 0.0,
             "skip_zeros": False,
+            "percentile_clipping": 100,
+            "block_wise": True,
         }
         self.args = MockArgs(args)
         self.optimizer_name = "muon"

@@ -189,6 +189,14 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning"):
                 "proj_type": "std"
             }
         }
+    elif opt_name == "galore_muon":
+        config.setdefault("plugins", {})["optimizers"] = ["bhaskera.plugins.optimizers.galore_muon"]
+        user_kwargs = config.get("training", {}).get("optimizer", {}).get("kwargs", {})
+        config.setdefault("training", {})["optimizer"] = {
+            "backend": "plugin",
+            "name": "galore_muon",
+            "kwargs": user_kwargs
+        }
 
     if training_mode == "pretraining":
         config.setdefault("lora", {})["enabled"] = False
@@ -249,7 +257,7 @@ def get_adapter_path(ckpt_dir):
 def extract_training_metrics(ckpt_dir):
     """Instead of relying on trainer_state.json, we now read the last loss directly from our real-time tracking CSV!"""
     import csv
-    loss_csv_path = os.path.join(LOG_DIR, "epoch_loss_tracking.csv")
+    loss_csv_path = os.path.join(LOG_DIR, "epoch_loss_tracking_adamw.csv")
     
     final_loss = None
     if os.path.exists(loss_csv_path):
@@ -284,6 +292,9 @@ def main():
         template_config = yaml.safe_load(f)
     
     TRAINING_MODE = template_config.get("federated", {}).get("mode", "finetuning")
+    # If lora is explicitly disabled, we are doing full-parameter fine-tuning which follows the pretraining logic
+    if not template_config.get("lora", {}).get("enabled", True):
+        TRAINING_MODE = "pretraining"
     
     if TRAINING_MODE == "pretraining":
         local_model_dir = os.path.join(MODEL_DIR, f"{my_id}_base_full")
@@ -421,7 +432,7 @@ def main():
                     else:
                         old_sd = torch.load(old_adapter_path, map_location=device, weights_only=True)
         
-        loss_csv_path = os.path.join(LOG_DIR, "epoch_loss_tracking.csv")
+        loss_csv_path = os.path.join(LOG_DIR, "epoch_loss_tracking_adamw.csv")
         csv_exists = os.path.isfile(loss_csv_path)
         
         with open(loss_csv_path, "a", newline="") as f:
@@ -521,32 +532,67 @@ def main():
         if p.is_dir() and _STEP_RE.search(p.name) and (p / ".complete").exists()
     ], key=lambda p: int(_STEP_RE.search(p.name).group(1)))
 
-    if step_dirs and TRAINING_MODE == "pretraining":
+    if step_dirs:
         latest_step_dir = str(step_dirs[-1])
         
-        # Pretraining (GaLore): Compute full-parameter difference
-        local_model_dir = os.path.join(MODEL_DIR, f"{my_id}_base_full")
-        from safetensors.torch import load_file
-        import glob
-        base_model_sd = {}
-        sf_files = glob.glob(os.path.join(local_model_dir, "*.safetensors"))
-        if sf_files:
-            for sf in sf_files:
-                base_model_sd.update(load_file(sf))
+        if TRAINING_MODE == "pretraining":
+            # Pretraining (GaLore): Compute full-parameter difference
+            local_model_dir = os.path.join(MODEL_DIR, f"{my_id}_base_full")
+            from safetensors.torch import load_file
+            import glob
+            base_model_sd = {}
+            sf_files = glob.glob(os.path.join(local_model_dir, "*.safetensors"))
+            if sf_files:
+                for sf in sf_files:
+                    base_model_sd.update(load_file(sf))
+            else:
+                bin_files = glob.glob(os.path.join(local_model_dir, "*.bin"))
+                for bin_file in bin_files:
+                    base_model_sd.update(torch.load(bin_file, map_location="cpu", weights_only=True))
+                    
+            # DCP requires the exact structure to be pre-allocated! (sd: state_dict)
+            model_sd = {k: torch.zeros_like(v) for k, v in base_model_sd.items()}
+            _dcp_load({"model": model_sd}, os.path.join(latest_step_dir, "model"))
+            
+            delta_i = {}
+            for k, v in model_sd.items():
+                if k in base_model_sd:
+                    # delta = new - old
+                    delta_i[k] = v.to(device) - base_model_sd[k].to(device)
         else:
-            bin_files = glob.glob(os.path.join(local_model_dir, "*.bin"))
-            for bin_file in bin_files:
-                base_model_sd.update(torch.load(bin_file, map_location="cpu", weights_only=True))
+            # Finetuning (LoRA with FSDP): Load DCP checkpoint
+            if old_sd:
+                model_sd = {k: torch.zeros_like(v) for k, v in old_sd.items()}
+                _dcp_load({"model": model_sd}, os.path.join(latest_step_dir, "model"))
                 
-        # DCP requires the exact structure to be pre-allocated! (sd: state_dict)
-        model_sd = {k: torch.zeros_like(v) for k, v in base_model_sd.items()}
-        _dcp_load({"model": model_sd}, os.path.join(latest_step_dir, "model"))
-        
-        delta_i = {}
-        for k, v in model_sd.items():
-            if k in base_model_sd:
-                # delta = new - old
-                delta_i[k] = v.to(device) - base_model_sd[k].to(device)
+                delta_i = {}
+                for k, v in model_sd.items():
+                    if k in old_sd:
+                        delta_i[k] = v.to(device) - old_sd[k].to(device)
+                    else:
+                        delta_i[k] = v.to(device)
+            else:
+                # If old_sd is empty (epoch 1), generate shapes from peft config on meta device
+                from transformers import AutoConfig, AutoModelForCausalLM
+                from peft import get_peft_model, LoraConfig
+                hf_model_name = template_config.get("model", {}).get("name", "meta-llama/Llama-2-7b-hf")
+                with torch.device("meta"):
+                    tmp_model = AutoModelForCausalLM.from_config(AutoConfig.from_pretrained(hf_model_name))
+                peft_config = LoraConfig(
+                    r=template_config["lora"]["rank"],
+                    lora_alpha=template_config["lora"]["alpha"],
+                    lora_dropout=template_config["lora"]["dropout"],
+                    target_modules=template_config["lora"]["target_modules"],
+                    task_type="CAUSAL_LM"
+                )
+                peft_model = get_peft_model(tmp_model, peft_config)
+                
+                # Allocate CPU tensors for the trainable LoRA parameters
+                trainable_keys = {k for k, v in peft_model.named_parameters() if v.requires_grad}
+                model_sd = {k: torch.zeros_like(v, device="cpu") for k, v in peft_model.state_dict().items() if k in trainable_keys or "lora" in k}
+                _dcp_load({"model": model_sd}, os.path.join(latest_step_dir, "model"))
+                
+                delta_i = {k: v.to(device) for k, v in model_sd.items()}
     else:
         adapter_path = get_adapter_path(ckpt_dir)
         if adapter_path:

@@ -183,9 +183,9 @@ impl Config {
             return Err("compression.quantization must be symmetric_int8".into());
         }
         if config.compression.max_payload_bytes == 0
-            || config.compression.max_payload_bytes > 7 * 1024 * 1024
+            || config.compression.max_payload_bytes > 2000000000
         {
-            return Err("compression.max_payload_bytes must be between 1 and 7340032".into());
+            return Err("compression.max_payload_bytes must be between 1 and 2000000000".into());
         }
         if config.compression.max_tensor_elements == 0 {
             return Err("compression.max_tensor_elements must be positive".into());

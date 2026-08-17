@@ -257,7 +257,7 @@ def get_adapter_path(ckpt_dir):
 def extract_training_metrics(ckpt_dir):
     """Instead of relying on trainer_state.json, we now read the last loss directly from our real-time tracking CSV!"""
     import csv
-    loss_csv_path = os.path.join(LOG_DIR, "epoch_loss_tracking_adamw.csv")
+    loss_csv_path = os.path.join(LOG_DIR, "epoch_loss_tracking_muon.csv")
     
     final_loss = None
     if os.path.exists(loss_csv_path):
@@ -397,7 +397,12 @@ def main():
         
         print(f"[{my_id}] Starting private Ray cluster...", file=sys.stderr)
         num_gpus = int(os.environ.get("SLAKSHNA_NUM_GPUS", "1"))
+        import tempfile
+        ray_temp_dir = os.path.join(tempfile.gettempdir(), f"ray_{my_id[:8]}")
+        os.makedirs(ray_temp_dir, exist_ok=True)
+        
         context = ray.init(
+            _temp_dir=ray_temp_dir,
             dashboard_port=dash_port,
             num_gpus=num_gpus,
             include_dashboard=False,
@@ -432,7 +437,7 @@ def main():
                     else:
                         old_sd = torch.load(old_adapter_path, map_location=device, weights_only=True)
         
-        loss_csv_path = os.path.join(LOG_DIR, "epoch_loss_tracking_adamw.csv")
+        loss_csv_path = os.path.join(LOG_DIR, "epoch_loss_tracking_muon.csv")
         csv_exists = os.path.isfile(loss_csv_path)
         
         with open(loss_csv_path, "a", newline="") as f:

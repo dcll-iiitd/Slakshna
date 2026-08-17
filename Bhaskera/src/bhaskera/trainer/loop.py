@@ -282,6 +282,8 @@ def _run_epoch(
             "input_ids": torch.long,
             "attention_mask": torch.long,
             "labels": torch.long,
+            "position_ids": torch.long,
+            "seq_idx": torch.long,
         },
         device=device,
     )
@@ -335,6 +337,7 @@ def _run_epoch(
         window_seq_len = 0
 
         # ── Gradient accumulation loop ───────────────────────────────
+        # ── Gradient accumulation loop ───────────────────────────────
         for micro_step in range(grad_accum):
             try:
                 batch = next(loader_iter)
@@ -346,6 +349,10 @@ def _run_epoch(
             attention_mask = batch["attention_mask"]
             labels = batch["labels"]
 
+            # 1. EXTRACT NEW PACKING TENSORS
+            position_ids = batch.get("position_ids")
+            seq_idx = batch.get("seq_idx")
+
             try:
                 _bs  = int(input_ids.size(0))
                 _seq = int(input_ids.size(1))
@@ -353,10 +360,6 @@ def _run_epoch(
                 window_tokens += int(attention_mask.sum().item())
                 window_samples += _bs
                 window_seq_len = _seq
-                # Increment BEFORE the forward pass so that if the process
-                # is interrupted mid-step, the cursor points to the start
-                # of the interrupted step and those samples are re-processed
-                # on resume (they did not complete an optimizer step).
                 _step_samples_consumed += _bs
                 _step_tokens_consumed  += _bs * _seq
             except Exception:
@@ -372,12 +375,33 @@ def _run_epoch(
             )
 
             with autocast_ctx:
+                # 2. DYNAMICALLY HANDLE SDPA vs FLASH ATTENTION 2
+                attn_impl = getattr(cfg.model, "attn_impl", "sdpa")
+                is_packed = seq_idx is not None and getattr(cfg.data, "pack_sequences", False)
+
+                if is_packed:
+                    if attn_impl == "flash_attention_2":
+                        # HF >= 4.43 handles sequence packing natively via flash_attn_varlen_func
+                        # IF position_ids properly reset to 0 (which ours do) and attention_mask is excluded.
+                        attention_mask = None
+                    else:
+                        # SDPA natively accepts the 4D block-diagonal mask
+                        from bhaskera.trainer.packing import build_4d_attention_mask
+                        attention_mask = build_4d_attention_mask(seq_idx, autocast_dtype)
+
+                # 3. BUILD FORWARD KWARGS
                 forward_kwargs = dict(
                     input_ids=input_ids,
-                    attention_mask=attention_mask,
                     labels=labels,
                     use_cache=False,
                 )
+
+                if attention_mask is not None:
+                    forward_kwargs["attention_mask"] = attention_mask
+
+                if position_ids is not None:
+                    forward_kwargs["position_ids"] = position_ids
+
                 if profile.is_moe and profile.has_aux_loss:
                     forward_kwargs["output_router_logits"] = True
 

@@ -10,4 +10,4 @@ elif command -v module &>/dev/null && [[ -n "12.0" ]]; then
     module load cuda/12.0 2>/dev/null || true
 fi
 
-source "/mnt/disk1/slakshna/Bhaskera/.venv/bin/activate"
+source "/mnt/disk1/slakshna/dcll/Slakshna/Bhaskera/.venv/bin/activate"

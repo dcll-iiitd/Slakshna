@@ -1,13 +1,15 @@
 federated:
   mode: "finetuning"
-  optimizer: "adamw"
+  # Set optimizer to "galore_muon" for full-parameter fine-tuning with GaLore+Muon
+  # Set optimizer to "muon" for 8-bit Muon with LoRA
+  optimizer: "muon"
   trust_beta: 0.1
 
 plugins:
   optimizers: []
 
 model:
-  name: "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T"
+  name: "NousResearch/Llama-2-7b-hf"
   dtype: "bfloat16"
   trust_remote_code: true
   use_liger_kernel: false
@@ -20,16 +22,18 @@ data:
   max_train_samples: 10000
 
 lora:
+  # Set enabled to false for full-parameter fine-tuning (e.g. with GaLore+Muon)
+  # Set to true if you want to use LoRA adapters (and switch optimizer above)
   enabled: true
-  rank: 8
-  alpha: 16
-  dropout: 0.05
+  rank: 16
+  alpha: 64
+  dropout: 0.03
   target_modules: ["q_proj", "v_proj"]
 
 training:
   batch_size: 4
-  gradient_accumulation_steps: 2
-  learning_rate: 1e-4
+  gradient_accumulation_steps: 8
+  learning_rate: 3e-4
   warmup_steps: 2
   max_steps: 50
   save_strategy: "steps"
@@ -37,15 +41,18 @@ training:
   save_total_limit: 1
   optimizer:
     backend: "default"
+    # Kwargs for muon optimizer
+    kwargs:
+      optim_bits: 8
   distributed:
-    strategy: "ddp" # change to "fsdp" if you want to use fsdp
-    # fsdp:
-    #   param_dtype: "auto"
-    #   reduce_dtype: "auto"
-    #   buffer_dtype: "auto"
-    #   shard_experts_individually: true
-    #   activation_checkpointing: true
-    #   transformer_layer_cls: []
+    strategy: "fsdp" # change to "fsdp" if you want to use fsdp
+    fsdp:
+      param_dtype: "auto"
+      reduce_dtype: "auto"
+      buffer_dtype: "auto"
+      shard_experts_individually: true
+      activation_checkpointing: true
+      transformer_layer_cls: []
 
 checkpoint:
   # To be overridden by ml_engine.py

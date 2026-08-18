@@ -3,8 +3,8 @@ id = "slakshna-fl-1"
 name = "SLAKSHNA Federation"
 
 [training]
-epoch_duration_secs = 600
-sync_deadline_secs = 300
+epoch_duration_secs = 400
+sync_deadline_secs = 400
 expected_peers = 4
 
 [compression]

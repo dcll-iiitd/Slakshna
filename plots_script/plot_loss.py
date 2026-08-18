@@ -4,13 +4,14 @@ import os
 import shutil
 
 # Read the CSV file
-csv_path = "../logs/epoch_loss_tracking.csv"
+script_dir = os.path.dirname(os.path.abspath(__file__))
+csv_path = os.path.join(script_dir, "..", "logs", "epoch_loss_tracking_adamw.csv")
 df = pd.read_csv(csv_path)
 
 # Filter for the first step of every epoch
 # The step column might be string or int, so let's safely convert and filter
 df['step'] = df['step'].astype(int)
-df_step1 = df[df['step'] == 1].copy()
+df_step1 = df[df['step'] == 5].copy()
 
 # Sort by epoch just in case
 df_step1['epoch'] = df_step1['epoch'].astype(int)
@@ -22,9 +23,7 @@ plt.figure(figsize=(10, 6))
 unique_nodes = df_step1['node_id'].unique()
 for node in unique_nodes:
     node_data = df_step1[df_step1['node_id'] == node]
-    # Keep node name short for legend
-    label = node[:8] + "..." if len(node) > 8 else node
-    plt.plot(node_data['epoch'], node_data['loss'], marker='o', linestyle='-', linewidth=2, markersize=8, label=label)
+    plt.plot(node_data['epoch'], node_data['loss'], marker='o', linestyle='-', linewidth=2, markersize=8, label=node)
 
 plt.title('Global Model Loss at Step 1 of Each Epoch', fontsize=16)
 plt.xlabel('Epoch', fontsize=14)
@@ -33,8 +32,9 @@ plt.grid(True, linestyle='--', alpha=0.7)
 plt.xticks(sorted(df_step1['epoch'].unique()))
 plt.legend()
 
-# Save to the current directory
-local_plot_path = "../results/epoch_loss_step1.png"
+# Save to the results directory
+local_plot_path = os.path.join(script_dir, "..", "results", "epoch_loss_step1.png")
+os.makedirs(os.path.dirname(local_plot_path), exist_ok=True)
 plt.savefig(local_plot_path, dpi=300, bbox_inches='tight')
 print(f"Plot saved to {os.path.abspath(local_plot_path)}")
 

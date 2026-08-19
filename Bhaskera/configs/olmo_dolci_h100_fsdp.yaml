@@ -1,0 +1,106 @@
+model:
+  name: "allenai/Olmo-3-1025-7B"
+  trust_remote_code: true
+  dtype: "bfloat16"
+  attn_impl: "flash_attention_2"      # A100 supports it; big speedup at 2k
+  use_liger_kernel: true              # fused kernels for SwiGLU/RMSNorm
+
+# ──────────────────────────────────────────────────────────────────────────
+# Data — point at the caches produced by bhaskera-tokenize --split both
+# ──────────────────────────────────────────────────────────────────────────
+data:
+  name: "local"
+  format: "chatml"
+
+  # Replace these with the paths the tokenize CLI printed in its banner.
+  tokenized_path: "/fsx/somshekhar.m/nemo-project/data/local_train_b1cfa2bad60014a8"
+
+
+
+  seq_len: 2048
+  num_workers: 8                      # data loader workers per Ray actor
+  prefetch_batches: 2
+  local_shuffle_buffer_multiplier: 10
+  pack_sequences: false               # turn on later if epoch is too short
+
+# ──────────────────────────────────────────────────────────────────────────
+# LoRA — MoE-aware
+# ──────────────────────────────────────────────────────────────────────────
+lora:
+  enabled: true
+  r: 32
+  alpha: 64                           # alpha = 2*r is a safe default
+  dropout: 0.05
+  target_modules: ["auto"]            # let the framework pick attn + mlp projs
+
+  modules_to_save: []
+
+# ──────────────────────────────────────────────────────────────────────────
+# MoE auxiliary losses (still applied even with LoRA, for routing health)
+# ──────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────
+# Training
+# ──────────────────────────────────────────────────────────────────────────
+training:
+  # Effective batch = 4 GPUs * batch_size * grad_accum = 4 * 2 * 8 = 64
+  batch_size: 50
+  grad_accum: 1
+
+  lr: 1.0e-4                          # standard LoRA LR; drop to 5e-6 for full FT
+  weight_decay: 0.0                   # LoRA usually trains better with WD=0
+  num_epochs: 3
+  max_steps: 100000                   # high cap — num_epochs is the real limit
+  warmup_steps: 50
+  max_grad_norm: 1.0
+  grad_clip: 1.0
+  max_grad_skip_steps: 100
+
+  seed: 42
+  deterministic: false                # leave off for speed; turn on to reproduce
+
+  distributed:
+    strategy: "fsdp"
+
+    fsdp:
+      sharding_strategy: "FULL_SHARD"  # shard params + grads + optim across 4 GPUs
+      transformer_layer_cls: []        # [] → auto-detect Param2's decoder block
+      param_dtype: "bfloat16"
+      reduce_dtype: "bfloat16"
+      buffer_dtype: "bfloat16"
+      activation_checkpointing: true   # essential at 17B on A100
+      cpu_offload: false               # only flip on if you OOM at batch_size=1
+      shard_experts_individually: false  # ← per request
+
+    ddp:                              # ignored when strategy=fsdp; left for completeness
+      find_unused_parameters: false
+      gradient_as_bucket_view: true
+      broadcast_buffers: false
+
+# ──────────────────────────────────────────────────────────────────────────
+# Checkpointing
+# ──────────────────────────────────────────────────────────────────────────
+                  # keep last two epochs only
+
+# ──────────────────────────────────────────────────────────────────────────
+# Logging
+# ──────────────────────────────────────────────────────────────────────────
+
+
+# -----------------------------------------------------------------------------
+# Monitoring
+# -----------------------------------------------------------------------------
+monitoring:
+  dashboard: true          # Ray Dashboard — job/actor/resource view
+  dashboard_host: "0.0.0.0"
+  dashboard_port: 8265     # access via ssh -L 8265:localhost:8265
+  metrics_export_port: 8080
+
+  metrics:
+    enabled: true
+    system_every_n_steps: 1
+    cuda_every_n_steps: 2
+    gpu: true
+    cpu: true
+    cuda_memory: true
+    throughput: true
+    peak_tflops_per_gpu: 989

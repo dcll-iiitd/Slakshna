@@ -7,7 +7,7 @@ from bhaskera.data.registry import register, register_raw
 from bhaskera.data.tokenize import tokenize_dataset
 
 
-@register_raw("ultrachat", text_col="prompt")
+@register_raw("ultrachat", text_col="messages")
 def _build_raw(cfg) -> ray.data.Dataset:
     """Return the raw (un-tokenized) UltraChat dataset."""
     from datasets import load_dataset
@@ -18,4 +18,4 @@ def _build_raw(cfg) -> ray.data.Dataset:
 @register("ultrachat")
 def build(cfg, world_size: int = 1) -> ray.data.Dataset:
     """Return the tokenized UltraChat dataset, using cache if available."""
-    return tokenize_dataset(_build_raw(cfg), cfg, "prompt", world_size=world_size)
+    return tokenize_dataset(_build_raw(cfg), cfg, "messages", world_size=world_size)

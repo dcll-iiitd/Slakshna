@@ -1,0 +1,28 @@
+# configs/tokenize_local.yaml
+
+model:
+  # The model whose tokenizer you want to use.
+  name: "allenai/Olmo-3-1025-7B"
+  trust_remote_code: false
+
+data:
+  # 1. Dataset Type
+  name: "local"              # MUST be "local" to read custom JSONL/JSON/Parquet files
+
+  # 2. Format Specification
+  format: "chatml"           # Use "chatml" for messages: [{role, content}]
+                             # Change to "alpaca" for instruction/input/output format
+
+  # 3. I/O Paths
+  train_path: "/fsx/somshekhar.m/nemo-project/dolci-chatml.jsonl"    # Can be a single file, directory, or glob
+  cache_dir: "/fsx/somshekhar.m/nemo-project/data"
+  pack_sequences: True
+
+  # 4. Tokenization Settings
+  seq_len: 2048
+  overwrite_cache: true      # Set to true while testing to ensure it regenerates
+
+  # 5. Parallelism & Performance
+  num_workers: 8             # Number of Ray CPU workers to spawn
+  tokenize_batch_size: 256   # Number of rows processed per batch per worker
+  tokenize_compression: "snappy"

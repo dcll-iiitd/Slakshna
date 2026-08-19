@@ -623,7 +623,19 @@ class EvaluationLifecycle:
                 cfg.training.batch_size
                 * getattr(data_cfg, "local_shuffle_buffer_multiplier", 10)
             ),
-            dtypes={"input_ids": torch.long, "labels": torch.long, "attention_mask": torch.long},
+            # Kept in sync with the training iterator's dtypes dict
+            # (trainer/loop.py) -- position_ids/seq_idx are needed
+            # whenever packing is on, and Ray still hands back those
+            # columns without this dict (one tensor per dataset column
+            # regardless), but they won't get the explicit torch.long
+            # cast without being listed here.
+            dtypes={
+                "input_ids": torch.long,
+                "attention_mask": torch.long,
+                "labels": torch.long,
+                "position_ids": torch.long,
+                "seq_idx": torch.long,
+            },        
         )
 
         # DataIterator has no .skip() — it is already a per-worker split,

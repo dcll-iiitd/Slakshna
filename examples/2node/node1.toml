@@ -12,14 +12,14 @@ enabled = true
 sparsity = 0.1
 quantization = "symmetric_int8"
 allow_legacy_delta_format = false
-max_payload_bytes = 2000000000
-max_tensor_elements = 2000000000
+max_payload_bytes = 7000000
+max_tensor_elements = 7000000
 
 [node]
 id = "node-1"
 data_dir = "./data-node1"
-gpu_id = 0
-num_gpus = 2
+gpu_id = 1
+num_gpus = 1
 
 [network]
 host = "0.0.0.0"

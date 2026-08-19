@@ -12,8 +12,8 @@ enabled = true
 sparsity = 0.1
 quantization = "symmetric_int8"
 allow_legacy_delta_format = false
-max_payload_bytes = 2000000000
-max_tensor_elements = 2000000000
+max_payload_bytes = 7000000
+max_tensor_elements = 7000000
 
 [node]
 id = "node-2"

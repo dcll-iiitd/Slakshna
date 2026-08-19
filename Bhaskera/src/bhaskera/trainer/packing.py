@@ -28,6 +28,15 @@ def build_4d_attention_mask(seq_idx: torch.Tensor, dtype: torch.dtype) -> torch.
     # 3. Combine masks
     valid_mask = doc_mask & causal_mask.unsqueeze(0)
 
+    # 3b. Unmask fully-masked rows (padding positions, whose seq_idx == 0,
+    # have no valid key to attend to under doc_mask). Mirrors HF's
+    # AttentionMaskConverter._unmask_unattended: a row that is entirely
+    # False would leave softmax over an empty set, which SDPA's fused
+    # kernels can turn into NaN. These rows' outputs are discarded via the
+    # -100 labels anyway, so it's safe to let them attend to everything.
+    fully_masked_rows = valid_mask.sum(dim=-1, keepdim=True) == 0
+    valid_mask = valid_mask | fully_masked_rows
+
     # 4. Convert to HF Additive Mask
     attn_mask = torch.zeros((batch_size, 1, seq_len, seq_len), dtype=dtype, device=device)
     attn_mask.masked_fill_(~valid_mask.unsqueeze(1), torch.finfo(dtype).min)

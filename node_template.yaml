@@ -9,7 +9,7 @@ plugins:
   optimizers: []
 
 model:
-  name: "NousResearch/Llama-2-7b-hf"
+  name: "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T"
   dtype: "bfloat16"
   trust_remote_code: true
   use_liger_kernel: false
@@ -45,7 +45,7 @@ training:
     kwargs:
       optim_bits: 8
   distributed:
-    strategy: "fsdp" # change to "fsdp" if you want to use fsdp
+    strategy: "ddp" # change to "fsdp" if you want to use fsdp
     fsdp:
       param_dtype: "auto"
       reduce_dtype: "auto"

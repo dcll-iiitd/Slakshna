@@ -1,0 +1,4 @@
+[submodule "Bhaskera"]
+	path = Bhaskera
+	url = https://github.com/dcll-iiitd/Bhaskera
+	branch = Slakshna

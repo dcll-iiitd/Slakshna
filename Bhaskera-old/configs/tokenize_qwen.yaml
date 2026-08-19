@@ -1,0 +1,15 @@
+model:
+  name: "Qwen/Qwen2.5-14B"     # Replace with the model whose tokenizer you want to use
+  trust_remote_code: false     # Set to true if using a custom model like Param2
+
+data:
+  name: "ultrachat"            # Specifies the registered dataset
+  seq_len: 4096
+  pack_sequences: true                      # Maximum sequence length
+  cache_dir: "/scratch/ldls-iiitd/training-framework/cpt"         # REQUIRED: Directory where the parquet files will be saved[cite: 1]
+
+  # --- Parallelism & Performance Tuning ---
+  num_workers: 8              # Set this to your node's total CPU cores minus 1 or 2[cite: 1]
+  tokenize_batch_size: 32     # Batches sent to each Ray worker (128 prevents OOM at 2048 seq_len)[cite: 1]
+  tokenize_compression: "snappy" # Reduces disk I/O ("snappy", "zstd", or "none")[cite: 1]
+  prefetch_batches: 2          # Number of batches to prefetch per worker[cite: 1]

@@ -1,0 +1,61 @@
+# =============================================================================
+# Bhaskera — reference config
+# All values shown are defaults; only override what you need.
+# =============================================================================
+
+model:
+  name: "tiiuae/falcon-7b"
+  dtype: "bfloat16"          # bfloat16 | float16 | float32
+  attn_impl: null            # flash_attention_2 | null
+
+data:
+  name: "ultrachat"          # ultrachat | openassistant | redpajama
+  seq_len: 2048
+  num_workers: 2             # Ray Data tokenisation parallelism
+
+lora:
+  enabled: true
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: ["query_key_value"]
+
+training:
+  batch_size: 2
+  grad_accum: 4
+  lr: 2e-4
+  weight_decay: 0.01
+  max_steps: 1000
+  num_epochs: 1
+  warmup_steps: 100
+  max_grad_norm: 1.0
+
+  distributed:
+    strategy: "fsdp"         # fsdp | ddp
+
+    fsdp:
+      sharding_strategy: "FULL_SHARD"
+      transformer_layer_cls: ["FalconDecoderLayer"]
+      param_dtype: "bfloat16"
+      reduce_dtype: "bfloat16"
+      buffer_dtype: "bfloat16"
+      activation_checkpointing: true
+      cpu_offload: false
+
+    ddp:
+      find_unused_parameters: false
+      gradient_as_bucket_view: true
+      broadcast_buffers: false
+
+checkpoint:
+  enabled: true
+  save_dir: "./checkpoints"
+  save_interval: 1           # every N epochs
+  keep_last_n: 2
+
+logging:
+  tracker: null              # wandb | mlflow | null
+  project: "bhaskera"
+  run_name: "run"
+  mlflow_tracking_uri: null
+  log_gpu_every_n_steps: 10

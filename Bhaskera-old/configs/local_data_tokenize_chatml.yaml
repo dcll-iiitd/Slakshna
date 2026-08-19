@@ -1,0 +1,35 @@
+# configs/tokenize_param17b_chatml.yaml
+#
+# Tokenization config for Param2-17B-A2.4B-Thinking on local JSONL data
+# in ChatML format (your customer-service dataset).
+#
+# Run with:
+#   bhaskera-tokenize --config configs/tokenize_param17b_chatml.yaml --split both
+#
+# After it finishes, the printed banner will give you a snippet to paste
+# into your training config (data.tokenized_path + data.val_tokenized_path).
+
+model:
+  name: "bharatgenai/Param2-17B-A2.4B-Thinking"
+  trust_remote_code: true            # required for the custom Param2 tokenizer
+
+data:
+  # ── Source ────────────────────────────────────────────────────────────
+  name: "local"                      # generic JSONL/JSON/Parquet builder
+  format: "chatml"                   # uses tokenizer.apply_chat_template
+  format_options:
+    messages_field: "messages"       # column name in your JSONL rows
+
+  train_path: "/scratch/ldls-iiitd/training-framework/newchanges/customdata/chatml_train.jsonl"
+  val_path:   "/scratch/ldls-iiitd/training-framework/newchanges/customdata/chatml_val.jsonl"
+
+  # ── Tokenisation ──────────────────────────────────────────────────────
+  seq_len: 2048
+  cache_dir: "/scratch/ldls-iiitd/training-framework/newchanges"
+  overwrite_cache: false             # set true to force re-tokenization
+
+  # ── Performance (matches your existing tokenize.yaml) ─────────────────
+  num_workers: 8                    # CPU cores - 1 or 2
+  tokenize_batch_size: 32           # 128 prevents OOM at seq_len 2048
+  tokenize_compression: "snappy"     # "snappy" | "zstd" | "none"
+  prefetch_batches: 2

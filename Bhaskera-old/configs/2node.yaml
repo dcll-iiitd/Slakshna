@@ -1,0 +1,153 @@
+# =============================================================================
+# Bhaskera — Param2-17B-A2.4B-Thinking | SFT on UltraChat
+# 4 GPUs total, 2 GPUs per node (2 nodes × 2 GPUs/node)
+#
+# Architecture:
+#   17B total / 2.4B active  (Hybrid MoE)
+#   21 layers, hidden=2048, 32Q/8KV heads, head_dim=64
+#   64 routed experts + 2 shared, top-6 routing
+#   vocab=128k, max_ctx=4096, trust_remote_code=True
+#
+# Memory plan (bfloat16 + LoRA + FSDP FULL_SHARD across 4 GPUs):
+#   17B params  ≈ 34 GB total → ~8.5 GB/GPU after sharding
+#   LoRA trainable ≈ 20–50 MB (attention targets only)
+#   MoE activations: ~6–10 GB/GPU at batch=2, seq=2048 with AC on
+#   AdamW state: tiny (LoRA params only)
+#   → fits 2× 24 GB (RTX 3090/4090, L4) per node
+#   → Enable cpu_offload: true if you OOM on 2× 24 GB
+#
+# Effective batch = 4 GPUs × batch_size 2 × grad_accum 4 = 32 sequences/step
+#
+# Run (interactive):
+#   bhaskera-train --config configs/param2_17b_thinking_4gpu_2pernode.yaml --num-workers 4
+# SLURM:
+#   sbatch scripts/submit.sh --config configs/param2_17b_thinking_4gpu_2pernode.yaml
+#
+# SLURM header (paste into submit.sh or override):
+#   #SBATCH --nodes=2
+#   #SBATCH --ntasks-per-node=1
+#   #SBATCH --gres=gpu:2
+#   #SBATCH --cpus-per-task=10
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Model
+# -----------------------------------------------------------------------------
+model:
+  name: "bharatgenai/Param2-17B-A2.4B-Thinking"
+  dtype: "bfloat16"
+  attn_impl: "flash_attention_2"             # set "flash_attention_2" if flash-attn is installed (~20% faster)
+  trust_remote_code: true       # REQUIRED — Param2 uses custom tokenizer/modeling code
+  use_liger_kernel: false        # Triton-fused RMSNorm/RoPE/SwiGLU — safe no-op if unsupported
+
+# -----------------------------------------------------------------------------
+# Data — UltraChat 200k (HuggingFaceH4/ultrachat_200k)
+# -----------------------------------------------------------------------------
+data:
+  name: "ultrachat"             # text_col=prompt, split=train_sft
+  seq_len: 2048
+  num_workers: 4                # 4 GPUs across 2 nodes — 4 per node is safe
+  tokenized_path: "/scratch/ldls-iiitd/training-framework/newchanges/ultrachat_908b384d81812c6e"
+  prefetch_batches: 4           # fix #16 — pipeline data loading with training
+  local_shuffle_buffer_multiplier: 10
+  pack_sequences: false         # set true to bin-pack sequences and maximize GPU utilisation
+
+# -----------------------------------------------------------------------------
+# LoRA
+# -----------------------------------------------------------------------------
+lora:
+  enabled: true
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: ["auto"]      # introspect.py auto-discovers attention linears for Param2
+  include_experts: false        # set true to also LoRA expert FFN layers (more VRAM)
+  freeze_router: true           # freeze MoE gate/router weights during training
+  modules_to_save: []           # e.g. ["embed_tokens", "lm_head"] to fully fine-tune those
+
+# -----------------------------------------------------------------------------
+# MoE — Param2 has 64 routed + 2 shared experts, top-6 routing
+# -----------------------------------------------------------------------------
+moe:
+  aux_loss_weight: 0.01         # load-balancing aux loss coefficient
+  router_z_loss_weight: 0.001   # router z-loss to prevent logit collapse
+  freeze_router: true           # mirrors lora.freeze_router; kept for explicitness
+  log_expert_utilization: true  # log per-expert token counts to tracker
+  log_every_n_steps: 10
+
+# -----------------------------------------------------------------------------
+# Training
+# -----------------------------------------------------------------------------
+training:
+  batch_size: 4                 # per-GPU micro-batch; MoE activations are large — keep small
+  grad_accum: 4                 # effective batch = 4 GPUs × 2 × 4 = 32 sequences/step
+  lr: 2.0e-4                    # standard LoRA LR for this scale
+  weight_decay: 0.01
+  max_steps: 4000               # bump to 3000–5000 for a full UltraChat run
+  num_epochs: 4
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  grad_clip: 1.0                # Phase 1: used by the no_sync gradient accumulation loop
+  max_grad_skip_steps: 100      # skip optimizer step if grad norm exceeds this threshold
+  seed: 42
+  deterministic: false          # flip to true for bit-exact reruns (slower)
+
+  distributed:
+    strategy: "fsdp"
+
+    fsdp:
+      sharding_strategy: "FULL_SHARD"      # maximum memory savings; essential for 17B on 24 GB GPUs
+      transformer_layer_cls: []            # empty → auto-detect via introspect.py
+      param_dtype: "bfloat16"
+      reduce_dtype: "bfloat16"             # set "float32" for MoE if you see instability
+      buffer_dtype: "bfloat16"
+      activation_checkpointing: true       # REQUIRED — MoE backward holds all expert activations
+      cpu_offload: false                   # set true if you OOM on 2× 24 GB
+      shard_experts_individually: false    # shard each MoE expert as its own FSDP unit
+
+    ddp:
+      find_unused_parameters: false
+      gradient_as_bucket_view: true
+      broadcast_buffers: false
+
+# -----------------------------------------------------------------------------
+# Checkpoint
+# -----------------------------------------------------------------------------
+checkpoint:
+  enabled: true
+  save_dir: "./checkpoints/param2-17b-thinking-ultrachat-4gpu"
+  save_interval: 1              # every N epochs
+  keep_last_n: 2                # keep the 2 best-by-loss checkpoints; prune older ones
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+logging:
+  tracker: "mlflow"
+  project: "bhaskera"
+  run_name: "param2-17b-thinking-ultrachat-4gpu-2pernode"
+  mlflow_tracking_uri: ""  # leave empty → defaults to ~/mlflow-runs
+  mlflow_log_all_ranks: false
+  mlflow_log_artifacts_every: 50
+  log_gpu_every_n_steps: 10
+
+# -----------------------------------------------------------------------------
+# Monitoring
+# -----------------------------------------------------------------------------
+monitoring:
+  dashboard: true          # Ray Dashboard — job/actor/resource view
+  dashboard_host: "0.0.0.0"
+  dashboard_port: 8265     # access via ssh -L 8265:localhost:8265
+  metrics_export_port: 8080
+
+  metrics:
+    enabled: true
+    system_every_n_steps: 1
+    cuda_every_n_steps: 2
+    gpu: true
+    cpu: true
+    cuda_memory: true
+    throughput: true
+    peak_tflops_per_gpu: 312.0     # update to 165.0 for RTX 4090, 121.0 for L4
+    throughput_window: 5
+    throughput_warmup: 5

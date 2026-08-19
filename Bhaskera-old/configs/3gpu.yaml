@@ -1,0 +1,69 @@
+# =============================================================================
+# Bhaskera — Falcon-7B SFT on UltraChat, 3 GPUs, W&B logging
+#
+# Memory plan (bfloat16 + LoRA + FSDP2 FULL_SHARD across 3 GPUs):
+#   Falcon-7B params  ≈ 14 GB total → ~4.7 GB/GPU after sharding
+#   LoRA trainable    ≈ 20-40 MB (depends on r, targets)
+#   Activations       : ~8-14 GB/GPU at seq_len=2048, batch=4 with AC on
+#   AdamW state       : tiny (only trainable LoRA params)
+#   Works on 3x 24 GB (RTX 3090/4090, L4) and up.
+#
+# Effective batch = 3 GPUs × batch_size 4 × grad_accum 4 = 48 sequences / step
+# =============================================================================
+
+model:
+  name: "tiiuae/falcon-7b"
+  dtype: "bfloat16"
+  attn_impl: null             # set to "flash_attention_2" if flash-attn is installed (~20% faster)
+  trust_remote_code: false    # Falcon-7B uses stock transformers FalconForCausalLM
+
+data:
+  name: "ultrachat"           # HuggingFaceH4/ultrachat_200k, text_col=prompt
+  seq_len: 2048
+  num_workers: 8              # Ray Data tokenisation parallelism
+
+lora:
+  enabled: true
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: ["auto"]    # introspect.py picks query_key_value (fused QKV) for Falcon
+  include_experts: false      # Falcon is dense, not MoE
+  freeze_router: true         # ignored for dense models, safe to leave on
+  modules_to_save: []         # set to ["embed_tokens","lm_head"] if you want to fully train them
+
+training:
+  batch_size: 4               # per-GPU micro-batch
+  grad_accum: 4               # → effective batch 48 across 3 GPUs
+  lr: 2.0e-4                  # standard LoRA LR for 7B
+  weight_decay: 0.01
+  max_steps: 2000             # ~half of one UltraChat epoch at effective batch 48
+  num_epochs: 1
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  seed: 42
+  deterministic: false        # flip to true if you need bit-exact reruns (slower)
+
+  distributed:
+    strategy: "fsdp"
+    fsdp:
+      sharding_strategy: "FULL_SHARD"    # best memory savings for 3 GPUs
+      transformer_layer_cls: []          # empty → auto-detect (FalconDecoderLayer)
+      param_dtype: "bfloat16"
+      reduce_dtype: "bfloat16"           # fine for dense models; set "float32" for MoE
+      buffer_dtype: "bfloat16"
+      activation_checkpointing: true     # ~30% memory savings, ~20% time cost
+      cpu_offload: false                 # turn on only if you OOM
+      shard_experts_individually: false  # dense model, nothing to do
+
+checkpoint:
+  enabled: true
+  save_dir: "./checkpoints/falcon7b-ultrachat"
+  save_interval: 1            # every N epochs
+  keep_last_n: 2              # keeps the 2 BEST-by-loss checkpoint dirs; older ones pruned
+
+logging:
+  tracker: "wandb"
+  project: "bhaskera"
+  run_name: "falcon7b-ultrachat-lora-3gpu"
+  log_gpu_every_n_steps: 10   # pynvml telemetry pushed to W&B every 10 logged steps

@@ -1,0 +1,36 @@
+# Bhaskera inference config — speculative decoding example
+# Run with: bhaskera-infer --config configs/inference_speculative.yaml \
+#            --prompt "The capital of France is"
+
+model:
+  name: Qwen/Qwen2.5-7B-Instruct
+  dtype: bfloat16
+  trust_remote_code: false
+
+inference:
+  max_new_tokens: 256
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 50
+  do_sample: true
+  batch_size: 1
+  device: auto
+
+  # Use static cache for speculative decoding
+  # (TurboQuant can also be combined with speculative decoding)
+  kv_cache: static
+
+  turboquant:
+    key_bits: 4
+    value_bits: 2
+    residual_window: 128
+    protected_layers: 2
+
+  # Speculative decoding — lossless 2–3× decode speedup
+  # Draft and target must share the same vocabulary
+  speculative:
+    enabled: true
+    draft_model_name: Qwen/Qwen2.5-0.5B-Instruct  # 14x smaller draft
+    num_draft_tokens: 5    # draft generates 5 tokens; target verifies in 1 pass
+
+  torch_compile: false

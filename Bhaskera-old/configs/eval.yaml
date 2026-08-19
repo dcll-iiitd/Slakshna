@@ -1,0 +1,103 @@
+plugins:
+  optimizers: []  # No custom plugins needed for built-in torch optimizers
+
+model:
+  name: "Qwen/Qwen2.5-1.5B"
+  dtype: "bfloat16"
+  attn_impl: "flash_attention_2"
+  trust_remote_code: false
+  use_liger_kernel: true
+
+data:
+  name: "local_cpt"
+  is_cpt: true
+  seq_len: 2048
+  num_workers: 8
+  path: null
+  tokenized_path: "/mnt/disk1/Framework/cpt/local_cpt_b0e6ee1f621c1b74"
+  # Pre-tokenized path required to load the validation shard for metric evaluations
+  val_tokenized_path: "/mnt/disk1/Framework/cpt/data/local_cpt_b0e6ee1f621c1b74"
+
+lora:
+  enabled: false
+
+training:
+  batch_size: 70
+  grad_accum: 1
+  
+  # Global fallbacks if not defined inside kwargs
+  lr: 2.0e-5
+  weight_decay: 0.01
+  
+  max_steps: 10000
+  num_epochs: 20
+  warmup_steps: 15
+  max_grad_norm: 1.0
+
+  # ── Inbuilt Torch Optimizer Configuration ──
+  optimizer:
+    backend: "torch"
+    class_name: "AdamW"
+    kwargs:
+      lr: 2.0e-5
+      betas: [0.9, 0.95]
+      eps: 1.0e-8
+      weight_decay: 0.01
+
+  distributed:
+    strategy: "ddp"
+    ddp:
+      find_unused_parameters: false
+      gradient_as_bucket_view: true
+      broadcast_buffers: false
+      activation_checkpointing: true
+      static_graph: false
+
+# ── Pluggable Evaluation Subsystem Configuration ──
+evaluation:
+  enabled: true
+  offload_optimizer: true
+  validation:
+    dataset: "validation"
+    every_n_steps: 40
+    every_n_epochs: 1
+    metrics:
+      - loss
+      - perplexity
+      - token_accuracy
+
+  benchmarks:
+    every_n_steps: 10
+    every_n_epochs: 1
+    tasks:
+      - hellaswag
+      - arc_easy
+      - arc_challenge
+
+checkpoint:
+  enabled: true
+  save_dir: "./checkpoints/cpt-ddp-1.5B-adamw"
+  save_interval: 1
+  keep_last_n: 2
+
+logging:
+  tracker: "mlflow"
+  project: "bhaskera-cpt"
+  run_name: "cpt-ddp-1.5b-run-adamw"
+
+monitoring:
+  dashboard: true
+  dashboard_host: "0.0.0.0"
+  dashboard_port: 8265
+  metrics_export_port: 8080
+  metrics:
+    enabled: true
+    system_every_n_steps: 1
+    cuda_every_n_steps: 2
+    gpu: true
+    cpu: true
+    cuda_memory: true
+    throughput: true
+    peak_tflops_per_gpu: 155.83
+    throughput_window: 5
+    throughput_warmup: 5

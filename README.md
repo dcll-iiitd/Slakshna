@@ -1,6 +1,6 @@
 # SLAKSHNA — Decentralized Geo-Localised Personalized Federated Learning
 
-A **Peer-to-Peer Federated Learning Framework** built in **Rust** and integrated with a high-performance Python Machine Learning Engine (**Bhaskera**). **SLAKSHNA** enables decentralized, privacy-preserving, weighted-aggregation Federated Learning (FL) without centralized aggregators or synchronous blocking rounds. It runs across geo-localized machines and institutional clusters (including SLURM-managed supercomputers, kubernetes managed clusters) separated by complex firewalls, securely sharing compressed model updates without any central coordinator.
+A **Peer-to-Peer Federated Learning Framework** built in **Rust** and integrated with a Python Machine Learning Engine (**Bhaskera**). **SLAKSHNA** enables decentralized, privacy-preserving, weighted-aggregation Federated Learning (FL) without centralized aggregators or synchronous blocking rounds. It runs across geo-localized machines and institutional clusters (including SLURM-managed supercomputers, kubernetes managed clusters) separated by complex firewalls, securely sharing compressed model updates without any central coordinator.
 
 ---
 
@@ -130,26 +130,29 @@ fi
 Follow these exact steps in sequence to set up the environment and build the project:
 
 ```bash
-# 1. Navigate to the Bhaskera ML engine directory
+# 1. Initialize the Bhaskera submodule
+git submodule update --init --recursive
+
+# 2. Navigate to the Bhaskera ML engine directory
 cd Bhaskera
 
-# 2. Run the Bhaskera setup script (installs python dependencies)
+# 3. Run the Bhaskera setup script (installs python dependencies)
 bash setup.sh
 
-# 3. Activate the Bhaskera Python virtual environment
+# 4. Activate the Bhaskera Python virtual environment
 source bhaskera-activate.sh
 
-# 4. Move back to the SLAKSHNA-FL root directory
+# 5. Move back to the SLAKSHNA-FL root directory
 cd ..
 
-# 5. Run the SLAKSHNA root setup script
+# 6. Run the SLAKSHNA root setup script
 bash setup.sh
 
-# 6. Build the Rust P2P node binary in release mode
+# 7. Build the Rust P2P node binary in release mode
 # (Make sure you have Rust and Cargo installed!)
 cargo build --release
 
-# 7. You are now ready to run your nodes!
+# 8. You are now ready to run your nodes!
 # (e.g. ./target/release/iiitd --config config.toml)
 ```
 
@@ -215,7 +218,7 @@ host = "0.0.0.0"
 p2p_port = 9000             # Iroh QUIC router listening port
 api_port = 8545             # Axum HTTP REST API port
 ws_port = 8546              # WebSocket port
-peers = []                  # Optional seeds; empty is fine — see "Joining a federation"
+peers = []                  # Optional seeds; empty is fine — see "Joining a federation".
 
 [discovery]
 mdns = true                 # Zero-config discovery of federation members on the local network
@@ -260,6 +263,83 @@ publish it once and it stays valid.
 
 Peers may still be pinned to an explicit address with `<EndpointId>@<host>:<port>` when
 no discovery mechanism can reach them (see the tunnelling section below).
+
+---
+
+## Managing the Bhaskera Submodule (Contributor Guide)
+
+The `Bhaskera` ML engine is included as a Git submodule.
+
+### 1. Cloning & Pulling Updates
+Whenever you start working or pull updates from teammates, you must update *both* the parent repo and the submodule.
+
+**Cloning for the first time:**
+```bash
+git clone --recursive https://github.com/dcll-iiitd/Slakshna.git
+```
+
+**Pulling updates from a branch:**
+To avoid "untracked files" or "unstaged changes" errors, always update the submodule after pulling or switching branches:
+```bash
+git pull
+git submodule update --init --recursive
+```
+*(You can configure git to do this automatically by using `git pull --recurse-submodules`)*
+
+### 2. Making changes OUTSIDE Bhaskera (e.g., Rust code, config files)
+If you are only editing files in the main `Slakshna` directory (like `README.md` or `node_template.yaml`), the workflow is standard:
+```bash
+git add .
+git commit -m "Update README"
+git push
+```
+
+### 3. Making changes INSIDE Bhaskera
+If you edit code *inside* the `Bhaskera` folder, you must push the code twice: once for the submodule to save the actual code, and once for the parent to "bookmark" that new commit.
+
+**Step 1: Push the actual code (Inside Bhaskera):**
+```bash
+cd Bhaskera
+git add .
+git commit -m "Fixed bug"
+git push origin Slakshna
+```
+(here Slakshna is the branch name of Bhaskera)
+
+**Step 2: Tell the parent about it (Back in Slakshna):**
+```bash
+cd ..
+git add Bhaskera
+git commit -m "Update Bhaskera to latest commit"
+git push
+```
+> **⚠️ The Golden Rule of Submodules:** Never push the Parent if you haven't pushed the Child. Always commit and push inside `Bhaskera` first. If you push the parent repo pointing to a commit in Bhaskera that hasn't been pushed to GitHub yet, your teammates will get a `fatal: not our ref` error.
+
+### 4. Switching Branches (Troubleshooting)
+If you switch to a branch where `Bhaskera` is not yet a submodule (like an older `main` branch), Git may refuse to checkout because of conflicting files. You can safely move the directory out of the way temporarily:
+```bash
+mv Bhaskera Bhaskera_backup
+git checkout main
+git submodule update --init --recursive
+rm -rf Bhaskera_backup
+```
+
+---
+
+## Model & Training Configuration (`node_template.yaml`)
+
+While the `.toml` files control the Rust node's networking and federation behavior, the **`node_template.yaml`** file configures the underlying Python ML Engine (`Bhaskera`). 
+
+At runtime, `ml_engine.py` dynamically reads `node_template.yaml`, overwrites node-specific dynamic paths (like `tokenized_path` or `save_directory`), and generates a `config_{node-id}.yaml` for Ray Train to execute.
+
+Developers should modify `node_template.yaml` to adjust:
+- **Model Selection & Architecture:** Change `model.name` (e.g., `NousResearch/Llama-2-7b-hf`), data types, or enable Liger Kernels.
+- **Training Paradigm (LoRA vs. Full-Parameter):** Toggle `lora.enabled`. For LoRA, you can configure `rank`, `alpha`, and target modules. For full-parameter fine-tuning, disable LoRA and switch to an optimizer like `galore_muon`.
+- **Optimizers & Hyperparameters:** Change `federated.optimizer`, adjust `batch_size`, `learning_rate`, `gradient_accumulation_steps`, or `max_steps`.
+- **Distributed Strategy:** Configure FSDP settings (`distributed.strategy: "fsdp"`) including activation checkpointing and sharding behavior.
+- **Dataset Configuration:** Change `data.dataset_name` and rendering formats (e.g., `chatml`).
+
+> **Note:** Any changes made to `node_template.yaml` will apply uniformly across all nodes in your local simulation unless explicitly overwritten by `ml_engine.py`.
 
 ---
 

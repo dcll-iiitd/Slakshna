@@ -15,3 +15,8 @@ else
     pkill iiitd || echo "No iiitd processes found."
     echo "✅ Cluster stopped."
 fi
+
+# Clean up any lingering python ML engines or ray processes
+pkill -9 -f ml_engine.py || true
+pkill -9 -f bhaskera || true
+ray stop || true

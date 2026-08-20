@@ -142,7 +142,7 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning"):
     config["checkpoint"]["save_directory"] = node_ckpt_dir
     config["checkpoint"]["checkpoint_dir"] = node_ckpt_dir
     config["checkpoint"]["enabled"] = True
-    config["checkpoint"]["save_interval"] = 1
+    config["checkpoint"]["save_interval"] = config["checkpoint"].get("local_interval", 1)
     config["training"]["output_dir"] = node_ckpt_dir
     config["output_dir"] = node_ckpt_dir
     
@@ -796,6 +796,13 @@ def main():
         # Also keep a copy in models dir just for backwards compatibility
         my_model_path = os.path.join(MODEL_DIR, f"{my_id}_base_lora.pth")
         torch.save(final_sd, my_model_path)
+        
+        sync_interval = template_config.get("checkpoint", {}).get("sync_interval", 1)
+        if state["round"] % sync_interval == 0:
+            sync_ckpt_dir = os.path.join(MODEL_DIR, f"sync_ckpt_{my_id}")
+            os.makedirs(sync_ckpt_dir, exist_ok=True)
+            sync_path = os.path.join(sync_ckpt_dir, f"sync_round_{state['round']}.pth")
+            torch.save(final_sd, sync_path)
     else:
         # Pretraining: Apply delta to base model and save
         local_model_dir = os.path.join(MODEL_DIR, f"{my_id}_base_full")
@@ -809,6 +816,14 @@ def main():
                 sd[k] += update.cpu().to(sd[k].dtype)
         model_tmp.load_state_dict(sd)
         model_tmp.save_pretrained(local_model_dir)
+        
+        sync_interval = template_config.get("checkpoint", {}).get("sync_interval", 1)
+        if state["round"] % sync_interval == 0:
+            sync_ckpt_dir = os.path.join(MODEL_DIR, f"sync_ckpt_{my_id}")
+            os.makedirs(sync_ckpt_dir, exist_ok=True)
+            sync_path = os.path.join(sync_ckpt_dir, f"sync_round_{state['round']}")
+            model_tmp.save_pretrained(sync_path)
+            
         del model_tmp
         import gc
         gc.collect()

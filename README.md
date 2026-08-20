@@ -130,26 +130,29 @@ fi
 Follow these exact steps in sequence to set up the environment and build the project:
 
 ```bash
-# 1. Navigate to the Bhaskera ML engine directory
+# 1. Initialize the Bhaskera submodule
+git submodule update --init --recursive
+
+# 2. Navigate to the Bhaskera ML engine directory
 cd Bhaskera
 
-# 2. Run the Bhaskera setup script (installs python dependencies)
+# 3. Run the Bhaskera setup script (installs python dependencies)
 bash setup.sh
 
-# 3. Activate the Bhaskera Python virtual environment
+# 4. Activate the Bhaskera Python virtual environment
 source bhaskera-activate.sh
 
-# 4. Move back to the SLAKSHNA-FL root directory
+# 5. Move back to the SLAKSHNA-FL root directory
 cd ..
 
-# 5. Run the SLAKSHNA root setup script
+# 6. Run the SLAKSHNA root setup script
 bash setup.sh
 
-# 6. Build the Rust P2P node binary in release mode
+# 7. Build the Rust P2P node binary in release mode
 # (Make sure you have Rust and Cargo installed!)
 cargo build --release
 
-# 7. You are now ready to run your nodes!
+# 8. You are now ready to run your nodes!
 # (e.g. ./target/release/iiitd --config config.toml)
 ```
 
@@ -260,6 +263,51 @@ publish it once and it stays valid.
 
 Peers may still be pinned to an explicit address with `<EndpointId>@<host>:<port>` when
 no discovery mechanism can reach them (see the tunnelling section below).
+
+---
+
+## Managing the Bhaskera Submodule
+
+The `Bhaskera` ML engine is included as a Git submodule. When cloning or pulling updates, you must ensure the submodule is synced.
+
+**Cloning for the first time:**
+```bash
+git clone --recursive https://github.com/dcll-iiitd/Slakshna.git
+```
+
+**Pulling updates from a branch:**
+To avoid "untracked files" or "unstaged changes" errors, always update the submodule after pulling or switching branches:
+```bash
+git pull
+git submodule update --init --recursive
+```
+*(You can configure git to do this automatically by using `git pull --recurse-submodules`)*
+
+**Switching Branches:**
+If you switch to a branch where `Bhaskera` is not yet a submodule (like an older `main` branch), Git may refuse to checkout because of conflicting files. You can safely move the directory out of the way temporarily:
+```bash
+mv Bhaskera Bhaskera_backup
+git checkout main
+git submodule update --init --recursive
+rm -rf Bhaskera_backup
+```
+
+---
+
+## Model & Training Configuration (`node_template.yaml`)
+
+While the `.toml` files control the Rust node's networking and federation behavior, the **`node_template.yaml`** file configures the underlying Python ML Engine (`Bhaskera`). 
+
+At runtime, `ml_engine.py` dynamically reads `node_template.yaml`, overwrites node-specific dynamic paths (like `tokenized_path` or `save_directory`), and generates a `config_{node-id}.yaml` for Ray Train to execute.
+
+Developers should modify `node_template.yaml` to adjust:
+- **Model Selection & Architecture:** Change `model.name` (e.g., `NousResearch/Llama-2-7b-hf`), data types, or enable Liger Kernels.
+- **Training Paradigm (LoRA vs. Full-Parameter):** Toggle `lora.enabled`. For LoRA, you can configure `rank`, `alpha`, and target modules. For full-parameter fine-tuning, disable LoRA and switch to an optimizer like `galore_muon`.
+- **Optimizers & Hyperparameters:** Change `federated.optimizer`, adjust `batch_size`, `learning_rate`, `gradient_accumulation_steps`, or `max_steps`.
+- **Distributed Strategy:** Configure FSDP settings (`distributed.strategy: "fsdp"`) including activation checkpointing and sharding behavior.
+- **Dataset Configuration:** Change `data.dataset_name` and rendering formats (e.g., `chatml`).
+
+> **Note:** Any changes made to `node_template.yaml` will apply uniformly across all nodes in your local simulation unless explicitly overwritten by `ml_engine.py`.
 
 ---
 

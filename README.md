@@ -218,7 +218,7 @@ host = "0.0.0.0"
 p2p_port = 9000             # Iroh QUIC router listening port
 api_port = 8545             # Axum HTTP REST API port
 ws_port = 8546              # WebSocket port
-peers = []                  # Optional seeds; empty is fine — see "Joining a federation"
+peers = []                  # Optional seeds; empty is fine — see "Joining a federation".
 
 [discovery]
 mdns = true                 # Zero-config discovery of federation members on the local network

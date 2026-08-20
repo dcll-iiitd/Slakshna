@@ -266,9 +266,12 @@ no discovery mechanism can reach them (see the tunnelling section below).
 
 ---
 
-## Managing the Bhaskera Submodule
+## Managing the Bhaskera Submodule (Contributor Guide)
 
-The `Bhaskera` ML engine is included as a Git submodule. When cloning or pulling updates, you must ensure the submodule is synced.
+The `Bhaskera` ML engine is included as a Git submodule.
+
+### 1. Cloning & Pulling Updates
+Whenever you start working or pull updates from teammates, you must update *both* the parent repo and the submodule.
 
 **Cloning for the first time:**
 ```bash
@@ -283,7 +286,36 @@ git submodule update --init --recursive
 ```
 *(You can configure git to do this automatically by using `git pull --recurse-submodules`)*
 
-**Switching Branches:**
+### 2. Making changes OUTSIDE Bhaskera (e.g., Rust code, config files)
+If you are only editing files in the main `Slakshna` directory (like `README.md` or `node_template.yaml`), the workflow is standard:
+```bash
+git add .
+git commit -m "Update README"
+git push
+```
+
+### 3. Making changes INSIDE Bhaskera
+If you edit code *inside* the `Bhaskera` folder, you must push the code twice: once for the submodule to save the actual code, and once for the parent to "bookmark" that new commit.
+
+**Step 1: Push the actual code (Inside Bhaskera):**
+```bash
+cd Bhaskera
+git add .
+git commit -m "Fixed bug"
+git push origin Slakshna
+```
+(here Slakshna is the branch name of Bhaskera)
+
+**Step 2: Tell the parent about it (Back in Slakshna):**
+```bash
+cd ..
+git add Bhaskera
+git commit -m "Update Bhaskera to latest commit"
+git push
+```
+> **⚠️ The Golden Rule of Submodules:** Never push the Parent if you haven't pushed the Child. Always commit and push inside `Bhaskera` first. If you push the parent repo pointing to a commit in Bhaskera that hasn't been pushed to GitHub yet, your teammates will get a `fatal: not our ref` error.
+
+### 4. Switching Branches (Troubleshooting)
 If you switch to a branch where `Bhaskera` is not yet a submodule (like an older `main` branch), Git may refuse to checkout because of conflicting files. You can safely move the directory out of the way temporarily:
 ```bash
 mv Bhaskera Bhaskera_backup

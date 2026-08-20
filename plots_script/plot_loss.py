@@ -5,7 +5,7 @@ import shutil
 
 # Read the CSV file
 script_dir = os.path.dirname(os.path.abspath(__file__))
-csv_path = os.path.join(script_dir, "..", "logs", "epoch_loss_tracking_adamw.csv")
+csv_path = os.path.join(script_dir, "..", "logs", "epoch_loss_tracking_muon.csv")
 df = pd.read_csv(csv_path)
 
 # Filter for the first step of every epoch

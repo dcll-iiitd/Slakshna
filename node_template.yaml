@@ -38,7 +38,7 @@ training:
   max_steps: 5
   save_strategy: "steps"
   save_steps: 5
-  save_total_limit: 1
+  save_total_limit: 5
   optimizer:
     backend: "default"
     # Kwargs for muon optimizer
@@ -57,7 +57,8 @@ training:
 checkpoint:
   # To be overridden by ml_engine.py
   save_directory: "dummy"
-  save_interval: 1
+  local_interval: 1
+  sync_interval: 1
   retention: 1
 
 logging:

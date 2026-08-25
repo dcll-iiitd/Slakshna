@@ -114,12 +114,17 @@ def log_trust_scores(my_id, weights):
 
 
 
-def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning"):
+def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", state=None):
     with open(os.path.join(BASE_DIR, "node_template.yaml"), "r") as f:
         config = yaml.safe_load(f)
 
     node_data_dir = os.path.join(DATA_DIR, f"data_{my_id}")
-    node_cache_dir = os.path.join(node_data_dir, "tokenized_cache")
+    
+    if config.get("data", {}).get("tokenized_path") and config["data"]["tokenized_path"] != "dummy":
+        node_cache_dir = config["data"]["tokenized_path"]
+    else:
+        node_cache_dir = os.path.join(node_data_dir, "tokenized_cache")
+        
     node_ckpt_dir = os.path.join(MODEL_DIR, f"ckpt_{my_id}")
     os.makedirs(node_data_dir, exist_ok=True)
     os.makedirs(node_ckpt_dir, exist_ok=True)

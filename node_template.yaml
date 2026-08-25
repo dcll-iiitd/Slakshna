@@ -9,15 +9,16 @@ plugins:
   optimizers: []
 
 model:
-  name: "NousResearch/Llama-2-7b-hf"
+  name: "allenai/OLMo-2-1124-7B"
   dtype: "bfloat16"
   trust_remote_code: true
   use_liger_kernel: false
 
 data:
-  dataset_name: "timdettmers/openassistant-guanaco"
-  tokenized_path: "dummy" # Overridden by ml_engine.py at runtime
-  sequence_length: 512
+  dataset_name: "local"
+  train_path: "/mnt/disk1/slakshna/training/Bhaskera/dataset/South_Asia.jsonl"
+  tokenized_path: "/mnt/disk1/slakshna/training/Bhaskera/cache/local_train_e5a7a539a76181d0"
+  sequence_length: 2048
   format_renderer: "chatml"
   max_train_samples: 10000
 
@@ -34,8 +35,8 @@ training:
   batch_size: 4
   gradient_accumulation_steps: 8
   learning_rate: 3e-4
-  warmup_steps: 2
-  max_steps: 5
+  warmup_steps: 5
+  max_steps: 50
   save_strategy: "steps"
   save_steps: 5
   save_total_limit: 5
@@ -62,4 +63,5 @@ checkpoint:
   retention: 1
 
 logging:
-  tracker: "none"
+  tracker: "wandb"
+  project: "dcll-slakshna-bhaskera"

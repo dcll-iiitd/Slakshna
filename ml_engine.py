@@ -778,6 +778,25 @@ def main():
     # Multiply each received peer's delta by its local trust score (reputation), 
     # then sum them together to form the global model update.
     delta_agg = aggregate_deltas(available_deltas, w_i)
+    
+    if template_config.get("federated", {}).get("extrapolation", False):
+        beta = template_config.get("federated", {}).get("extrapolation_beta", 0.9)
+        momentum_path = os.path.join(STATE_DIR, f"{my_id}_momentum.pth")
+        if os.path.exists(momentum_path):
+            momentum_buffer = torch.load(momentum_path, map_location="cpu", weights_only=True)
+        else:
+            momentum_buffer = {}
+            
+        for k in delta_agg:
+            if k not in momentum_buffer:
+                momentum_buffer[k] = torch.zeros_like(delta_agg[k].cpu())
+            # v_t = beta * v_t-1 + delta
+            momentum_buffer[k].mul_(beta).add_(delta_agg[k].cpu())
+            # Use momentum as the new step
+            delta_agg[k] = momentum_buffer[k].clone()
+            
+        torch.save(momentum_buffer, momentum_path)
+        print(f"[{my_id}] 🚀 Applied Server Extrapolation (Momentum beta={beta})", file=sys.stderr)
 
     # Save aggregated LoRA as base for next epoch OR apply full-model updates
     if TRAINING_MODE == "finetuning":

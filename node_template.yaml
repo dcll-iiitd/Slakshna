@@ -4,6 +4,10 @@ federated:
   # Set optimizer to "muon" for 8-bit Muon with LoRA
   optimizer: "muon"
   trust_beta: 0.1
+  extrapolation: true
+  extrapolation_beta: 0.9
+  fedprox: false
+  fedprox_lambda: 0.5
 
 plugins:
   optimizers: []

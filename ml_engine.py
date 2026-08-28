@@ -448,7 +448,7 @@ def main():
         with open(loss_csv_path, "a", newline="") as f:
             writer = csv.writer(f)
             if not csv_exists:
-                writer.writerow(["timestamp", "node_id", "epoch", "step", "loss", "perplexity"])
+                writer.writerow(["timestamp", "node_id", "epoch", "step", "loss", "perplexity", "samples", "tokens"])
                 
             # Delete any .complete sentinels so Bhaskera doesn't resume its own DCP checkpoints
             for root, dirs, files in os.walk(ckpt_dir):
@@ -459,20 +459,10 @@ def main():
                         except Exception:
                             pass
                             
-            process = subprocess.Popen(
-                [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", str(num_gpus)], 
-                cwd=ckpt_dir, 
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True
-            )
-            
-            import re
-            # Regex to match: [epoch 0][step 6] loss=2.2678
-            pattern = re.compile(r"\[epoch\s+(\d+)\]\[step\s+(\d+)\]\s+loss=([0-9.]+)")
-            
             # Calculate current epoch based on previous runs for this node
             current_epoch = 0
+            last_samples = 0
+            last_tokens = 0
             if os.path.exists(loss_csv_path):
                 with open(loss_csv_path, "r") as f_read:
                     for line_csv in f_read:
@@ -482,9 +472,30 @@ def main():
                                 ep = int(parts[2])
                                 if ep >= current_epoch:
                                     current_epoch = ep
+                                    if len(parts) >= 8:
+                                        last_samples = max(last_samples, int(parts[6]))
+                                        last_tokens = max(last_tokens, int(parts[7]))
                             except ValueError:
                                 pass
             current_epoch += 1
+
+            cmd = [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", str(num_gpus)]
+            if last_samples > 0:
+                cmd.extend(["--resume-samples", str(last_samples)])
+            if last_tokens > 0:
+                cmd.extend(["--resume-tokens", str(last_tokens)])
+
+            process = subprocess.Popen(
+                cmd, 
+                cwd=ckpt_dir, 
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            
+            import re
+            # Regex to match: [epoch 0][step 6] loss=2.2678 ... samples=8 tokens=16384
+            pattern = re.compile(r"\[epoch\s+(\d+)\]\[step\s+(\d+)\]\s+loss=([0-9.]+).*?samples=(\d+)\s+tokens=(\d+)")
 
             crash_log_path = os.path.join(LOG_DIR, f"{my_id}_bhaskera_crash.log")
             with open(crash_log_path, "w") as crash_log:
@@ -498,10 +509,12 @@ def main():
                     if match:
                         step = match.group(2)
                         loss_val = match.group(3)
+                        samples_val = match.group(4)
+                        tokens_val = match.group(5)
                         loss_f = float(loss_val)
                         perplexity_val = math.exp(loss_f) if loss_f < 20 else float('inf')
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        writer.writerow([timestamp, my_id, str(current_epoch), step, loss_val, f"{perplexity_val:.4f}"])
+                        writer.writerow([timestamp, my_id, str(current_epoch), step, loss_val, f"{perplexity_val:.4f}", samples_val, tokens_val])
                         f.flush()
                     
             process.wait()

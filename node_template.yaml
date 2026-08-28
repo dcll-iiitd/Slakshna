@@ -15,11 +15,11 @@ model:
   use_liger_kernel: false
 
 data:
-  dataset_name: "local"
+  name: "local"
   train_path: "/mnt/disk1/slakshna/training/Bhaskera/dataset/South_Asia.jsonl"
   tokenized_path: "/mnt/disk1/slakshna/training/Bhaskera/cache/local_train_e5a7a539a76181d0"
-  sequence_length: 2048
-  format_renderer: "chatml"
+  seq_len: 2048
+  format: "chatml"
   max_train_samples: 10000
 
 lora:
@@ -36,7 +36,7 @@ training:
   gradient_accumulation_steps: 8
   learning_rate: 3e-4
   warmup_steps: 5
-  max_steps: 50
+  max_steps: 15
   save_strategy: "steps"
   save_steps: 5
   save_total_limit: 5
@@ -56,7 +56,6 @@ training:
       transformer_layer_cls: []
 
 checkpoint:
-  # To be overridden by ml_engine.py
   save_directory: "dummy"
   local_interval: 1
   sync_interval: 1

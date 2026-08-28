@@ -11,7 +11,7 @@ df = pd.read_csv(csv_path)
 # Filter for the first step of every epoch
 # The step column might be string or int, so let's safely convert and filter
 df['step'] = df['step'].astype(int)
-df_step1 = df[df['step'] == 5].copy()
+df_step1 = df[df['step'] == 1].copy()
 
 # Sort by epoch just in case
 df_step1['epoch'] = df_step1['epoch'].astype(int)

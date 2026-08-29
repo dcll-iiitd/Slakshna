@@ -473,8 +473,11 @@ def main():
                                 if ep >= current_epoch:
                                     current_epoch = ep
                                     if len(parts) >= 8:
-                                        last_samples = max(last_samples, int(parts[6]))
-                                        last_tokens = max(last_tokens, int(parts[7]))
+                                        # Previously, `max(last_samples, int(parts[6]))` was used, which caused the 
+                                        # script to get stuck indefinitely when the dataset was exhausted (since samples 
+                                        # naturally drop back to 0 on a new dataset pass).
+                                        last_samples = int(parts[6])
+                                        last_tokens = int(parts[7])
                             except ValueError:
                                 pass
             current_epoch += 1
@@ -497,6 +500,7 @@ def main():
             # Regex to match: [epoch 0][step 6] loss=2.2678 ... samples=8 tokens=16384
             pattern = re.compile(r"\[epoch\s+(\d+)\]\[step\s+(\d+)\]\s+loss=([0-9.]+).*?samples=(\d+)\s+tokens=(\d+)")
 
+            steps_taken_in_this_round = 0
             crash_log_path = os.path.join(LOG_DIR, f"{my_id}_bhaskera_crash.log")
             with open(crash_log_path, "w") as crash_log:
                 for line in process.stdout:
@@ -511,6 +515,11 @@ def main():
                         loss_val = match.group(3)
                         samples_val = match.group(4)
                         tokens_val = match.group(5)
+                        
+                        # If samples="0" (from dataset exhaustion), then dont count it as a real training step.
+                        if samples_val != "0":
+                            steps_taken_in_this_round += 1
+                            
                         loss_f = float(loss_val)
                         perplexity_val = math.exp(loss_f) if loss_f < 20 else float('inf')
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -550,12 +559,20 @@ def main():
     from pathlib import Path
     from bhaskera.distributed.checkpoint import _dcp_load, _STEP_RE
 
+    # Sort checkpoint directories by their .complete modification time rather than by step number. 
+    # This ensures correct identification of the most recently written checkpoint, preventing issues when the step 
+    # counter wraps around to 0 after finishing a dataset pass.
     step_dirs = sorted([
         p for p in Path(ckpt_dir).iterdir()
         if p.is_dir() and _STEP_RE.search(p.name) and (p / ".complete").exists()
-    ], key=lambda p: int(_STEP_RE.search(p.name).group(1)))
+    ], key=lambda p: os.path.getmtime(p / ".complete"))
 
-    if step_dirs:
+    # If the dataset was exhausted and no real training steps were taken, bypass weight aggregation
+    # to avoid computing a "garbage delta" that could permanently corrupt the _base_lora.pth weights.
+    if steps_taken_in_this_round == 0:
+        print(f"[{my_id}] No valid training steps taken in this round. Yielding zero delta.", file=sys.stderr)
+        delta_i = {"dummy": torch.zeros(1, device=device)}
+    elif step_dirs:
         latest_step_dir = str(step_dirs[-1])
         
         if TRAINING_MODE == "pretraining":

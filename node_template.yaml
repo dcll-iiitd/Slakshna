@@ -17,11 +17,12 @@ model:
 data:
   name: "local"
   train_path: "/mnt/disk1/slakshna/training/Bhaskera/dataset/South_Asia.jsonl"
-  tokenized_path: "/mnt/disk1/slakshna/training/Bhaskera/cache/local_train_e5a7a539a76181d0"
+  tokenized_path: "/mnt/disk1/slakshna/training/Bhaskera/cache/local_train_079a0daaff30bc4e"
   seq_len: 2048
+  pack_sequences: true
   format: "chatml"
   max_train_samples: 10000
-
+  
 lora:
   # Set enabled to false for full-parameter fine-tuning (e.g. with GaLore+Muon)
   # Set to true if you want to use LoRA adapters (and switch optimizer above)
@@ -36,7 +37,7 @@ training:
   gradient_accumulation_steps: 8
   learning_rate: 3e-4
   warmup_steps: 5
-  max_steps: 15
+  max_steps: 50
   save_strategy: "steps"
   save_steps: 5
   save_total_limit: 5
@@ -63,4 +64,4 @@ checkpoint:
 
 logging:
   tracker: "wandb"
-  project: "dcll-slakshna-bhaskera"
+  project: "dcll-slakshna-packseq"

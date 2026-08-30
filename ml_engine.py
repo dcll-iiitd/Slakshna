@@ -114,12 +114,17 @@ def log_trust_scores(my_id, weights):
 
 
 
-def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning"):
+def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", state=None):
     with open(os.path.join(BASE_DIR, "node_template.yaml"), "r") as f:
         config = yaml.safe_load(f)
 
     node_data_dir = os.path.join(DATA_DIR, f"data_{my_id}")
-    node_cache_dir = os.path.join(node_data_dir, "tokenized_cache")
+    
+    if config.get("data", {}).get("tokenized_path") and config["data"]["tokenized_path"] != "dummy":
+        node_cache_dir = config["data"]["tokenized_path"]
+    else:
+        node_cache_dir = os.path.join(node_data_dir, "tokenized_cache")
+        
     node_ckpt_dir = os.path.join(MODEL_DIR, f"ckpt_{my_id}")
     os.makedirs(node_data_dir, exist_ok=True)
     os.makedirs(node_ckpt_dir, exist_ok=True)
@@ -443,7 +448,7 @@ def main():
         with open(loss_csv_path, "a", newline="") as f:
             writer = csv.writer(f)
             if not csv_exists:
-                writer.writerow(["timestamp", "node_id", "epoch", "step", "loss", "perplexity"])
+                writer.writerow(["timestamp", "node_id", "epoch", "step", "loss", "perplexity", "samples", "tokens"])
                 
             # Delete any .complete sentinels so Bhaskera doesn't resume its own DCP checkpoints
             for root, dirs, files in os.walk(ckpt_dir):
@@ -454,20 +459,10 @@ def main():
                         except Exception:
                             pass
                             
-            process = subprocess.Popen(
-                [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", str(num_gpus)], 
-                cwd=ckpt_dir, 
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True
-            )
-            
-            import re
-            # Regex to match: [epoch 0][step 6] loss=2.2678
-            pattern = re.compile(r"\[epoch\s+(\d+)\]\[step\s+(\d+)\]\s+loss=([0-9.]+)")
-            
             # Calculate current epoch based on previous runs for this node
             current_epoch = 0
+            last_samples = 0
+            last_tokens = 0
             if os.path.exists(loss_csv_path):
                 with open(loss_csv_path, "r") as f_read:
                     for line_csv in f_read:
@@ -477,10 +472,35 @@ def main():
                                 ep = int(parts[2])
                                 if ep >= current_epoch:
                                     current_epoch = ep
+                                    if len(parts) >= 8:
+                                        # Previously, `max(last_samples, int(parts[6]))` was used, which caused the 
+                                        # script to get stuck indefinitely when the dataset was exhausted (since samples 
+                                        # naturally drop back to 0 on a new dataset pass).
+                                        last_samples = int(parts[6])
+                                        last_tokens = int(parts[7])
                             except ValueError:
                                 pass
             current_epoch += 1
 
+            cmd = [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", str(num_gpus)]
+            if last_samples > 0:
+                cmd.extend(["--resume-samples", str(last_samples)])
+            if last_tokens > 0:
+                cmd.extend(["--resume-tokens", str(last_tokens)])
+
+            process = subprocess.Popen(
+                cmd, 
+                cwd=ckpt_dir, 
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            
+            import re
+            # Regex to match: [epoch 0][step 6] loss=2.2678 ... samples=8 tokens=16384
+            pattern = re.compile(r"\[epoch\s+(\d+)\]\[step\s+(\d+)\]\s+loss=([0-9.]+).*?samples=(\d+)\s+tokens=(\d+)")
+
+            steps_taken_in_this_round = 0
             crash_log_path = os.path.join(LOG_DIR, f"{my_id}_bhaskera_crash.log")
             with open(crash_log_path, "w") as crash_log:
                 for line in process.stdout:
@@ -493,10 +513,17 @@ def main():
                     if match:
                         step = match.group(2)
                         loss_val = match.group(3)
+                        samples_val = match.group(4)
+                        tokens_val = match.group(5)
+                        
+                        # If samples="0" (from dataset exhaustion), then dont count it as a real training step.
+                        if samples_val != "0":
+                            steps_taken_in_this_round += 1
+                            
                         loss_f = float(loss_val)
                         perplexity_val = math.exp(loss_f) if loss_f < 20 else float('inf')
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        writer.writerow([timestamp, my_id, str(current_epoch), step, loss_val, f"{perplexity_val:.4f}"])
+                        writer.writerow([timestamp, my_id, str(current_epoch), step, loss_val, f"{perplexity_val:.4f}", samples_val, tokens_val])
                         f.flush()
                     
             process.wait()
@@ -532,12 +559,20 @@ def main():
     from pathlib import Path
     from bhaskera.distributed.checkpoint import _dcp_load, _STEP_RE
 
+    # Sort checkpoint directories by their .complete modification time rather than by step number. 
+    # This ensures correct identification of the most recently written checkpoint, preventing issues when the step 
+    # counter wraps around to 0 after finishing a dataset pass.
     step_dirs = sorted([
         p for p in Path(ckpt_dir).iterdir()
         if p.is_dir() and _STEP_RE.search(p.name) and (p / ".complete").exists()
-    ], key=lambda p: int(_STEP_RE.search(p.name).group(1)))
+    ], key=lambda p: os.path.getmtime(p / ".complete"))
 
-    if step_dirs:
+    # If the dataset was exhausted and no real training steps were taken, bypass weight aggregation
+    # to avoid computing a "garbage delta" that could permanently corrupt the _base_lora.pth weights.
+    if steps_taken_in_this_round == 0:
+        print(f"[{my_id}] No valid training steps taken in this round. Yielding zero delta.", file=sys.stderr)
+        delta_i = {"dummy": torch.zeros(1, device=device)}
+    elif step_dirs:
         latest_step_dir = str(step_dirs[-1])
         
         if TRAINING_MODE == "pretraining":

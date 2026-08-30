@@ -3,7 +3,7 @@ id = "slakshna-fl-1"
 name = "SLAKSHNA Federation"
 
 [training]
-epoch_duration_secs = 300   # Length of one federated epoch
+epoch_duration_secs = 100   # Length of one federated epoch
 sync_deadline_secs = 100    # How long into the epoch to wait for peer updates
 expected_peers = 3          # Release the sync barrier early once this many nodes have reported
 
@@ -18,7 +18,7 @@ max_tensor_elements = 2000000000
 [node]
 id = "node-2"
 data_dir = "./data-node2"
-gpu_id = 2
+gpu_id = 1
 
 [network]
 host = "0.0.0.0"

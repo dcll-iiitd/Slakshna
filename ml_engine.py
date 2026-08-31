@@ -333,6 +333,18 @@ def main():
     my_delta_path = os.path.join(MODEL_DIR, f"{my_id}_delta.pth")
     my_state_path = os.path.join(STATE_DIR, f"{my_id}_state.json")
 
+    total_epochs = template_config.get("federated", {}).get("total_epochs")
+    if total_epochs is None:
+        total_epochs = template_config.get("federated", {}).get("epochs")
+    if total_epochs is None:
+        total_epochs = template_config.get("training", {}).get("total_epochs")
+    if total_epochs is None:
+        total_epochs = template_config.get("training", {}).get("epochs", 0)
+    try:
+        total_epochs = int(total_epochs)
+    except (ValueError, TypeError):
+        total_epochs = 0
+
     # INITIALIZE STATE
     state = {"alpha": {}, "grad_alpha": {}, "score": 0.0, "round": 0}
     if os.path.exists(my_state_path):
@@ -346,6 +358,12 @@ def main():
             pass
 
     state["round"] += 1
+    is_finished = (total_epochs > 0 and state["round"] >= total_epochs)
+    if total_epochs > 0:
+        print(f"[{my_id}] 🌐 Federated Round {state['round']}/{total_epochs}{' (FINAL EPOCH)' if is_finished else ''}", file=sys.stderr)
+    else:
+        print(f"[{my_id}] 🌐 Federated Round {state['round']} (continuous mode)", file=sys.stderr)
+
     for j in all_nodes:
         if j not in state["alpha"]:
             state["alpha"][j] = float(np.random.normal(0, 1))
@@ -925,7 +943,10 @@ def main():
         "model_hash": model_hash,
         "weights": w_i,
         "metadata": f"Loss: {score:.4f} | Mode: SparseLoCo | Delta: {DELTA_FORMAT}/v{DELTA_VERSION}",
-        "compressed_delta": b64_delta  # NEW: Sending the actual weights to Rust
+        "compressed_delta": b64_delta,  # Sending the actual weights to Rust
+        "round": state["round"],
+        "total_epochs": total_epochs,
+        "is_finished": is_finished
     }
     print(json.dumps(output))
 

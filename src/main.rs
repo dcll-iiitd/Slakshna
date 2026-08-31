@@ -27,6 +27,12 @@ struct MLEngineOutput {
     validation_score: f64,
     metadata: String,
     compressed_delta: String, // Versioned sparse-quantized payload, base64 encoded
+    #[serde(default)]
+    round: Option<u64>,
+    #[serde(default)]
+    total_epochs: Option<u64>,
+    #[serde(default)]
+    is_finished: bool,
 }
 
 #[tokio::main]
@@ -96,6 +102,7 @@ async fn main() -> Result<(), BoxError> {
 
     let hist = history.clone();
     let net = network.clone();
+    let state_loop = state.clone();
     let node_id = config.node.id.clone();
 
 
@@ -112,6 +119,7 @@ async fn main() -> Result<(), BoxError> {
         let epoch_duration = config_loop.training.epoch_duration_secs;
         let sync_deadline = config_loop.training.sync_deadline_secs;
         let expected_peers = config_loop.training.expected_peers;
+        let mut completed_epochs = 0u64;
 
         loop {
             // 1. EXACT CLOCK SYNCHRONIZATION
@@ -232,6 +240,8 @@ async fn main() -> Result<(), BoxError> {
             };
 
             let mut reviews = Vec::new();
+            let mut epoch_is_final = false;
+            let mut current_round_num = completed_epochs + 1;
 
             match output {
                 Ok(out) if out.status.success() => {
@@ -243,6 +253,13 @@ async fn main() -> Result<(), BoxError> {
                             "✅ Local Training Complete! Score: {:.4}",
                             ml_data.validation_score
                         );
+
+                        if let Some(r) = ml_data.round {
+                            current_round_num = r;
+                        }
+                        if ml_data.is_finished {
+                            epoch_is_final = true;
+                        }
 
                         // Record our own model update
                         my_update.kind = crate::history::RecordKind::ModelUpdate {
@@ -327,6 +344,12 @@ async fn main() -> Result<(), BoxError> {
                 }
             }
 
+            completed_epochs = current_round_num;
+            {
+                let mut state_guard = state_loop.write().await;
+                let _ = state_guard.set_round(completed_epochs);
+            }
+
             // 2. MID-EPOCH SYNC: Intelligent Sync Barrier
             let sync_target_time = epoch_start + sync_deadline;
 
@@ -380,6 +403,15 @@ async fn main() -> Result<(), BoxError> {
                 tracing::info!("⚙️ This node ranks among the most-trusted contributors!");
             } else {
                 tracing::info!("💤 This node is outside the top cohort. Waiting for next epoch...");
+            }
+
+            if epoch_is_final {
+                tracing::info!(
+                    "🏁 TARGET FEDERATED EPOCHS REACHED (Round {}). Federated training completed successfully! Node shutting down gracefully.",
+                    completed_epochs
+                );
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                std::process::exit(0);
             }
         }
     });

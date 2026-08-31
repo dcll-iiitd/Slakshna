@@ -343,6 +343,26 @@ Developers should modify `node_template.yaml` to adjust:
 
 ---
 
+## Dataset Tokenization
+
+Before starting the federated training process, you must tokenize your dataset. The tokenization process converts your raw JSONL data into packed Parquet shards which the training engine loads directly.
+
+1. **Configure Tokenization:**
+   Navigate to the `Bhaskera` submodule and open the provided tokenization config:
+   `configs/tokenize_south_asia.yaml`.
+   Update the `data.path` to point to your raw JSONL dataset and `data.cache_dir` to your desired output directory.
+
+2. **Run the Tokenizer:**
+   Run the following command from inside the `Bhaskera` directory:
+   ```bash
+   bhaskera-tokenize --config configs/tokenize_south_asia.yaml
+   ```
+   
+3. **Update Training Config:**
+   The command above will output a `tokenized_path:` snippet at the end. Copy this path and paste it into your `node_template.yaml` under `data.tokenized_path`.
+
+---
+
 ## Running the System across Geo-Localized Machines
 
 Try it without a tunnel first: relays plus DHT/pkarr lookup traverse most NATs on their

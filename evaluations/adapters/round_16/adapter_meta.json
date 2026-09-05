@@ -1,0 +1,16 @@
+{
+  "source_checkpoint": "/mnt/disk1/slakshna/dcll/Slakshna/ml_models/sync_ckpt_slakshna1ltc3g97yd3ujeplt4g8n280h7k9ksua6dggg7w/sync_round_16.pth",
+  "source_sha256": "2a70397c11bc7615b2b6e16f6af74c51f014219358bfa4fd4cbf2cae5f736fe8",
+  "adapter_model_safetensors_sha256": "001b7731d723c2c5cfc1d392cb2f46788b9719df8003d3d466a2161e8facb190",
+  "created_at": "2026-08-30T17:06:37+00:00",
+  "tensor_count": 128,
+  "parameter_count": 8388608,
+  "rank": 16,
+  "alpha": 64,
+  "target_modules": [
+    "q_proj",
+    "v_proj"
+  ],
+  "base_model": "allenai/OLMo-2-1124-7B",
+  "dtype": "bfloat16"
+}

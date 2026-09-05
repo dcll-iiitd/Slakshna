@@ -4,7 +4,7 @@ federated:
   # Set optimizer to "muon" for 8-bit Muon with LoRA
   optimizer: "muon"
   trust_beta: 0.1
-  total_epochs: 1  # Total federated rounds/epochs to run (e.g., 10, 20; 0 or omitted = infinite)
+  total_epochs: 8  # Total federated rounds/epochs to run (e.g., 10, 20; 0 or omitted = infinite)
 
 plugins:
   optimizers: []
@@ -34,11 +34,11 @@ lora:
   target_modules: ["q_proj", "v_proj"]
 
 training:
-  batch_size: 28
-  gradient_accumulation_steps: 8
-  learning_rate: 4.5e-4
+  batch_size: 8
+  gradient_accumulation_steps: 4
+  learning_rate: 3e-4
   warmup_steps: 0
-  max_steps: 7
+  max_steps: 16
   save_strategy: "steps"
   save_steps: 5
   save_total_limit: 5
@@ -65,4 +65,4 @@ checkpoint:
 
 logging:
   tracker: "wandb"
-  project: "dcll-slakshna-packseq"
+  project: "M0-dcll-slakshna"

@@ -119,8 +119,8 @@ export CUDA_VISIBLE_DEVICES=0
 
 bash /mnt/disk1/slakshna/tapestry_monash/shared_evaluation/GOQA/run_evaluation.sh \
     allenai/OLMo-2-1124-7B \
-    /mnt/disk1/slakshna/dcll/Slakshna/evaluations/eval_results/round_15 \
-    /mnt/disk1/slakshna/dcll/Slakshna/evaluations/adapters/round_15
+    /mnt/disk1/slakshna/dcll/Slakshna/evaluations/eval_results/round_16 \
+    /mnt/disk1/slakshna/dcll/Slakshna/evaluations/adapters/round_16
 ```
 
 ---

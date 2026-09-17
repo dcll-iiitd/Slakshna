@@ -16,10 +16,15 @@ pub const COHORT_SIZE: usize = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RecordKind {
-    /// A sparsified, compressed model delta produced by one local training round.
+    /// A model update announcement referencing an Iroh Blob.
     ModelUpdate {
         delta_hash: String,
-        compressed_delta: String,
+        #[serde(default)]
+        blob_ticket: String,
+        #[serde(default)]
+        blob_size: u64,
+        #[serde(default)]
+        compressed_delta: Option<String>,
     },
     /// One node's trust assessment of another node's model update.
     PeerReview {
@@ -45,10 +50,20 @@ impl UpdateRecord {
         hasher.update(&self.node_id);
         hasher.update(&self.prev_hash);
         match &self.kind {
-            RecordKind::ModelUpdate { delta_hash, compressed_delta } => {
+            RecordKind::ModelUpdate {
+                delta_hash,
+                blob_ticket,
+                blob_size,
+                compressed_delta,
+            } => {
                 hasher.update(b"model_update");
                 hasher.update(delta_hash);
-                hasher.update(compressed_delta);
+                if !blob_ticket.is_empty() {
+                    hasher.update(blob_ticket);
+                    hasher.update(blob_size.to_le_bytes());
+                } else if let Some(legacy) = compressed_delta {
+                    hasher.update(legacy);
+                }
             }
             RecordKind::PeerReview { target_node, update_hash, loss_drop, trust_score } => {
                 hasher.update(b"peer_review");
@@ -102,7 +117,11 @@ impl UpdateHistory {
 
         let log = self.peer_updates.entry(record.node_id.clone()).or_insert_with(Vec::new);
 
-        // Simple append for now
+        // Deduplicate records with the exact same hash
+        if log.iter().any(|r| r.hash == record.hash) {
+            return;
+        }
+
         log.push(record);
     }
 

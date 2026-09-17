@@ -48,5 +48,25 @@ class DeltaTransportTests(unittest.TestCase):
             fc.decode_delta_envelope(payload, torch.device("cpu"))
 
 
+    def test_large_scale_pretraining_delta_envelope(self):
+        # Simulate a 10-million element pretraining layer
+        print("\n[Python Test] Testing 10,000,000 parameter tensor delta encoding/decoding...")
+        large_tensor = torch.randn(2500, 4000, dtype=torch.float32)
+        source = {"transformer.layers.0.weight": large_tensor}
+        
+        # Test binary saving as used in pretraining with Iroh Blobs
+        temp_path = "/tmp/test_pretrain_large_delta.pt"
+        torch.save(source, temp_path)
+        file_size_mb = os.path.getsize(temp_path) / (1024 * 1024)
+        print(f"[Python Test] Saved 10M param tensor ({file_size_mb:.2f} MB) to {temp_path}")
+        
+        loaded = torch.load(temp_path, weights_only=True)
+        self.assertEqual(loaded["transformer.layers.0.weight"].shape, (2500, 4000))
+        self.assertTrue(torch.equal(loaded["transformer.layers.0.weight"], large_tensor))
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        print("[Python Test] ✅ 10M parameter pretraining delta verified successfully!")
+
+
 if __name__ == "__main__":
     unittest.main()

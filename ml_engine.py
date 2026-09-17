@@ -420,10 +420,21 @@ def main():
         
         print(f"[{my_id}] Starting private Ray cluster...", file=sys.stderr)
         num_gpus = int(os.environ.get("SLAKSHNA_NUM_GPUS", "1"))
-        import tempfile
-        ray_temp_dir = os.path.join(tempfile.gettempdir(), f"ray_{my_id[:8]}")
+        data_dir_base = os.environ.get("IIITD_DATA_DIR")
+        if data_dir_base and os.path.exists(os.path.dirname(os.path.abspath(data_dir_base))):
+            ray_temp_dir = os.path.join(data_dir_base, "ray_temp")
+        else:
+            import tempfile
+            ray_temp_dir = os.path.join(tempfile.gettempdir(), f"ray_{my_id[:8]}")
         os.makedirs(ray_temp_dir, exist_ok=True)
         
+        os.environ.pop("RAY_ADDRESS", None)
+        try:
+            if ray.is_initialized():
+                ray.shutdown()
+        except Exception:
+            pass
+
         context = ray.init(
             _temp_dir=ray_temp_dir,
             dashboard_port=dash_port,
@@ -724,47 +735,7 @@ def main():
             dense_val = dense_val + previous.float()
         residual_input[k] = dense_val
 
-    if COMPRESSION_ENABLED:
-        # [Sparsification, Quantization & Serialization]
-        # Extracts the top-K highest magnitude parameters, reduces their precision (e.g., FP16/INT8), 
-        # and serializes the tensor dictionary into a Base64 string for P2P network transmission.
-        b64_delta, sparse_delta, transport_metrics = encode_delta_envelope(
-            residual_input, sender=my_id, round_number=state.get("round")
-        )
-    else:
-        # Legacy serialization fallback (Top-K Sparsity -> FP16 -> BytesIO -> Base64)
-        sparse_delta = {k: sparsify_tensor(v, DELTA_SPARSITY).half() for k, v in residual_input.items()}
-        buffer = io.BytesIO()
-        torch.save(sparse_delta, buffer)
-        b64_delta = base64.b64encode(buffer.getvalue()).decode("ascii")
-        transport_metrics = {"dense_bytes": 0, "selected_count": 0, "index_bytes": 0,
-                             "quantized_value_bytes": 0, "serialized_bytes": len(buffer.getvalue()),
-                             "base64_bytes": len(b64_delta)}
-
-    # Feed both pruning and int8 quantization error into the next round.
-    for k, dense_val in residual_input.items():
-        new_error[k] = (dense_val - sparse_delta[k].float().cpu()).float()
-
-    # Persist the new error
-    torch.save(new_error, error_path)
-    
-    log_runtime(
-        my_id,
-        "delta_encoded",
-        quantizer=DELTA_QUANTIZATION if COMPRESSION_ENABLED else "legacy_fp16_dense_mask",
-        reconstruction_error_norm=str(sum(v.norm().item() ** 2 for v in new_error.values()) ** 0.5),
-        **{key: str(value) for key, value in transport_metrics.items()},
-        local_delta_path=my_delta_path,
-    )
-
-    # We still save locally for our own base next epoch with secure file permissions
-    torch.save({k: v.cpu() for k, v in dp_delta_i.items()}, my_delta_path)
-    try:
-        os.chmod(my_delta_path, 0o600)
-    except Exception:
-        pass
-
-    # 5. Aggregate logic (Load from Network Cache with Security Verification)
+    # Resolve rust_data_dir early to prepare blob storage paths
     rust_data_dir = os.environ.get("IIITD_DATA_DIR", "")
     if not rust_data_dir:
         try:
@@ -781,7 +752,64 @@ def main():
         except Exception:
             rust_data_dir = f"data_{my_id}"
     print(f"[{my_id}] 📁 Using data_dir: {rust_data_dir} (from env: {bool(os.environ.get('IIITD_DATA_DIR'))})", file=sys.stderr)
-        
+
+    local_deltas_dir = os.path.join(rust_data_dir, "local_deltas")
+    os.makedirs(local_deltas_dir, exist_ok=True)
+    my_delta_file = os.path.join(local_deltas_dir, f"{my_id}_round_{state.get('round', 1)}.pt")
+
+    if COMPRESSION_ENABLED and TRAINING_MODE != "pretraining":
+        # [Sparsification, Quantization & Serialization]
+        b64_delta, sparse_delta, transport_metrics = encode_delta_envelope(
+            residual_input, sender=my_id, round_number=state.get("round")
+        )
+        # Save sparse delta directly to disk as binary PyTorch tensor dictionary for Iroh Blobs
+        torch.save(sparse_delta, my_delta_file)
+    else:
+        # Pretraining or full-parameter: Save dense delta directly without size restrictions
+        sparse_delta = residual_input
+        torch.save({k: v.half() if (torch.is_tensor(v) and v.dtype == torch.float32) else v for k, v in residual_input.items()}, my_delta_file)
+        b64_delta = ""
+        tensor_count = sum(1 for v in residual_input.values() if torch.is_tensor(v))
+        total_elements = sum(v.numel() for v in residual_input.values() if torch.is_tensor(v))
+        file_size = os.path.getsize(my_delta_file) if os.path.exists(my_delta_file) else 0
+        transport_metrics = {
+            "dense_bytes": sum(v.numel() * v.element_size() for v in residual_input.values() if torch.is_tensor(v)),
+            "selected_count": total_elements,
+            "index_bytes": 0,
+            "quantized_value_bytes": file_size,
+            "serialized_bytes": file_size,
+            "base64_bytes": 0,
+        }
+
+    # Feed residual error into the next round
+    for k, dense_val in residual_input.items():
+        sparse_val = sparse_delta[k]
+        if torch.is_tensor(sparse_val):
+            new_error[k] = (dense_val - sparse_val.float().cpu()).float()
+        else:
+            new_error[k] = dense_val
+
+    # Persist the new error
+    torch.save(new_error, error_path)
+    
+    log_runtime(
+        my_id,
+        "delta_encoded",
+        quantizer=DELTA_QUANTIZATION if (COMPRESSION_ENABLED and TRAINING_MODE != "pretraining") else "dense_raw",
+        reconstruction_error_norm=str(sum(v.norm().item() ** 2 for v in new_error.values() if torch.is_tensor(v)) ** 0.5),
+        **{key: str(value) for key, value in transport_metrics.items()},
+        local_delta_path=my_delta_path,
+        blob_delta_path=my_delta_file,
+    )
+
+    # We still save locally for our own base next epoch with secure file permissions
+    torch.save({k: v.cpu() for k, v in dp_delta_i.items()}, my_delta_path)
+    try:
+        os.chmod(my_delta_path, 0o600)
+    except Exception:
+        pass
+
+    # 5. Aggregate logic (Load from Network Cache with Security Verification)
     NETWORK_DELTAS_DIR = os.path.join(rust_data_dir, "network_deltas")
 
     log_runtime(
@@ -792,29 +820,56 @@ def main():
     )
 
     # [Self-Aggregation]
-    # We aggregate our own *sparsified* delta rather than our dense delta. The dropped weights 
-    # (dense - sparse) have already been saved to the error feedback buffer for the next epoch.
-    available_deltas = {my_id: decode_delta_envelope(b64_delta, device, allow_legacy=True)}
+    # Aggregate our own delta
+    available_deltas = {my_id: {k: v.to(device) for k, v in sparse_delta.items() if torch.is_tensor(v)}}
     for j in neighbors:
-        n_delta_path = os.path.join(NETWORK_DELTAS_DIR, f"{j}_delta.b64")
-        if os.path.exists(n_delta_path):
-            try:
-                with open(n_delta_path, "r") as f:
-                    peer_b64 = f.read().strip()
-                peer_delta = decode_delta_envelope(peer_b64, device)
+        n_delta_pt = os.path.join(NETWORK_DELTAS_DIR, f"{j}_delta.pt")
+        n_delta_b64 = os.path.join(NETWORK_DELTAS_DIR, f"{j}_delta.b64")
 
-                if not validate_peer_delta(peer_delta, max_allowed_norm=10.0):
-                    print(f"[{my_id}] 🔒 SECURITY ALERT: Peer delta from {j} failed norm/sanity validation!", file=sys.stderr)
+        # Prioritize binary Iroh Blob delta
+        if os.path.exists(n_delta_pt):
+            try:
+                peer_delta = torch.load(n_delta_pt, map_location=device, weights_only=True)
+                if not isinstance(peer_delta, dict):
+                    print(f"[{my_id}] Invalid format for binary delta from {j}", file=sys.stderr)
                     continue
 
-                available_deltas[j] = peer_delta
-                print(f"[{my_id}] ✅ Successfully verified and applied network delta from {j} via P2P", file=sys.stderr)
+                if not validate_peer_delta(peer_delta):
+                    print(f"[{my_id}] 🔒 SECURITY ALERT: Peer delta from {j} failed norm validation!", file=sys.stderr)
+                    continue
+
+                available_deltas[j] = {k: v.to(device) for k, v in peer_delta.items() if torch.is_tensor(v)}
+                print(f"[{my_id}] ✅ Successfully verified and applied Iroh Blob network delta from {j} via P2P", file=sys.stderr)
                 log_runtime(
                     my_id,
                     "peer_delta_loaded",
                     peer_id=j,
-                    peer_delta_path=n_delta_path,
-                    status="success",
+                    peer_delta_path=n_delta_pt,
+                    status="success_blob",
+                )
+            except Exception as e:
+                print(
+                    f"[{my_id}] Failed to load Iroh Blob network delta from {j}: {e}",
+                    file=sys.stderr,
+                )
+        elif os.path.exists(n_delta_b64):
+            try:
+                with open(n_delta_b64, "r") as f:
+                    peer_b64 = f.read().strip()
+                peer_delta = decode_delta_envelope(peer_b64, device)
+
+                if not validate_peer_delta(peer_delta):
+                    print(f"[{my_id}] 🔒 SECURITY ALERT: Peer delta from {j} failed norm/sanity validation!", file=sys.stderr)
+                    continue
+
+                available_deltas[j] = peer_delta
+                print(f"[{my_id}] ✅ Successfully verified and applied legacy network delta from {j} via P2P", file=sys.stderr)
+                log_runtime(
+                    my_id,
+                    "peer_delta_loaded",
+                    peer_id=j,
+                    peer_delta_path=n_delta_b64,
+                    status="success_legacy",
                 )
             except Exception as e:
                 print(
@@ -941,9 +996,10 @@ def main():
     output = {
         "validation_score": float(score),
         "model_hash": model_hash,
+        "delta_file": my_delta_file,
         "weights": w_i,
         "metadata": f"Loss: {score:.4f} | Mode: SparseLoCo | Delta: {DELTA_FORMAT}/v{DELTA_VERSION}",
-        "compressed_delta": b64_delta,  # Sending the actual weights to Rust
+        "compressed_delta": b64_delta if (b64_delta and ALLOW_LEGACY_DELTA_FORMAT) else None,
         "round": state["round"],
         "total_epochs": total_epochs,
         "is_finished": is_finished

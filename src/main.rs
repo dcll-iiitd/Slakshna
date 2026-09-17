@@ -12,7 +12,7 @@ use crate::network::Network;
 use crate::api::start_api_server;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{ info, Level };
+use tracing::info;
 use tracing_subscriber::FmtSubscriber;
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
@@ -26,7 +26,10 @@ struct MLEngineOutput {
     model_hash: String,
     validation_score: f64,
     metadata: String,
-    compressed_delta: String, // Versioned sparse-quantized payload, base64 encoded
+    #[serde(default)]
+    delta_file: Option<String>,
+    #[serde(default)]
+    compressed_delta: Option<String>,
     #[serde(default)]
     round: Option<u64>,
     #[serde(default)]
@@ -39,6 +42,15 @@ struct MLEngineOutput {
 async fn main() -> Result<(), BoxError> {
     // Parse command line args
     let args: Vec<String> = std::env::args().collect();
+
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("SLAKSHNA Node Daemon");
+        println!("Usage: {} --config <path_to_config.toml>", args.get(0).map(|s| s.as_str()).unwrap_or("iiitd"));
+        println!("\nOptions:");
+        println!("  --config <PATH>    Path to node TOML configuration file (default: config.toml)");
+        println!("  --help, -h         Display this help message");
+        return Ok(());
+    }
 
     let config_path = if args.len() > 2 && args[1] == "--config" {
         args[2].clone()
@@ -154,16 +166,48 @@ async fn main() -> Result<(), BoxError> {
                     for record in records.iter().rev() {
                         if
                             let crate::history::RecordKind::ModelUpdate {
-                                compressed_delta,
+                                ref compressed_delta,
+                                ref blob_ticket,
+                                blob_size,
                                 ..
                             } = &record.kind
                         {
-                            let path = format!("{}/{}_delta.b64", peer_deltas_dir, peer_id);
-                            let _ = std::fs::write(&path, compressed_delta);
-                            tracing::info!("📥 Network Delta Extracted: Saved {} bytes from peer {} to {}", compressed_delta.len(), peer_id, path);
-                            extracted_count += 1;
-                            found_update = true;
-                            break;
+                            let pt_path = format!("{}/{}_delta.pt", peer_deltas_dir, peer_id);
+                            let hash_path = format!("{}/{}_delta.hash", peer_deltas_dir, peer_id);
+                            let is_verified = if std::path::Path::new(&pt_path).exists() {
+                                if !blob_ticket.is_empty() {
+                                    if let Ok(expected_ticket) = blob_ticket.parse::<iroh_blobs::ticket::BlobTicket>() {
+                                        let expected_hash = expected_ticket.hash().to_string();
+                                        if let Ok(on_disk_hash) = std::fs::read_to_string(&hash_path) {
+                                            on_disk_hash.trim() == expected_hash
+                                        } else {
+                                            true
+                                        }
+                                    } else {
+                                        true
+                                    }
+                                } else {
+                                    true
+                                }
+                            } else {
+                                false
+                            };
+
+                            if is_verified {
+                                tracing::info!("📥 Network Delta Ready: Found verified blob delta for peer {} at {} ({} bytes)", peer_id, pt_path, blob_size);
+                                extracted_count += 1;
+                                found_update = true;
+                                break;
+                            } else if let Some(ref b64) = compressed_delta {
+                                let path = format!("{}/{}_delta.b64", peer_deltas_dir, peer_id);
+                                let _ = std::fs::write(&path, b64);
+                                tracing::info!("📥 Network Delta Extracted: Saved {} bytes from peer {} to {}", b64.len(), peer_id, path);
+                                extracted_count += 1;
+                                found_update = true;
+                                break;
+                            } else if !blob_ticket.is_empty() {
+                                tracing::debug!("⏳ Peer {} update with blob ticket is downloading in background", peer_id);
+                            }
                         }
                     }
                     if !found_update {
@@ -184,37 +228,6 @@ async fn main() -> Result<(), BoxError> {
                 }
             }
 
-            let mut cmd = tokio::process::Command::new("python");
-            cmd.args(&python_args).current_dir(".");
-
-            // CRITICAL: Pass the data_dir to Python so it reads delta files from the correct path
-            cmd.env("IIITD_DATA_DIR", &config_loop.node.data_dir);
-            cmd.env("SLAKSHNA_COMPRESSION_ENABLED", config_loop.compression.enabled.to_string());
-            cmd.env("SLAKSHNA_DELTA_SPARSITY", config_loop.compression.sparsity.to_string());
-            cmd.env("SLAKSHNA_DELTA_QUANTIZATION", &config_loop.compression.quantization);
-            cmd.env("SLAKSHNA_ALLOW_LEGACY_DELTA_FORMAT", config_loop.compression.allow_legacy_delta_format.to_string());
-            cmd.env("SLAKSHNA_MAX_DELTA_PAYLOAD_BYTES", config_loop.compression.max_payload_bytes.to_string());
-            cmd.env("SLAKSHNA_MAX_DELTA_TENSOR_ELEMENTS", config_loop.compression.max_tensor_elements.to_string());
-
-            // Multi-GPU Support
-            let num_gpus = config_loop.node.num_gpus.unwrap_or(1);
-            cmd.env("SLAKSHNA_NUM_GPUS", num_gpus.to_string());
-            
-            if let Some(gid) = gpu_id_loop {
-                if num_gpus > 1 {
-                    let devices: Vec<String> = (gid..gid+num_gpus).map(|id| id.to_string()).collect();
-                    let devices_str = devices.join(",");
-                    cmd.env("CUDA_VISIBLE_DEVICES", &devices_str);
-                    tracing::info!("🔥 Multi-GPU Enabled: ML Engine pinned to GPUs {}", devices_str);
-                } else {
-                    cmd.env("CUDA_VISIBLE_DEVICES", gid.to_string());
-                    tracing::info!("🔥 ML Engine pinned to GPU {}", gid);
-                }
-            } else if num_gpus > 1 {
-                tracing::info!("🔥 Multi-GPU Enabled: Using {} GPUs (CUDA_VISIBLE_DEVICES not constrained)", num_gpus);
-            }
-
-            let output = cmd.output().await;
             let my_prev_hash = {
                 let history = hist_loop.read().await;
                 if let Some(records) = history.peer_updates.get(&node_id_loop) {
@@ -233,7 +246,9 @@ async fn main() -> Result<(), BoxError> {
                 prev_hash: my_prev_hash,
                 kind: crate::history::RecordKind::ModelUpdate {
                     delta_hash: "error_hash".to_string(),
-                    compressed_delta: String::new(),
+                    blob_ticket: String::new(),
+                    blob_size: 0,
+                    compressed_delta: None,
                 },
                 signature: format!("node_signature_{}", epoch_start),
                 hash: String::new(),
@@ -242,6 +257,46 @@ async fn main() -> Result<(), BoxError> {
             let mut reviews = Vec::new();
             let mut epoch_is_final = false;
             let mut current_round_num = completed_epochs + 1;
+            let mut engine_succeeded = false;
+            let max_engine_retries = 2;
+
+            for attempt in 0..=max_engine_retries {
+                if attempt > 0 {
+                    tracing::warn!("🔄 ML Engine restarting itself after crash (Attempt {}/{})...", attempt, max_engine_retries);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                }
+
+                let mut cmd = tokio::process::Command::new("python");
+                cmd.args(&python_args).current_dir(".");
+
+                // CRITICAL: Pass the data_dir to Python so it reads delta files from the correct path
+                cmd.env("IIITD_DATA_DIR", &config_loop.node.data_dir);
+                cmd.env("SLAKSHNA_COMPRESSION_ENABLED", config_loop.compression.enabled.to_string());
+                cmd.env("SLAKSHNA_DELTA_SPARSITY", config_loop.compression.sparsity.to_string());
+                cmd.env("SLAKSHNA_DELTA_QUANTIZATION", &config_loop.compression.quantization);
+                cmd.env("SLAKSHNA_ALLOW_LEGACY_DELTA_FORMAT", config_loop.compression.allow_legacy_delta_format.to_string());
+                cmd.env("SLAKSHNA_MAX_DELTA_PAYLOAD_BYTES", config_loop.compression.max_payload_bytes.to_string());
+                cmd.env("SLAKSHNA_MAX_DELTA_TENSOR_ELEMENTS", config_loop.compression.max_tensor_elements.to_string());
+
+                // Multi-GPU Support
+                let num_gpus = config_loop.node.num_gpus.unwrap_or(1);
+                cmd.env("SLAKSHNA_NUM_GPUS", num_gpus.to_string());
+                
+                if let Some(gid) = gpu_id_loop {
+                    if num_gpus > 1 {
+                        let devices: Vec<String> = (gid..gid+num_gpus).map(|id| id.to_string()).collect();
+                        let devices_str = devices.join(",");
+                        cmd.env("CUDA_VISIBLE_DEVICES", &devices_str);
+                        tracing::info!("🔥 Multi-GPU Enabled: ML Engine pinned to GPUs {}", devices_str);
+                    } else {
+                        cmd.env("CUDA_VISIBLE_DEVICES", gid.to_string());
+                        tracing::info!("🔥 ML Engine pinned to GPU {}", gid);
+                    }
+                } else if num_gpus > 1 {
+                    tracing::info!("🔥 Multi-GPU Enabled: Using {} GPUs (CUDA_VISIBLE_DEVICES not constrained)", num_gpus);
+                }
+
+                let output = cmd.output().await;
 
             match output {
                 Ok(out) if out.status.success() => {
@@ -261,10 +316,38 @@ async fn main() -> Result<(), BoxError> {
                             epoch_is_final = true;
                         }
 
+                        // If delta_file is returned by ml_engine, stage it as an Iroh Blob!
+                        let mut blob_ticket = String::new();
+                        let mut blob_size = 0u64;
+
+                        if let Some(ref delta_file) = ml_data.delta_file {
+                            let delta_path = std::path::Path::new(delta_file);
+                            if delta_path.exists() {
+                                let net = net_loop.read().await;
+                                match net.stage_delta_blob(delta_path).await {
+                                    Ok((ticket, size)) => {
+                                        blob_ticket = ticket;
+                                        blob_size = size;
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("❌ Failed to stage delta file to Iroh Blobs: {:?}", e);
+                                    }
+                                }
+                            } else {
+                                tracing::warn!("⚠️ delta_file specified by ML engine does not exist: {}", delta_file);
+                            }
+                        }
+
                         // Record our own model update
                         my_update.kind = crate::history::RecordKind::ModelUpdate {
                             delta_hash: ml_data.model_hash.clone(),
-                            compressed_delta: ml_data.compressed_delta.clone(),
+                            blob_ticket,
+                            blob_size,
+                            compressed_delta: if config_loop.compression.allow_legacy_delta_format {
+                                ml_data.compressed_delta.clone()
+                            } else {
+                                None
+                            },
                         };
                         my_update.hash = my_update.calculate_hash();
 
@@ -314,7 +397,7 @@ async fn main() -> Result<(), BoxError> {
                             current_tail_hash = review.hash.clone();
                             reviews.push(review);
                         }
-                        drop(history);
+                        engine_succeeded = true;
                     }
                 }
                 Ok(out) => {
@@ -327,6 +410,22 @@ async fn main() -> Result<(), BoxError> {
                 }
                 Err(e) => tracing::error!("❌ Failed to start Python process: {}", e),
             }
+
+            if engine_succeeded {
+                // Clean up consumed network deltas so stale deltas are never re-aggregated in subsequent rounds
+                if let Ok(entries) = std::fs::read_dir(&peer_deltas_dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.extension().and_then(|s| s.to_str()) == Some("pt") 
+                            || path.extension().and_then(|s| s.to_str()) == Some("b64")
+                            || path.extension().and_then(|s| s.to_str()) == Some("hash") {
+                            let _ = std::fs::remove_file(path);
+                        }
+                    }
+                }
+                break;
+            }
+        }
 
             {
                 let mut history = hist_loop.write().await;

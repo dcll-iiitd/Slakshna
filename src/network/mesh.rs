@@ -7,8 +7,14 @@ use iroh::address_lookup::MemoryLookup;
 use iroh::endpoint::presets;
 use iroh::protocol::Router;
 use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, SecretKey};
+use iroh_blobs::store::fs::FsStore;
+use iroh_blobs::BlobsProtocol;
+use iroh_blobs::ticket::BlobTicket;
+use iroh_blobs::BlobFormat;
+use iroh_blobs::api::downloader::Downloader;
+use iroh_blobs::ALPN as BLOBS_ALPN;
 use iroh_gossip::net::Gossip;
-use iroh_gossip::ALPN;
+use iroh_gossip::ALPN as GOSSIP_ALPN;
 use iroh_mainline_address_lookup::DhtAddressLookup;
 use iroh_mdns_address_lookup::{DiscoveryEvent, MdnsAddressLookup};
 use sha2::{Digest, Sha256};
@@ -51,6 +57,9 @@ pub struct MeshNetwork {
     endpoint_id: Arc<RwLock<Option<String>>>,
     _router: Option<iroh::protocol::Router>,
     _endpoint: Option<iroh::Endpoint>,
+    blob_store: Option<Arc<FsStore>>,
+    downloader: Option<Downloader>,
+    direct_lookup: Option<MemoryLookup>,
 }
 
 impl MeshNetwork {
@@ -68,6 +77,9 @@ impl MeshNetwork {
             endpoint_id: Arc::new(RwLock::new(None)),
             _router: None,
             _endpoint: None,
+            blob_store: None,
+            downloader: None,
+            direct_lookup: None,
         }
     }
 
@@ -183,6 +195,14 @@ impl Network for MeshNetwork {
         //    firewalls that MITM TLS. It does not weaken peer-to-peer security:
         //    every QUIC and gossip connection is still authenticated and
         //    end-to-end encrypted against the peer's Ed25519 public key.
+        // Initialize Iroh Blobs filesystem store
+        let blob_dir = format!("{}/blobs", self.config.node.data_dir);
+        tokio::fs::create_dir_all(&blob_dir).await
+            .map_err(|e| format!("Failed to create blobs directory: {}", e))?;
+        let blob_store = Arc::new(FsStore::load(&blob_dir).await
+            .map_err(|e| format!("Failed to load FsStore: {}", e))?);
+        let blobs_protocol = BlobsProtocol::new(blob_store.as_ref(), None);
+
         let bind_addr: std::net::SocketAddr = format!("0.0.0.0:{}", self.config.network.p2p_port)
             .parse()
             .map_err(|e| format!("Failed to parse bind_addr: {}", e))?;
@@ -192,7 +212,7 @@ impl Network for MeshNetwork {
             .ca_tls_config(iroh::tls::CaTlsConfig::insecure_skip_verify())
             .bind_addr(bind_addr)
             .map_err(|e| format!("Failed to set bind_addr: {}", e))?
-            .alpns(vec![ALPN.to_vec()]);
+            .alpns(vec![GOSSIP_ALPN.to_vec(), BLOBS_ALPN.to_vec()]);
 
         if !discovery.dns {
             // Drop the n0 pkarr publisher/resolver the preset installed.
@@ -224,18 +244,22 @@ impl Network for MeshNetwork {
             *eid = Some(endpoint_id.to_string());
         }
 
-        // 3. Gossip + router. Every node accepts inbound gossip, so any member
-        //    is a valid entry point into the federation.
+        // 3. Gossip + Blobs + router.
+        let downloader = blob_store.downloader(&endpoint);
+
         let gossip = Gossip::builder()
-            .max_message_size(10_485_760) // 10 MB limit for large AI payloads
             .spawn(endpoint.clone());
 
         let router = Router::builder(endpoint.clone())
-            .accept(ALPN, gossip.clone())
+            .accept(GOSSIP_ALPN, gossip.clone())
+            .accept(BLOBS_ALPN, blobs_protocol)
             .spawn();
 
         self._router = Some(router);
         self._endpoint = Some(endpoint.clone());
+        self.blob_store = Some(blob_store.clone());
+        self.downloader = Some(downloader.clone());
+        self.direct_lookup = Some(direct.clone());
 
         info!("📡 Iroh router listening on port {}", self.config.network.p2p_port);
 
@@ -336,6 +360,11 @@ impl Network for MeshNetwork {
         }
 
         // 9. Main event loop (background task)
+        let downloader_clone = downloader.clone();
+        let store_clone = blob_store.clone();
+        let direct_clone = direct.clone();
+        let data_dir_clone = self.config.node.data_dir.clone();
+
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -371,10 +400,10 @@ impl Network for MeshNetwork {
 
                                         // Whitelisting check
                                         if let Some(ref allowed) = allowed_peers {
-                                            if !allowed.is_empty() && !allowed.contains(&from_id) {
-                                                warn!("🚫 Blocked message from unauthorized peer: {}", from_id);
-                                                continue;
-                                            }
+                                             if !allowed.is_empty() && !allowed.contains(&from_id) {
+                                                 warn!("🚫 Blocked message from unauthorized peer: {}", from_id);
+                                                 continue;
+                                             }
                                         }
                                         let size_bytes = msg.content.len();
                                         let size_mb = size_bytes as f64 / 1_048_576.0;
@@ -383,6 +412,88 @@ impl Network for MeshNetwork {
                                         if let Ok(p2p_msg) = serde_json::from_slice::<P2PMessage>(&msg.content) {
                                             match p2p_msg {
                                                 P2PMessage::NewUpdate(record) => {
+                                                    // Check if we already have this update record in history to avoid redundant blob downloads and duplicate entries
+                                                    let already_recorded = {
+                                                        let history = history_clone.read().await;
+                                                        history.peer_updates
+                                                            .get(&record.node_id)
+                                                            .map(|log| log.iter().any(|r| r.hash == record.hash))
+                                                            .unwrap_or(false)
+                                                    };
+                                                    if already_recorded {
+                                                        continue;
+                                                    }
+
+                                                    // Check if this update references an Iroh Blob
+                                                    if let crate::history::RecordKind::ModelUpdate { ref blob_ticket, blob_size, ref compressed_delta, .. } = record.kind {
+                                                        let peer_id = record.node_id.clone();
+                                                        if !blob_ticket.is_empty() {
+                                                            match blob_ticket.parse::<BlobTicket>() {
+                                                                Ok(ticket) => {
+                                                                    let (addr, hash, _format) = ticket.into_parts();
+                                                                    direct_clone.add_endpoint_info(addr.clone());
+                                                                    let downloader = downloader_clone.clone();
+                                                                    let store = store_clone.clone();
+                                                                    let network_deltas_dir = format!("{}/network_deltas", data_dir_clone);
+                                                                    let export_path = format!("{}/{}_delta.pt", network_deltas_dir, peer_id);
+
+                                                                    tokio::spawn(async move {
+                                                                        let _ = tokio::fs::create_dir_all(&network_deltas_dir).await;
+                                                                        let size_mb = blob_size as f64 / 1_048_576.0;
+                                                                        info!("📥 Initiating Iroh Blob transfer from peer {} | Hash: {} | Size: {} bytes ({:.2} MB)", peer_id, hash, blob_size, size_mb);
+                                                                        let start = std::time::Instant::now();
+                                                                        let max_retries = 3;
+                                                                        let mut download_ok = false;
+                                                                        for attempt in 1..=max_retries {
+                                                                            match downloader.download(hash, vec![addr.id]).await {
+                                                                                Ok(_) => {
+                                                                                    download_ok = true;
+                                                                                    break;
+                                                                                }
+                                                                                Err(e) => {
+                                                                                    if attempt < max_retries {
+                                                                                        warn!("⚠️ Download attempt {}/{} for blob {} from peer {} failed: {:?}. Retrying in {}s...", attempt, max_retries, hash, peer_id, e, attempt * 2);
+                                                                                        tokio::time::sleep(tokio::time::Duration::from_secs(attempt as u64 * 2)).await;
+                                                                                    } else {
+                                                                                        error!("❌ Failed to download blob {} from peer {} after {} attempts: {:?}", hash, peer_id, max_retries, e);
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                        if download_ok {
+                                                                            let temp_export_path = format!("{}/{}_delta_{}.tmp", network_deltas_dir, peer_id, uuid::Uuid::new_v4());
+                                                                            match store.export(hash, &temp_export_path).await {
+                                                                                Ok(_) => {
+                                                                                    if let Err(e) = tokio::fs::rename(&temp_export_path, &export_path).await {
+                                                                                        error!("❌ Failed to rename temp blob export {} to {}: {:?}", temp_export_path, export_path, e);
+                                                                                        let _ = tokio::fs::remove_file(&temp_export_path).await;
+                                                                                    } else {
+                                                                                        let hash_path = format!("{}/{}_delta.hash", network_deltas_dir, peer_id);
+                                                                                        let _ = tokio::fs::write(&hash_path, hash.to_string()).await;
+                                                                                        let elapsed = start.elapsed();
+                                                                                        let speed_mbps = if elapsed.as_secs_f64() > 0.0 { size_mb / elapsed.as_secs_f64() } else { 0.0 };
+                                                                                        info!("✅ Blob verified & exported: Saved {:.2} MB from peer {} to {} in {:.2?} ({:.2} MB/s)", size_mb, peer_id, export_path, elapsed, speed_mbps);
+                                                                                    }
+                                                                                }
+                                                                                Err(e) => {
+                                                                                    let _ = tokio::fs::remove_file(&temp_export_path).await;
+                                                                                    error!("❌ Failed to export verified blob {} to {}: {:?}", hash, export_path, e);
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    });
+                                                                }
+                                                                Err(e) => {
+                                                                    error!("Failed to parse blob ticket from peer {}: {:?}", peer_id, e);
+                                                                }
+                                                            }
+                                                        } else if let Some(ref b64) = compressed_delta {
+                                                            let peer_deltas_dir = format!("{}/network_deltas", data_dir_clone);
+                                                            let path = format!("{}/{}_delta.b64", peer_deltas_dir, peer_id);
+                                                            let _ = std::fs::write(&path, b64);
+                                                        }
+                                                    }
+
                                                     let mut history = history_clone.write().await;
                                                     history.record_update(record);
                                                 }
@@ -446,6 +557,27 @@ impl Network for MeshNetwork {
 
     fn browser_count(&self) -> usize {
         0
+    }
+
+    async fn stage_delta_blob(&self, file_path: &std::path::Path) -> Result<(String, u64), BoxError> {
+        let store = self.blob_store.as_ref().ok_or("Blob store not initialized")?;
+        let endpoint = self._endpoint.as_ref().ok_or("Endpoint not initialized")?;
+
+        info!("📦 Staging model delta to Iroh Blobs: {:?}", file_path);
+        let start = std::time::Instant::now();
+        let outcome = store.add_path(file_path).await
+            .map_err(|e| format!("Failed to add file to blob store: {}", e))?;
+        let hash = outcome.hash;
+        let size = tokio::fs::metadata(file_path).await.map(|m| m.len()).unwrap_or(0);
+        let size_mb = size as f64 / 1_048_576.0;
+
+        let addr = endpoint.addr();
+        let ticket = BlobTicket::new(addr, hash, BlobFormat::Raw);
+        let ticket_str = ticket.to_string();
+
+        let elapsed = start.elapsed();
+        info!("✅ Model delta staged to Iroh Blob | Hash: {} | Size: {} bytes ({:.2} MB) | Duration: {:.2?}", hash, size, size_mb, elapsed);
+        Ok((ticket_str, size))
     }
 }
 

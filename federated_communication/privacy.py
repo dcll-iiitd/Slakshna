@@ -32,11 +32,14 @@ def apply_differential_privacy_and_clipping(delta_dict, max_norm=1.0, noise_mult
 
 
 
-def validate_peer_delta(delta_dict, max_allowed_norm=10.0):
+def validate_peer_delta(delta_dict, max_allowed_norm=None):
     """
     Validates peer deltas to prevent NaN/Inf injection or extreme norm poisoning.
     Returns True if valid, False if rejected.
     """
+    if max_allowed_norm is None:
+        import os
+        max_allowed_norm = float(os.environ.get("SLAKSHNA_MAX_ALLOWED_NORM", "500.0"))
     total_norm_sq = 0.0
     for k, v in delta_dict.items():
         if torch.is_tensor(v):

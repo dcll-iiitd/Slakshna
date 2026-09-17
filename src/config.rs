@@ -82,9 +82,10 @@ pub struct CompressionConfig {
 fn default_compression_enabled() -> bool { true }
 fn default_sparsity() -> f64 { 0.1 }
 fn default_quantization() -> String { "symmetric_int8".to_string() }
-// Base64 expands by roughly 4/3; retain room under gossip's 10 MiB message cap.
-fn default_max_payload_bytes() -> usize { 7 * 1024 * 1024 }
-fn default_max_tensor_elements() -> usize { 10_000_000 }
+// With Iroh Blobs, model payloads are transferred via QUIC streams rather than gossip.
+// Default limits are expanded to support models of arbitrary size (including 70B+ parameters).
+fn default_max_payload_bytes() -> usize { 1024 * 1024 * 1024 * 1024 }
+fn default_max_tensor_elements() -> usize { 100_000_000_000 }
 
 impl Default for CompressionConfig {
     fn default() -> Self {
@@ -182,10 +183,8 @@ impl Config {
         if config.compression.quantization != "symmetric_int8" {
             return Err("compression.quantization must be symmetric_int8".into());
         }
-        if config.compression.max_payload_bytes == 0
-            || config.compression.max_payload_bytes > 2000000000
-        {
-            return Err("compression.max_payload_bytes must be between 1 and 2000000000".into());
+        if config.compression.max_payload_bytes == 0 {
+            return Err("compression.max_payload_bytes must be positive".into());
         }
         if config.compression.max_tensor_elements == 0 {
             return Err("compression.max_tensor_elements must be positive".into());

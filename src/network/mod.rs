@@ -32,4 +32,6 @@ pub trait Network: Send + Sync {
 
     fn peer_count(&self) -> usize;
     fn browser_count(&self) -> usize;
+
+    async fn stage_delta_blob(&self, file_path: &std::path::Path) -> Result<(String, u64), BoxError>;
 }

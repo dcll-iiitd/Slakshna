@@ -129,14 +129,26 @@ impl MeshNetwork {
             };
 
             if let Some(addr_str) = addr_str {
-                match addr_str.parse::<std::net::SocketAddr>() {
-                    Ok(socket_addr) => {
-                        info!("📌 Pinned direct address for {}: {}", peer_id.fmt_short(), socket_addr);
-                        direct.add_endpoint_info(
-                            EndpointAddr::new(peer_id).with_ip_addr(socket_addr),
-                        );
+                if let Ok(socket_addr) = addr_str.parse::<std::net::SocketAddr>() {
+                    info!("📌 Pinned direct address for {}: {}", peer_id.fmt_short(), socket_addr);
+                    direct.add_endpoint_info(
+                        EndpointAddr::new(peer_id).with_ip_addr(socket_addr),
+                    );
+                } else {
+                    // Support domain names (e.g. playit.gg tunnels, dynamic DNS)
+                    match tokio::net::lookup_host(addr_str).await {
+                        Ok(mut resolved) => {
+                            if let Some(socket_addr) = resolved.next() {
+                                info!("📌 Resolved & pinned direct address for {} ({} -> {})", peer_id.fmt_short(), addr_str, socket_addr);
+                                direct.add_endpoint_info(
+                                    EndpointAddr::new(peer_id).with_ip_addr(socket_addr),
+                                );
+                            } else {
+                                warn!("⚠️ DNS lookup for '{}' returned no addresses", addr_str);
+                            }
+                        }
+                        Err(e) => warn!("⚠️ Ignoring unparseable/unresolvable address '{}': {}", addr_str, e),
                     }
-                    Err(e) => warn!("⚠️ Ignoring unparseable address '{}': {}", addr_str, e),
                 }
             }
 
@@ -571,7 +583,16 @@ impl Network for MeshNetwork {
         let size = tokio::fs::metadata(file_path).await.map(|m| m.len()).unwrap_or(0);
         let size_mb = size as f64 / 1_048_576.0;
 
-        let addr = endpoint.addr();
+        let mut addr = endpoint.addr();
+        if let Some(ref ext) = self.config.network.external_addr {
+            if let Ok(socket_addr) = ext.parse::<std::net::SocketAddr>() {
+                addr = addr.with_ip_addr(socket_addr);
+            } else if let Ok(mut resolved) = tokio::net::lookup_host(ext).await {
+                if let Some(socket_addr) = resolved.next() {
+                    addr = addr.with_ip_addr(socket_addr);
+                }
+            }
+        }
         let ticket = BlobTicket::new(addr, hash, BlobFormat::Raw);
         let ticket_str = ticket.to_string();
 

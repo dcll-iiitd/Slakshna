@@ -130,6 +130,10 @@ pub struct NetworkConfig {
     /// If non-empty, only these peers may connect (whitelisting).
     #[serde(default)]
     pub allowed_peers: Option<Vec<String>>,
+    /// Optional external address (IP:PORT or HOST:PORT) advertised to peers
+    /// when running behind a tunnel (e.g. playit.gg) or reverse proxy.
+    #[serde(default)]
+    pub external_addr: Option<String>,
 }
 
 /// Which serverless discovery mechanisms this node participates in. All of them

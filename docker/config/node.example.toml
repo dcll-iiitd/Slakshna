@@ -1,0 +1,52 @@
+# SLAKSHNA node config - PRODUCTION TEMPLATE (one node per machine).
+# Copy to e.g. docker/config/node.toml, edit, and point NODE_CONFIG at it in .env.
+
+[federation]
+# Every node with the same id trains together. Choose a unique id per federation.
+id = "CHANGE-ME-federation-id"
+name = "SLAKSHNA Federation"
+
+[training]
+epoch_duration_secs = 600
+sync_deadline_secs = 300
+# Number of nodes in your federation. The sync barrier is released early once this
+# many nodes have reported; a wrong value makes every epoch wait sync_deadline_secs.
+expected_peers = 2
+
+[compression]
+enabled = true
+sparsity = 0.1
+quantization = "symmetric_int8"
+allow_legacy_delta_format = false
+max_payload_bytes = 7340032
+max_tensor_elements = 2000000000
+
+[node]
+id = "node-1"
+# Do not change: this is the node-data volume inside the container. It holds the
+# node identity (keypair) and known peers, so it must survive restarts.
+data_dir = "/app/node-data"
+# Inside the container the GPUs you assign in .env (GPU_DEVICE) are renumbered from 0.
+gpu_id = 0
+num_gpus = 1
+
+[network]
+# API/WebSocket bind address. 127.0.0.1 = local only (safe default).
+# Use "0.0.0.0" only behind a firewall/reverse proxy: the API is unauthenticated.
+host = "127.0.0.1"
+# P2P (Iroh QUIC) uses UDP on p2p_port. It must be reachable by your peers.
+p2p_port = 9000
+ws_port = 8546
+api_port = 8545
+# Seed peers as "<EndpointId>" or "<EndpointId>@host:port". Needed when peers are on
+# different networks and mDNS/DHT cannot find each other (see docker/README.md).
+peers = []
+
+[discovery]
+mdns = true     # same LAN / same host
+dht = true      # BitTorrent mainline DHT, works across the internet
+dns = true      # n0 pkarr/DNS lookup (third-party); set false for a self-contained federation
+relay = false   # true = use public relays when direct hole punching fails (traffic stays encrypted)
+
+[logging]
+level = "info"

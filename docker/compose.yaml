@@ -1,0 +1,138 @@
+# SLAKSHNA - 3-node demo on ONE machine, one GPU per node.
+#
+#   cd docker && cp env.example .env
+#   docker compose --profile init run --rm model-init     # one-time model download
+#   docker compose up -d                                  # start node1..node3
+#   docker compose ps                                     # wait for "healthy"
+#
+# 2-node variant:  docker compose -f compose.yaml -f compose.2node.yaml up -d node1 node2
+# Production (1 node per machine): see compose.node.yaml
+name: slakshna-demo
+
+x-node: &node
+  image: ${SLAKSHNA_IMAGE:-slakshna:dev}
+  # Host networking: Iroh QUIC hole punching, mDNS multicast and Ray's dynamic ports
+  # do not work reliably behind Docker's bridge NAT.
+  network_mode: host
+  init: true                    # tini: reaps Ray/Python children and forwards signals
+  restart: unless-stopped
+  stop_grace_period: 60s        # time for Python/Ray children to exit on `docker stop`
+  shm_size: ${SHM_SIZE:-16g}    # Ray/PyTorch shared memory (Docker default 64m is too small)
+  ulimits:
+    memlock: -1
+    nofile:
+      soft: 65536
+      hard: 65536
+  logging:
+    driver: json-file
+    options:
+      max-size: "50m"
+      max-file: "5"
+  environment:
+    SLAKSHNA_CONFIG: /app/config.toml
+    WANDB_MODE: ${WANDB_MODE:-offline}
+    WANDB_API_KEY: ${WANDB_API_KEY:-}
+    HF_TOKEN: ${HF_TOKEN:-}
+    HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+
+services:
+  node1:
+    <<: *node
+    container_name: slakshna-node1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${NODE1_GPU:-0}"]
+              capabilities: [gpu]
+    volumes:
+      - ./config/node1.toml:/app/config.toml:ro
+      - ${NODE_TEMPLATE:-./config/node_template.yaml}:/app/node_template.yaml:ro
+      - ${DATASET_DIR:-../Bhaskera/dataset}:/data:ro
+      - hf_cache:/app/hf_cache
+      - node1-data:/app/node-data
+      - node1-models:/app/ml_models
+      - node1-states:/app/ml_states
+      - node1-work:/app/data
+      - node1-logs:/app/logs
+      - node1-cache:/app/cache
+
+  node2:
+    <<: *node
+    container_name: slakshna-node2
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${NODE2_GPU:-1}"]
+              capabilities: [gpu]
+    volumes:
+      - ./config/node2.toml:/app/config.toml:ro
+      - ${NODE_TEMPLATE:-./config/node_template.yaml}:/app/node_template.yaml:ro
+      - ${DATASET_DIR:-../Bhaskera/dataset}:/data:ro
+      - hf_cache:/app/hf_cache
+      - node2-data:/app/node-data
+      - node2-models:/app/ml_models
+      - node2-states:/app/ml_states
+      - node2-work:/app/data
+      - node2-logs:/app/logs
+      - node2-cache:/app/cache
+
+  node3:
+    <<: *node
+    container_name: slakshna-node3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${NODE3_GPU:-2}"]
+              capabilities: [gpu]
+    volumes:
+      - ./config/node3.toml:/app/config.toml:ro
+      - ${NODE_TEMPLATE:-./config/node_template.yaml}:/app/node_template.yaml:ro
+      - ${DATASET_DIR:-../Bhaskera/dataset}:/data:ro
+      - hf_cache:/app/hf_cache
+      - node3-data:/app/node-data
+      - node3-models:/app/ml_models
+      - node3-states:/app/ml_states
+      - node3-work:/app/data
+      - node3-logs:/app/logs
+      - node3-cache:/app/cache
+
+  # One-time job: download the model named in the training template into the SHARED
+  # hf_cache volume, so the nodes do not all download (and race) at the same time.
+  model-init:
+    image: ${SLAKSHNA_IMAGE:-slakshna:dev}
+    profiles: ["init"]
+    entrypoint: ["python", "-c"]
+    command:
+      - "import yaml; from huggingface_hub import snapshot_download; m = yaml.safe_load(open('/app/node_template.yaml'))['model']['name']; print('Pre-downloading', m, flush=True); p = snapshot_download(m, cache_dir='/app/hf_cache/hub'); print('done:', p)"
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - ${NODE_TEMPLATE:-./config/node_template.yaml}:/app/node_template.yaml:ro
+      - hf_cache:/app/hf_cache
+
+volumes:
+  hf_cache:
+  node1-data:
+  node1-models:
+  node1-states:
+  node1-work:
+  node1-logs:
+  node1-cache:
+  node2-data:
+  node2-models:
+  node2-states:
+  node2-work:
+  node2-logs:
+  node2-cache:
+  node3-data:
+  node3-models:
+  node3-states:
+  node3-work:
+  node3-logs:
+  node3-cache:

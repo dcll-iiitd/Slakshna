@@ -1,0 +1,74 @@
+# SLAKSHNA - PRODUCTION: ONE node per machine. Everything comes from .env.
+#
+#   cd docker && cp env.example .env     # then edit NODE_CONFIG, DATASET_DIR, GPU_DEVICE ...
+#   docker compose -f compose.node.yaml --profile init run --rm model-init
+#   docker compose -f compose.node.yaml up -d
+#   docker compose -f compose.node.yaml logs -f node
+#
+# Multi-GPU node: set device_ids below to e.g. ["0","1"] and num_gpus = 2 in your node.toml.
+name: slakshna
+
+services:
+  node:
+    image: ${SLAKSHNA_IMAGE:-slakshna:dev}
+    container_name: slakshna-node
+    network_mode: host
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 60s
+    shm_size: ${SHM_SIZE:-16g}
+    ulimits:
+      memlock: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    environment:
+      SLAKSHNA_CONFIG: /app/config.toml
+      WANDB_MODE: ${WANDB_MODE:-offline}
+      WANDB_API_KEY: ${WANDB_API_KEY:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GPU_DEVICE:-0}"]
+              capabilities: [gpu]
+    volumes:
+      - ${NODE_CONFIG:?set NODE_CONFIG in .env (path to your node .toml)}:/app/config.toml:ro
+      - ${NODE_TEMPLATE:-./config/node_template.yaml}:/app/node_template.yaml:ro
+      - ${DATASET_DIR:?set DATASET_DIR in .env (directory with your training data)}:/data:ro
+      - hf_cache:/app/hf_cache
+      - node-data:/app/node-data
+      - node-models:/app/ml_models
+      - node-states:/app/ml_states
+      - node-work:/app/data
+      - node-logs:/app/logs
+      - node-cache:/app/cache
+
+  model-init:
+    image: ${SLAKSHNA_IMAGE:-slakshna:dev}
+    profiles: ["init"]
+    entrypoint: ["python", "-c"]
+    command:
+      - "import yaml; from huggingface_hub import snapshot_download; m = yaml.safe_load(open('/app/node_template.yaml'))['model']['name']; print('Pre-downloading', m, flush=True); p = snapshot_download(m, cache_dir='/app/hf_cache/hub'); print('done:', p)"
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - ${NODE_TEMPLATE:-./config/node_template.yaml}:/app/node_template.yaml:ro
+      - hf_cache:/app/hf_cache
+
+volumes:
+  hf_cache:
+  node-data:
+  node-models:
+  node-states:
+  node-work:
+  node-logs:
+  node-cache:

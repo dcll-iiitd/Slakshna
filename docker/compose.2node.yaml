@@ -1,0 +1,12 @@
+# Override: run the demo with 2 nodes (expected_peers = 2) instead of 3.
+#
+#   docker compose -f compose.yaml -f compose.2node.yaml up -d node1 node2
+#
+# Only the mounted node config changes (volumes are merged by container path).
+services:
+  node1:
+    volumes:
+      - ./config/2node/node1.toml:/app/config.toml:ro
+  node2:
+    volumes:
+      - ./config/2node/node2.toml:/app/config.toml:ro

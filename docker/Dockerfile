@@ -17,7 +17,10 @@ ARG PYTHON_IMAGE=python:3.11-slim-bookworm@sha256:0a310eeecf4e1f5a0743f9a6520c90
 # ── Stage 1: Rust node ──────────────────────────────────────────────────────
 FROM ${RUST_IMAGE} AS rust-builder
 
-RUN apt-get update \
+# apt over HTTPS: some institute/corporate firewalls return 403 for plain-HTTP package
+# index downloads. deb.debian.org serves the same archive over HTTPS (CA bundle is present).
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+ && apt-get update \
  && apt-get install -y --no-install-recommends cmake clang libclang-dev \
  && rm -rf /var/lib/apt/lists/*
 
@@ -72,7 +75,8 @@ ARG BHASKERA_COMMIT=unknown
 
 # gcc + libc6-dev: Triton (used by liger-kernel) JIT-compiles small launcher stubs.
 # procps: ps/pkill for debugging inside the container.
-RUN apt-get update \
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+ && apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev procps \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --gid ${GID} app \

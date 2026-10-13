@@ -1,0 +1,40 @@
+# Used automatically by `docker buildx build -f docker/Dockerfile` (BuildKit).
+# Keep the build context small: .git alone is ~340 MB.
+.git
+**/.git
+**/.venv
+**/__pycache__
+**/*.pyc
+target
+.claude
+
+# runtime state / outputs: never part of an image
+data*
+ml_models
+ml_states
+hf_cache
+cache
+logs
+results
+evaluations
+benchmark_data
+benchmark_configs
+plots_script
+docs
+examples
+config_*
+*.log
+*.pids
+session.txt
+
+# not needed for the build (Bhaskera sources are; its sample data is not)
+Bhaskera/dataset
+Bhaskera/docs
+Bhaskera/.github
+
+# docker/ itself: only the files the Dockerfile COPYs are needed
+docker/compose*.yaml
+docker/config
+docker/patches
+docker/*.md
+docker/env.example

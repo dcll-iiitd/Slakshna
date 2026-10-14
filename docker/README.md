@@ -184,7 +184,7 @@ What is persisted (named volumes): `node-data` (identity, peer DB), `ml_models` 
 | `CUDA is not available inside the container` | NVIDIA Container Toolkit not configured, or the GPU index in `.env` does not exist |
 | `driver ... is too old for CUDA 12.1` | Update the NVIDIA driver to >= 525.60.13 |
 | `Directory not writable by uid ...` | Image built with a different `UID` than the user running compose; rebuild with `--build-arg UID=$(id -u)` |
-| `No space left on device` inside a container (e.g. `mkdtemp('/tmp')`) while the data volumes have room | A container's writable layer lives in containerd's snapshot store, which can be on a different (full) filesystem than `Docker Root Dir`. Check with `docker run --rm --entrypoint df slakshna:dev -h /` and free space there, or move containerd's `root` to a larger disk |
+| `No space left on device` inside a container (e.g. `mkdtemp('/tmp')`) while the data volumes have room | A container's writable layer lives in containerd's snapshot store, which can be on a different (full) filesystem than `Docker Root Dir`. Check with `docker run --rm --entrypoint df slakshna:dev -h /` and free space there, or move containerd's `root` to a larger disk. Stopgap for the demo: `compose.workaround-rootfull.yaml` (see its header) moves `/tmp` to tmpfs and `/app` to a bind mount on another disk |
 | Nodes never see each other | Section 7: UDP port, `relay`, or seed `peers`; make sure `[federation] id` is identical |
 | Every epoch waits ~5 min | `expected_peers` is larger than the number of running nodes |
 | Out of GPU memory | Lower `batch_size`/`seq_len` in the template, or use the smoke template to verify the pipeline first |

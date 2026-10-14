@@ -1,0 +1,50 @@
+# OPTIONAL workaround for a host whose container-snapshot filesystem is full.
+#
+# Symptom: inside a container, writes outside the named volumes fail with
+# "No space left on device" (e.g. mkdtemp('/tmp'), /app/config_<id>.yaml) even though
+# the volumes' disk has room. Cause: with Docker's containerd snapshotter the container's
+# writable layer lives under containerd's root, which may be a different, full filesystem.
+#
+# The proper fix is to free space there (or move containerd's root). Until then:
+#   - /tmp becomes RAM-backed (tmpfs)
+#   - HOME and the Triton/W&B caches move into /tmp
+#   - /app is bind-mounted from a directory on a roomy disk (ml_engine.py writes
+#     config_<node-id>.yaml next to itself, and the node id is not known in advance)
+#
+# Usage (from docker/):
+#   export WORKAROUND_APP_ROOT=/path/on/a/roomy/disk/slakshna-app
+#   ./workaround-rootfull-prepare.sh                      # copies /app from the image
+#   docker compose -f compose.yaml -f compose.workaround-rootfull.yaml up -d
+#
+# Not needed (and not recommended) on a healthy host. The image itself is unchanged.
+
+x-rootfull-env: &rootfull-env
+  HOME: /tmp/home
+  TRITON_CACHE_DIR: /tmp/triton
+  WANDB_CONFIG_DIR: /tmp/wandb-config
+  WANDB_CACHE_DIR: /tmp/wandb-cache
+  WANDB_DIR: /app/logs
+
+x-rootfull-tmpfs: &rootfull-tmpfs
+  - /tmp:rw,mode=1777,size=${WORKAROUND_TMPFS_SIZE:-32g}
+
+services:
+  node1:
+    tmpfs: *rootfull-tmpfs
+    environment: *rootfull-env
+    volumes:
+      - ${WORKAROUND_APP_ROOT:?set WORKAROUND_APP_ROOT to a directory on a disk with free space}/node1:/app
+  node2:
+    tmpfs: *rootfull-tmpfs
+    environment: *rootfull-env
+    volumes:
+      - ${WORKAROUND_APP_ROOT:?set WORKAROUND_APP_ROOT to a directory on a disk with free space}/node2:/app
+  node3:
+    tmpfs: *rootfull-tmpfs
+    environment: *rootfull-env
+    volumes:
+      - ${WORKAROUND_APP_ROOT:?set WORKAROUND_APP_ROOT to a directory on a disk with free space}/node3:/app
+  model-init:
+    tmpfs: *rootfull-tmpfs
+    environment:
+      HOME: /tmp/home

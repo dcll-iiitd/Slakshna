@@ -55,6 +55,8 @@ services:
   model-init:
     image: ${SLAKSHNA_IMAGE:-slakshna:dev}
     profiles: ["init"]
+    healthcheck:
+      disable: true             # the image's /status healthcheck only applies to nodes
     entrypoint: ["python", "-c"]
     command:
       - "import yaml; from huggingface_hub import snapshot_download; m = yaml.safe_load(open('/app/node_template.yaml'))['model']['name']; print('Pre-downloading', m, flush=True); p = snapshot_download(m, cache_dir='/app/hf_cache/hub'); print('done:', p)"

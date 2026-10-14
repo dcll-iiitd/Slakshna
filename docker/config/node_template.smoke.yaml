@@ -1,8 +1,10 @@
 # SMOKE TEST template: tiny model, 4 steps, 1 federated round.
 # Verifies the whole pipeline (build, GPU, P2P, training, aggregation) in a few minutes
 # without downloading a 7B model. Differences from node_template.yaml:
-#   model.name Qwen/Qwen2.5-0.5B | seq_len 512 | max_train_samples 64 | batch_size 2
-#   grad_accum 1 | max_steps 4 | save_steps 2 | total_epochs 1 | tokenized_path .../tokenized_smoke
+#   model.name Qwen/Qwen2.5-0.5B | max_train_samples 64 | batch_size 2 | grad_accum 1
+#   max_steps 4 | save_steps 2 | total_epochs 1 | tokenized_path .../tokenized_smoke_2048
+# seq_len stays 2048 on purpose: with packed sequences a shorter window can contain only
+# prompt tokens (all labels masked), which gives loss=nan even though the pipeline is fine.
 
 federated:
   mode: "finetuning"
@@ -24,8 +26,8 @@ model:
 data:
   name: "local"
   train_path: "/data/South_Asia.jsonl"
-  tokenized_path: "/app/cache/tokenized_smoke"
-  seq_len: 512
+  tokenized_path: "/app/cache/tokenized_smoke_2048"
+  seq_len: 2048
   pack_sequences: true
   format: "chatml"
   max_train_samples: 64

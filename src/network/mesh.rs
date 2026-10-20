@@ -1,5 +1,7 @@
 use crate::history::{UpdateRecord, UpdateHistory, BoxError};
+use crate::network::blobs::BlobService;
 use crate::network::{Network, P2PMessage};
+use crate::registry::{AdapterMeta, AdapterRegistry};
 use crate::state::State;
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -49,6 +51,11 @@ pub struct MeshNetwork {
     command_tx: Option<mpsc::Sender<P2PMessage>>,
     active_peers: Arc<RwLock<Vec<String>>>,
     endpoint_id: Arc<RwLock<Option<String>>>,
+    /// Federated inference: metadata of every node's adapter.
+    registry: Arc<RwLock<AdapterRegistry>>,
+    /// Our own latest advertisement, re-gossiped periodically for late joiners.
+    own_adapter: Arc<RwLock<Option<AdapterMeta>>>,
+    blobs: Option<Arc<BlobService>>,
     _router: Option<iroh::protocol::Router>,
     _endpoint: Option<iroh::Endpoint>,
 }
@@ -58,6 +65,7 @@ impl MeshNetwork {
         config: crate::config::Config,
         history: Arc<RwLock<UpdateHistory>>,
         state: Arc<RwLock<State>>,
+        registry: Arc<RwLock<AdapterRegistry>>,
     ) -> Self {
         MeshNetwork {
             config,
@@ -66,6 +74,9 @@ impl MeshNetwork {
             command_tx: None,
             active_peers: Arc::new(RwLock::new(Vec::new())),
             endpoint_id: Arc::new(RwLock::new(None)),
+            registry,
+            own_adapter: Arc::new(RwLock::new(None)),
+            blobs: None,
             _router: None,
             _endpoint: None,
         }
@@ -74,6 +85,15 @@ impl MeshNetwork {
     /// This node's Iroh EndpointId, once the endpoint has been bound.
     pub async fn endpoint_id(&self) -> Option<String> {
         self.endpoint_id.read().await.clone()
+    }
+
+    pub fn registry(&self) -> Arc<RwLock<AdapterRegistry>> {
+        self.registry.clone()
+    }
+
+    /// Blob transfer service; present only when `[inference] enabled = true`.
+    pub fn blobs(&self) -> Option<Arc<BlobService>> {
+        self.blobs.clone()
     }
 
     /// Iroh transport key, derived from the federation keypair persisted in
@@ -187,12 +207,17 @@ impl Network for MeshNetwork {
             .parse()
             .map_err(|e| format!("Failed to parse bind_addr: {}", e))?;
 
+        let mut alpns = vec![ALPN.to_vec()];
+        if self.config.inference.enabled {
+            alpns.push(iroh_blobs::ALPN.to_vec());
+        }
+
         let mut builder = Endpoint::builder(presets::N0)
             .secret_key(secret_key)
             .ca_tls_config(iroh::tls::CaTlsConfig::insecure_skip_verify())
             .bind_addr(bind_addr)
             .map_err(|e| format!("Failed to set bind_addr: {}", e))?
-            .alpns(vec![ALPN.to_vec()]);
+            .alpns(alpns);
 
         if !discovery.dns {
             // Drop the n0 pkarr publisher/resolver the preset installed.
@@ -230,9 +255,15 @@ impl Network for MeshNetwork {
             .max_message_size(10_485_760) // 10 MB limit for large AI payloads
             .spawn(endpoint.clone());
 
-        let router = Router::builder(endpoint.clone())
-            .accept(ALPN, gossip.clone())
-            .spawn();
+        let mut router_builder = Router::builder(endpoint.clone()).accept(ALPN, gossip.clone());
+        if self.config.inference.enabled {
+            let (blob_service, blobs_protocol) =
+                BlobService::new(&self.config.node.data_dir, endpoint.clone()).await?;
+            router_builder = router_builder.accept(iroh_blobs::ALPN, blobs_protocol);
+            self.blobs = Some(Arc::new(blob_service));
+            info!("📦 Adapter blob service active (iroh-blobs)");
+        }
+        let router = router_builder.spawn();
 
         self._router = Some(router);
         self._endpoint = Some(endpoint.clone());
@@ -274,6 +305,7 @@ impl Network for MeshNetwork {
         let peers_clone = self.active_peers.clone();
         let state_clone = self.state.clone();
         let allowed_peers = self.config.network.allowed_peers.clone();
+        let registry_clone = self.registry.clone();
 
         // 7. Feed mDNS discoveries straight into the gossip membership layer.
         if let Some(mdns) = mdns {
@@ -310,11 +342,22 @@ impl Network for MeshNetwork {
         {
             let sender = gossip_sender.clone();
             let state = self.state.clone();
+            let own_adapter = self.own_adapter.clone();
             tokio::spawn(async move {
                 let mut ticker = tokio::time::interval(REJOIN_INTERVAL);
                 ticker.tick().await; // the first tick fires immediately
                 loop {
                     ticker.tick().await;
+
+                    // Late joiners learn our adapter from this periodic re-announce.
+                    let own = own_adapter.read().await.clone();
+                    if let Some(meta) = own {
+                        if let Ok(data) = serde_json::to_vec(&P2PMessage::AdapterAnnounce(meta)) {
+                            if let Err(e) = sender.broadcast(data.into()).await {
+                                debug!("Adapter re-announce failed: {:?}", e);
+                            }
+                        }
+                    }
                     let known: Vec<EndpointId> = {
                         let state = state.read().await;
                         state
@@ -342,7 +385,7 @@ impl Network for MeshNetwork {
                     // OUTBOUND: Broadcast messages from the application to the gossip swarm
                     Some(msg) = cmd_rx.recv() => {
                         match &msg {
-                            P2PMessage::NewUpdate(_) => {
+                            P2PMessage::NewUpdate(_) | P2PMessage::AdapterAnnounce(_) => {
                                 let data = match serde_json::to_vec(&msg) {
                                     Ok(data) => data,
                                     Err(e) => {
@@ -352,7 +395,7 @@ impl Network for MeshNetwork {
                                 };
                                 let size_bytes = data.len();
                                 let size_mb = size_bytes as f64 / 1_048_576.0;
-                                info!("📤 Broadcasting model update to swarm | Network Payload Size: {} bytes ({:.2} MB)", size_bytes, size_mb);
+                                info!("📤 Broadcasting to swarm | Network Payload Size: {} bytes ({:.2} MB)", size_bytes, size_mb);
                                 if let Err(e) = gossip_sender.broadcast(data.into()).await {
                                     error!("Failed to broadcast gossip message: {:?}", e);
                                 }
@@ -385,6 +428,12 @@ impl Network for MeshNetwork {
                                                 P2PMessage::NewUpdate(record) => {
                                                     let mut history = history_clone.write().await;
                                                     history.record_update(record);
+                                                }
+                                                P2PMessage::AdapterAnnounce(meta) => {
+                                                    let mut reg = registry_clone.write().await;
+                                                    if reg.insert(meta.clone(), &state_clone).await {
+                                                        info!("🧩 Adapter advertised by {} (round {}, sha256 {})", meta.node_id, meta.round, &meta.sha256[..12]);
+                                                    }
                                                 }
                                                 _ => {}
                                             }
@@ -428,6 +477,18 @@ impl Network for MeshNetwork {
     async fn broadcast_update(&self, record: &UpdateRecord) -> Result<(), BoxError> {
         if let Some(tx) = &self.command_tx {
             let _ = tx.send(P2PMessage::NewUpdate(record.clone())).await;
+        }
+        Ok(())
+    }
+
+    async fn announce_adapter(&self, meta: AdapterMeta) -> Result<(), BoxError> {
+        {
+            let mut reg = self.registry.write().await;
+            reg.insert(meta.clone(), &self.state).await;
+        }
+        *self.own_adapter.write().await = Some(meta.clone());
+        if let Some(tx) = &self.command_tx {
+            let _ = tx.send(P2PMessage::AdapterAnnounce(meta)).await;
         }
         Ok(())
     }

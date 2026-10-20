@@ -99,6 +99,9 @@ SLAKSHNA is built from the ground up to operate securely over untrusted public n
 | `ml_engine.py`             | Python ML bridge executing Bhaskera distributed LoRA training, DP clipping, sparsification, and peer evaluation                 |
 | `setup.sh`                 | Main installation script for system dependencies and virtual environments                                                       |
 | `Bhaskera/`                | Submodule / embedded repository containing the distributed LLM training framework                                               |
+| `Bhaskera-serve/`          | Second submodule (branch `serve`) used by federated inference; see [docs/federated_inference.md](docs/federated_inference.md)    |
+| `inference_engine.py`      | Local inference sidecar: base model + hot-swapped LoRA adapters                                                                 |
+| `adapter_export.py`        | Exports each round's aggregated LoRA as a content-addressed PEFT directory                                                      |
 | `node_template.yaml`       | Base YAML template for HuggingFace / Ray / PEFT training arguments                                                              |
 | `node1.toml`               | Node-1 configuration file                                                                                                       |
 | `node2.toml`, `node3.toml` | Peer node configuration files                                                                                                   |
@@ -464,3 +467,8 @@ When `node-2` runs in malicious mode, it injects a destructive learning rate (`l
 
 This project is licensed under the **Apache License 2.0** — see the [LICENSE](file:///mnt/disk1/slakshna/slakshnaFL/SLAKSHNA/LICENSE) file for details.
 
+
+
+## Federated Inference (optional)
+
+Nodes can answer queries with an adapter chosen from the whole federation: metadata is gossiped, weights are fetched by hash on demand and verified before use. Setup: `git submodule update --init --recursive`, `./setup_serve.sh`, then enable `[inference]` in the node config. Full design, wire format and API: [docs/federated_inference.md](docs/federated_inference.md).

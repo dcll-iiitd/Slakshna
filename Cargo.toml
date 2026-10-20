@@ -46,6 +46,8 @@ thiserror = "1.0"
 futures = "0.3"
 tokio-tungstenite = "0.21"
 url = "2.4"
+# Plain-HTTP client for the local inference sidecar (no TLS needed on loopback)
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
 
 # Iroh P2P Networking & Data Sync
 iroh = { version = "1.0.2", features = ["test-utils"] }

@@ -13,6 +13,14 @@ fn peer_key(endpoint_id: &str) -> Vec<u8> {
     key
 }
 
+const ADAPTER_PREFIX: &[u8] = b"adapter:";
+
+fn adapter_key(node_id: &str, round: u64) -> Vec<u8> {
+    let mut key = ADAPTER_PREFIX.to_vec();
+    key.extend_from_slice(format!("{}:{:020}", node_id, round).as_bytes());
+    key
+}
+
 pub struct State {
     db: DB,
     keypair: Option<Keypair>,
@@ -112,6 +120,34 @@ impl State {
 
         peers.sort_by(|a, b| b.1.cmp(&a.1));
         peers.into_iter().map(|(id, _)| id).collect()
+    }
+
+    /// Persist one adapter advertisement (opaque JSON) under `adapter:<node>:<round>`
+    /// so the registry survives restarts.
+    pub fn save_adapter_meta(&mut self, node_id: &str, round: u64, json: &str) -> Result<(), BoxError> {
+        self.db.put(adapter_key(node_id, round), json.as_bytes())?;
+        Ok(())
+    }
+
+    pub fn delete_adapter_meta(&mut self, node_id: &str, round: u64) -> Result<(), BoxError> {
+        self.db.delete(adapter_key(node_id, round))?;
+        Ok(())
+    }
+
+    /// Every persisted adapter advertisement, as raw JSON strings.
+    pub fn load_adapter_metas(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        let iter = self.db.iterator(IteratorMode::From(ADAPTER_PREFIX, Direction::Forward));
+        for item in iter {
+            let Ok((key, value)) = item else { continue };
+            if !key.starts_with(ADAPTER_PREFIX) {
+                break;
+            }
+            if let Ok(s) = String::from_utf8(value.to_vec()) {
+                out.push(s);
+            }
+        }
+        out
     }
 
     // History snapshot for sync

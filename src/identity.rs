@@ -134,6 +134,15 @@ impl Keypair {
 
 const TRANSPORT_KEY_DOMAIN: &[u8] = b"slakshna/iroh-endpoint/v1";
 
+/// Verify `signature` over `message` against a raw 32-byte Ed25519 public key.
+/// Used for messages from other nodes, where only the public key is known.
+pub fn verify_with_public_key(public_key: &[u8], message: &[u8], signature: &[u8]) -> bool {
+    let Ok(pk_bytes): Result<[u8; 32], _> = public_key.try_into() else { return false };
+    let Ok(sig_bytes): Result<[u8; 64], _> = signature.try_into() else { return false };
+    let Ok(vk) = VerifyingKey::from_bytes(&pk_bytes) else { return false };
+    vk.verify_strict(message, &Signature::from_bytes(&sig_bytes)).is_ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -34,5 +34,13 @@ dht = true
 dns = true
 relay = false
 
+# Federated inference (optional). Disabled by default; training is unaffected.
+# [inference]
+# enabled = true
+# base_model = "allenai/OLMo-2-1124-7B"   # must match the training base model
+# selection = "trust"                      # trust | self | latest
+# min_trust = 0.0
+# sidecar_python = "Bhaskera-serve/.venv/bin/python"
+
 [logging]
 level = "info"

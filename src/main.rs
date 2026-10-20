@@ -4,11 +4,15 @@ mod identity;
 mod state;
 mod network;
 mod api;
+mod registry;
+mod inference;
 
 use crate::config::Config;
 use crate::history::UpdateHistory;
 use crate::state::State;
 use crate::network::Network;
+use crate::registry::AdapterRegistry;
+use crate::inference::{AdapterOutput, InferenceService};
 use crate::api::start_api_server;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -33,6 +37,9 @@ struct MLEngineOutput {
     total_epochs: Option<u64>,
     #[serde(default)]
     is_finished: bool,
+    /// Present only when federated inference is enabled and the export succeeded.
+    #[serde(flatten)]
+    adapter: Option<AdapterOutput>,
 }
 
 #[tokio::main]
@@ -84,9 +91,12 @@ async fn main() -> Result<(), BoxError> {
         RwLock::new(UpdateHistory::new(config.clone(), state.clone(), node_identity.clone()).await?)
     );
 
+    // Federated inference registry (rebuilt from RocksDB so it survives restarts)
+    let registry = Arc::new(RwLock::new(AdapterRegistry::load(&state).await));
+
     // Initialize network
     let network = Arc::new(
-        RwLock::new(crate::network::mesh::MeshNetwork::new(config.clone(), history.clone(), state.clone()))
+        RwLock::new(crate::network::mesh::MeshNetwork::new(config.clone(), history.clone(), state.clone(), registry.clone()))
     );
 
     // Start network
@@ -95,9 +105,30 @@ async fn main() -> Result<(), BoxError> {
         net.start().await?;
     }
 
+    // Federated inference service (None unless `[inference] enabled = true`)
+    let inference: Option<Arc<InferenceService>> = if config.inference.enabled {
+        let svc = Arc::new(
+            InferenceService::new(
+                config.clone(),
+                config.node.id.clone(),
+                history.clone(),
+                state.clone(),
+                network.clone()
+            )
+        );
+        if config.inference.spawn_sidecar {
+            if let Err(e) = svc.start_sidecar().await {
+                tracing::error!("❌ {}", e);
+            }
+        }
+        Some(svc)
+    } else {
+        None
+    };
+
     // Start API server
     let api_handle = tokio::spawn(
-        start_api_server(config.clone(), history.clone(), state.clone(), network.clone())
+        start_api_server(config.clone(), history.clone(), state.clone(), network.clone(), inference.clone())
     );
 
     let hist = history.clone();
@@ -114,6 +145,7 @@ async fn main() -> Result<(), BoxError> {
     let node_id_loop = node_id.clone();
     let gpu_id_loop = config.node.gpu_id;
     let config_loop = config.clone();
+    let inference_loop = inference.clone();
 
     tokio::spawn(async move {
         let epoch_duration = config_loop.training.epoch_duration_secs;
@@ -195,6 +227,7 @@ async fn main() -> Result<(), BoxError> {
             cmd.env("SLAKSHNA_ALLOW_LEGACY_DELTA_FORMAT", config_loop.compression.allow_legacy_delta_format.to_string());
             cmd.env("SLAKSHNA_MAX_DELTA_PAYLOAD_BYTES", config_loop.compression.max_payload_bytes.to_string());
             cmd.env("SLAKSHNA_MAX_DELTA_TENSOR_ELEMENTS", config_loop.compression.max_tensor_elements.to_string());
+            cmd.env("SLAKSHNA_INFERENCE_ENABLED", if config_loop.inference.enabled { "1" } else { "0" });
 
             // Multi-GPU Support
             let num_gpus = config_loop.node.num_gpus.unwrap_or(1);
@@ -240,6 +273,7 @@ async fn main() -> Result<(), BoxError> {
             };
 
             let mut reviews = Vec::new();
+            let mut new_adapter: Option<AdapterOutput> = None;
             let mut epoch_is_final = false;
             let mut current_round_num = completed_epochs + 1;
 
@@ -260,6 +294,7 @@ async fn main() -> Result<(), BoxError> {
                         if ml_data.is_finished {
                             epoch_is_final = true;
                         }
+                        new_adapter = ml_data.adapter.clone();
 
                         // Record our own model update
                         my_update.kind = crate::history::RecordKind::ModelUpdate {
@@ -342,6 +377,11 @@ async fn main() -> Result<(), BoxError> {
                 for review in &reviews {
                     let _ = network_guard.broadcast_update(review).await;
                 }
+            }
+
+            // Federated inference: publish this round's adapter (blob + signed gossip metadata).
+            if let (Some(svc), Some(adapter)) = (&inference_loop, &new_adapter) {
+                svc.publish_adapter(current_round_num, adapter).await;
             }
 
             completed_epochs = current_round_num;

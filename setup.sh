@@ -59,3 +59,5 @@ echo "To start your node:"
 echo "  1. Activate environment: source $BASE_DIR/Bhaskera/bhaskera-activate.sh (or local .venv)"
 echo "  2. Run the engine: ./target/release/iiitd --config <your_node_config.toml>"
 echo "=========================================================="
+
+echo "Federated inference (optional): run ./setup_serve.sh to set up the Bhaskera-serve environment."

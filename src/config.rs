@@ -14,7 +14,70 @@ pub struct Config {
     pub network: NetworkConfig,
     #[serde(default)]
     pub discovery: DiscoveryConfig,
+    #[serde(default)]
+    pub inference: InferenceConfig,
     pub logging: LoggingConfig,
+}
+
+/// Federated inference. Disabled by default so training-only configs keep
+/// working unchanged.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InferenceConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    /// Adapter selection strategy: "trust" (highest local trust score),
+    /// "self" (this node's own personalised adapter) or "latest" (newest round).
+    #[serde(default = "default_selection")]
+    pub selection: String,
+    /// Adapters from nodes whose locally-computed trust is below this are ignored.
+    #[serde(default)]
+    pub min_trust: f64,
+    /// How many fetched adapters are kept on disk (own adapters are never evicted).
+    #[serde(default = "default_cache_max_adapters")]
+    pub cache_max_adapters: usize,
+    /// Refuse to fetch adapters larger than this.
+    #[serde(default = "default_max_adapter_bytes")]
+    pub max_adapter_bytes: u64,
+    /// Base model the local inference sidecar loads (HF name or local path).
+    /// Adapters advertising a different base model are never selected.
+    #[serde(default)]
+    pub base_model: String,
+    /// Local port of the Python inference sidecar (Bhaskera `serve` branch).
+    #[serde(default = "default_sidecar_port")]
+    pub sidecar_port: u16,
+    /// Path to the Bhaskera `serve` submodule checkout.
+    #[serde(default = "default_serve_path")]
+    pub serve_bhaskera_path: String,
+    /// Python interpreter for the sidecar (the serve venv's python).
+    #[serde(default = "default_sidecar_python")]
+    pub sidecar_python: String,
+    /// Spawn the sidecar automatically. Disable to run it yourself.
+    #[serde(default = "default_true")]
+    pub spawn_sidecar: bool,
+}
+
+fn default_selection() -> String { "trust".to_string() }
+fn default_cache_max_adapters() -> usize { 16 }
+fn default_max_adapter_bytes() -> u64 { 2 * 1024 * 1024 * 1024 }
+fn default_sidecar_port() -> u16 { 8765 }
+fn default_serve_path() -> String { "Bhaskera-serve".to_string() }
+fn default_sidecar_python() -> String { "python".to_string() }
+
+impl Default for InferenceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            selection: default_selection(),
+            min_trust: 0.0,
+            cache_max_adapters: default_cache_max_adapters(),
+            max_adapter_bytes: default_max_adapter_bytes(),
+            base_model: String::new(),
+            sidecar_port: default_sidecar_port(),
+            serve_bhaskera_path: default_serve_path(),
+            sidecar_python: default_sidecar_python(),
+            spawn_sidecar: true,
+        }
+    }
 }
 
 /// Identifies the federation a node participates in. Every node sharing an `id`
@@ -189,6 +252,12 @@ impl Config {
         }
         if config.compression.max_tensor_elements == 0 {
             return Err("compression.max_tensor_elements must be positive".into());
+        }
+        if !matches!(config.inference.selection.as_str(), "trust" | "self" | "latest") {
+            return Err("inference.selection must be one of: trust, self, latest".into());
+        }
+        if config.inference.enabled && config.inference.base_model.is_empty() {
+            return Err("inference.base_model must be set when inference.enabled = true".into());
         }
         Ok(config)
     }

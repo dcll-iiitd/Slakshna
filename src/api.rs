@@ -2,11 +2,12 @@ use crate::history::{ UpdateHistory, BoxError };
 use crate::config::Config;
 use crate::state::State;
 use crate::network::Network;
+use crate::inference::{ InferRequest, InferenceService };
 use axum::{
     extract::{ Path, State as AxumState, WebSocketUpgrade, ws::{ WebSocket, Message } },
     http::StatusCode,
     response::{ IntoResponse, Json },
-    routing::get,
+    routing::{ get, post },
     Router,
 };
 use futures::{ SinkExt, StreamExt };
@@ -23,19 +24,22 @@ struct AppState {
     history: Arc<RwLock<UpdateHistory>>,
     state: Arc<RwLock<State>>,
     network: Arc<RwLock<crate::network::mesh::MeshNetwork>>,
+    inference: Option<Arc<InferenceService>>,
 }
 
 pub async fn start_api_server(
     config: Config,
     history: Arc<RwLock<UpdateHistory>>,
     state: Arc<RwLock<State>>,
-    network: Arc<RwLock<crate::network::mesh::MeshNetwork>>
+    network: Arc<RwLock<crate::network::mesh::MeshNetwork>>,
+    inference: Option<Arc<InferenceService>>
 ) -> Result<(), BoxError> {
     let app_state = Arc::new(AppState {
         config: config.clone(),
         history,
         state,
         network,
+        inference,
     });
 
     let app = Router::new()
@@ -46,6 +50,8 @@ pub async fn start_api_server(
         .route("/updates", get(get_updates))
         .route("/leaderboard", get(get_leaderboard))
         .route("/peers", get(get_peers))
+        .route("/adapters", get(get_adapters))
+        .route("/infer", post(post_infer))
         .route("/ws", get(ws_handler))
         .layer(CorsLayer::permissive())
         .with_state(app_state);
@@ -70,6 +76,10 @@ async fn index() -> impl IntoResponse {
                 "updates": "GET /updates",
                 "update": "GET /updates/:index",
                 "latest": "GET /updates/latest"
+            },
+            "inference": {
+                "adapters": "GET /adapters",
+                "infer": "POST /infer {prompt, max_tokens?, temperature?, selection?}"
             },
             "network": {
                 "leaderboard": "GET /leaderboard",
@@ -223,6 +233,46 @@ async fn get_peers(AxumState(state): AxumState<SharedState>) -> impl IntoRespons
         "connected": connected,
         "known": known
     }))
+}
+
+/// The local adapter registry: what every node in the federation has advertised.
+async fn get_adapters(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
+    match &state.inference {
+        Some(svc) => Json(serde_json::json!({
+            "success": true,
+            "adapters": svc.list_adapters().await
+        })).into_response(),
+        None => inference_disabled().into_response(),
+    }
+}
+
+/// Federated inference: select an adapter from the registry, fetch + verify it
+/// if needed, and generate locally.
+async fn post_infer(
+    AxumState(state): AxumState<SharedState>,
+    Json(req): Json<InferRequest>
+) -> impl IntoResponse {
+    let Some(svc) = &state.inference else {
+        return inference_disabled().into_response();
+    };
+    match svc.infer(req).await {
+        Ok(resp) => Json(serde_json::json!({ "success": true, "result": resp })).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({ "success": false, "error": "inference_failed", "message": e.to_string() })),
+        ).into_response(),
+    }
+}
+
+fn inference_disabled() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(serde_json::json!({
+            "success": false,
+            "error": "inference_disabled",
+            "message": "set [inference] enabled = true in the node config"
+        })),
+    )
 }
 
 async fn ws_handler(

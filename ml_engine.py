@@ -828,6 +828,7 @@ def main():
     delta_agg = aggregate_deltas(available_deltas, w_i)
 
     # Save aggregated LoRA as base for next epoch OR apply full-model updates
+    adapter_info = {}
     if TRAINING_MODE == "finetuning":
         # Inject aggregated weights back into the Bhaskera checkpoint dir!
         final_sd = {}
@@ -856,6 +857,26 @@ def main():
             os.makedirs(sync_ckpt_dir, exist_ok=True)
             sync_path = os.path.join(sync_ckpt_dir, f"sync_round_{state['round']}.pth")
             torch.save(final_sd, sync_path)
+
+        # Federated inference: publish this round's aggregated adapter as a
+        # content-addressed PEFT dir. Never allowed to break training.
+        if os.environ.get("SLAKSHNA_INFERENCE_ENABLED") == "1" and rust_data_dir:
+            try:
+                from adapter_export import export_adapter
+                lora_cfg = template_config.get("lora", {})
+                adapter_info = export_adapter(
+                    final_sd,
+                    data_dir=rust_data_dir,
+                    node_id=my_id,
+                    round_num=state["round"],
+                    base_model=template_config.get("model", {}).get("name", ""),
+                    rank=lora_cfg.get("rank", lora_cfg.get("r")),
+                    alpha=lora_cfg.get("alpha"),
+                    dropout=lora_cfg.get("dropout", 0.0),
+                    target_modules=lora_cfg.get("target_modules"),
+                )
+            except Exception as e:
+                print(f"[{my_id}] adapter export failed (training unaffected): {e}", file=sys.stderr)
     else:
         # Pretraining: Apply delta to base model and save
         local_model_dir = os.path.join(MODEL_DIR, f"{my_id}_base_full")
@@ -948,6 +969,7 @@ def main():
         "total_epochs": total_epochs,
         "is_finished": is_finished
     }
+    output.update(adapter_info)  # empty unless federated inference is enabled
     print(json.dumps(output))
 
 

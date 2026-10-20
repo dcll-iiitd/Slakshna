@@ -1,6 +1,8 @@
+pub mod blobs;
 pub mod mesh;
 
 use crate::history::{UpdateRecord, BoxError};
+use crate::registry::AdapterMeta;
 use crate::state::HistorySnapshot;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -21,12 +23,17 @@ pub enum P2PMessage {
     GetUpdate { index: u64 },
     Ping,
     Pong,
+    /// Federated inference: signed metadata of a node's adapter for a round.
+    /// Additive variant — nodes that predate it fail to parse it and ignore it.
+    AdapterAnnounce(AdapterMeta),
 }
 
 #[async_trait]
 pub trait Network: Send + Sync {
     async fn start(&mut self) -> Result<(), BoxError>;
     async fn broadcast_update(&self, record: &UpdateRecord) -> Result<(), BoxError>;
+    /// Record our own adapter in the local registry and gossip its metadata.
+    async fn announce_adapter(&self, meta: AdapterMeta) -> Result<(), BoxError>;
 
     async fn get_active_peer_ids(&self) -> Vec<String>;
 

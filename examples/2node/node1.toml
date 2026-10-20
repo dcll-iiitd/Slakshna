@@ -3,8 +3,8 @@ id = "slakshna-fl-1"
 name = "SLAKSHNA Federation"
 
 [training]
-epoch_duration_secs = 600
-sync_deadline_secs = 300
+epoch_duration_secs = 120
+sync_deadline_secs = 90
 expected_peers = 2
 
 [compression]
@@ -19,7 +19,7 @@ max_tensor_elements = 2000000000
 id = "node-1"
 data_dir = "./data-node1"
 gpu_id = 0
-num_gpus = 2
+num_gpus = 1
 
 [network]
 host = "0.0.0.0"
@@ -34,13 +34,16 @@ dht = true
 dns = true
 relay = false
 
-# Federated inference (optional). Disabled by default; training is unaffected.
-# [inference]
-# enabled = true
-# base_model = "allenai/OLMo-2-1124-7B"   # must match the training base model
-# selection = "trust"                      # trust | self | latest
-# min_trust = 0.0
-# sidecar_python = "Bhaskera-serve/.venv/bin/python"
+[inference]
+enabled = true
+base_model = "allenai/OLMo-2-1124-7B"   # must match model.name in node_template.yaml
+selection = "trust"                      # trust | self | latest
+min_trust = 0.0
+sidecar_port = 8765
+sidecar_python = "Bhaskera-serve/.venv/bin/python"
+serve_bhaskera_path = "Bhaskera-serve"
+spawn_sidecar = false                  # no model server while training (saves GPU memory)
+serve_only = false
 
 [logging]
 level = "info"

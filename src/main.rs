@@ -121,6 +121,7 @@ async fn main() -> Result<(), BoxError> {
                 tracing::error!("❌ {}", e);
             }
         }
+        svc.publish_latest_existing().await;
         Some(svc)
     } else {
         None
@@ -148,6 +149,10 @@ async fn main() -> Result<(), BoxError> {
     let inference_loop = inference.clone();
 
     tokio::spawn(async move {
+        if config_loop.inference.serve_only {
+            tracing::info!("🛑 serve_only: training loop disabled; serving adapters and queries only");
+            std::future::pending::<()>().await;
+        }
         let epoch_duration = config_loop.training.epoch_duration_secs;
         let sync_deadline = config_loop.training.sync_deadline_secs;
         let expected_peers = config_loop.training.expected_peers;

@@ -54,6 +54,10 @@ pub struct InferenceConfig {
     /// Spawn the sidecar automatically. Disable to run it yourself.
     #[serde(default = "default_true")]
     pub spawn_sidecar: bool,
+    /// Skip the federated training loop: the node only gossips, serves
+    /// adapters and answers queries. For testing inference on saved adapters.
+    #[serde(default)]
+    pub serve_only: bool,
 }
 
 fn default_selection() -> String { "trust".to_string() }
@@ -76,6 +80,7 @@ impl Default for InferenceConfig {
             serve_bhaskera_path: default_serve_path(),
             sidecar_python: default_sidecar_python(),
             spawn_sidecar: true,
+            serve_only: false,
         }
     }
 }

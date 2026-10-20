@@ -2,7 +2,7 @@
 set -e
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 <number_of_nodes> (2, 4, or 6)"
+    echo "Usage: $0 <number_of_nodes> (2, 4, or 6) [config_dir]"
     exit 1
 fi
 
@@ -13,7 +13,7 @@ if [ "$NUM_NODES" != "2" ] && [ "$NUM_NODES" != "4" ] && [ "$NUM_NODES" != "6" ]
     exit 1
 fi
 
-CONFIG_DIR="examples/${NUM_NODES}node"
+CONFIG_DIR="${2:-examples/${NUM_NODES}node}"
 
 if [ ! -d "$CONFIG_DIR" ]; then
     echo "Error: Configuration directory $CONFIG_DIR not found."

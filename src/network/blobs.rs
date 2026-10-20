@@ -29,6 +29,9 @@ impl BlobService {
     /// Import a local file and return its BLAKE3 hash (hex). Serving starts
     /// immediately because the store backs the registered protocol handler.
     pub async fn add_file(&self, path: &Path) -> Result<String, BoxError> {
+        // iroh-blobs rejects relative paths; data_dir is usually relative.
+        let path = std::path::absolute(path)?;
+        let path = path.as_path();
         let tag = self
             .store
             .blobs()
@@ -42,6 +45,8 @@ impl BlobService {
     /// export it to `dest`. Integrity of the BLAKE3 stream is checked by
     /// iroh-blobs; the caller still verifies the SHA-256.
     pub async fn fetch(&self, blake3_hex: &str, peer: &str, dest: &Path) -> Result<(), BoxError> {
+        let dest = std::path::absolute(dest)?;
+        let dest = dest.as_path();
         let hash = Hash::from_str(blake3_hex).map_err(|e| format!("bad blake3 hash: {e}"))?;
         let peer: EndpointId = peer.parse().map_err(|e| format!("bad endpoint id: {e}"))?;
 

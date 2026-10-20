@@ -52,6 +52,10 @@ pub struct InferRequest {
     /// Overrides `[inference] selection` for this query.
     #[serde(default)]
     pub selection: Option<String>,
+    /// Force the adapter advertised by this node (simulation / testing).
+    /// Falls through to normal selection if that node has none.
+    #[serde(default)]
+    pub from_node: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -155,6 +159,38 @@ impl InferenceService {
         }
     }
 
+    /// Publish the newest adapter already on disk that this node exported
+    /// (e.g. after a restart, or if an earlier publish failed). No-op if none.
+    pub async fn publish_latest_existing(&self) {
+        let Ok(rd) = std::fs::read_dir(self.adapters_dir()) else { return };
+        let mut best: Option<(u64, AdapterOutput)> = None;
+        for e in rd.flatten() {
+            let dir = e.path();
+            let read = |f: &str| std::fs::read_to_string(dir.join(f)).ok();
+            let (Some(meta), Some(cfg)) = (read("adapter_meta.json"), read(CONFIG_FILE)) else { continue };
+            let Ok(m) = serde_json::from_str::<serde_json::Value>(&meta) else { continue };
+            if m["node_id"].as_str() != Some(self.own_node_id.as_str()) { continue }
+            let round = m["round"].as_u64().unwrap_or(0);
+            if best.as_ref().map_or(false, |(r, _)| *r >= round) { continue }
+            let Some(hash) = m["adapter_model_safetensors_sha256"].as_str() else { continue };
+            let Ok(size) = std::fs::metadata(dir.join(WEIGHTS_FILE)).map(|x| x.len()) else { continue };
+            best = Some((round, AdapterOutput {
+                adapter_hash: hash.to_string(),
+                adapter_path: dir.to_string_lossy().to_string(),
+                adapter_size: size,
+                adapter_config: cfg,
+                adapter_base_model: m["base_model"].as_str().unwrap_or("").to_string(),
+                adapter_rank: m["rank"].as_u64().unwrap_or(0) as u32,
+                adapter_target_modules: m["target_modules"].as_array().map(|a|
+                    a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
+            }));
+        }
+        if let Some((round, out)) = best {
+            info!("♻️ Re-publishing newest on-disk adapter (round {})", round);
+            self.publish_adapter(round, &out).await;
+        }
+    }
+
     async fn try_publish(&self, round: u64, out: &AdapterOutput) -> Result<(), BoxError> {
         let weights = Path::new(&out.adapter_path).join(WEIGHTS_FILE);
 
@@ -229,7 +265,14 @@ impl InferenceService {
             let history = self.history.read().await;
             history.trust_rankings(usize::MAX).into_iter().collect()
         };
-        let refs: Vec<&AdapterMeta> = candidates.iter().collect();
+        let mut refs: Vec<&AdapterMeta> = candidates.iter().collect();
+        if let Some(n) = req.from_node.as_deref() {
+            if refs.iter().any(|m| m.node_id == n) {
+                refs.retain(|m| m.node_id == n);
+            } else {
+                warn!("from_node {} has no adapter in the registry; using normal selection", n);
+            }
+        }
         let chosen = select(
             &refs,
             strategy,

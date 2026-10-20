@@ -99,7 +99,7 @@ SLAKSHNA is built from the ground up to operate securely over untrusted public n
 | `ml_engine.py`             | Python ML bridge executing Bhaskera distributed LoRA training, DP clipping, sparsification, and peer evaluation                 |
 | `setup.sh`                 | Main installation script for system dependencies and virtual environments                                                       |
 | `Bhaskera/`                | Submodule / embedded repository containing the distributed LLM training framework                                               |
-| `Bhaskera-serve/`          | Second submodule (branch `serve`) used by federated inference; see [docs/federated_inference.md](docs/federated_inference.md)    |
+| `Bhaskera-serve/`          | Second submodule (branch `serve`) used by federated inference; see [Federated Inference](#federated-inference-optional)                  |
 | `inference_engine.py`      | Local inference sidecar: base model + hot-swapped LoRA adapters                                                                 |
 | `adapter_export.py`        | Exports each round's aggregated LoRA as a content-addressed PEFT directory                                                      |
 | `node_template.yaml`       | Base YAML template for HuggingFace / Ray / PEFT training arguments                                                              |
@@ -463,12 +463,147 @@ When `node-2` runs in malicious mode, it injects a destructive learning rate (`l
 
 ---
 
+## Federated Inference (optional)
+
+Training produces a LoRA adapter per node per round. Federated inference lets **any node answer a query with the best adapter available in the whole federation**, without a server and without shipping weights around in advance. It is off by default and does not affect training.
+
+### Idea
+
+Gossip is cheap, weights are not. So nodes gossip only tiny *metadata* about their adapters, and move the heavy weights only when a query actually needs them.
+
+1. **Adapter generation.** At the end of each aggregation round a node exports its LoRA adapter as a PEFT directory named by the SHA-256 of its weights.
+2. **Metadata propagation.** The node signs (Ed25519) and gossips `{node_id, round, sha256, blake3, size, base_model, rank, trust_score, endpoint_id}` on the existing gossip topic. Every node keeps a local **registry** of this metadata, persisted in RocksDB. No weights are sent at this stage.
+3. **Query-time selection.** On a query, the node picks an adapter from its *own* registry (by trust, by its own adapter, or newest round). No network traffic.
+4. **On-demand retrieval.** If the adapter is not cached, the node downloads the weight file by hash from the node that holds it (iroh-blobs, with other advertisers of the same hash as fallback).
+5. **Verification.** The download is checked against the advertised SHA-256 before use. A mismatch rejects the adapter and the source is marked bad.
+6. **Local inference.** The adapter is attached to the node's base model and the full forward pass runs on-device. If anything fails, the node falls back to the base model and says so in the response.
+
+```
+ round ends ─► export adapter ─► sha256 ─► blob store ─► signed gossip ─► every node's registry
+                                                                                   │
+ POST /infer ─► select (registry) ─► cached? ──no──► fetch by hash ─► verify sha256 ┤
+                                        │yes                                        │
+                                        └────────────► sidecar: base + LoRA ─► text ◄┘
+```
+
+### Tech stack
+
+| Layer | Technology |
+|---|---|
+| Node, API, registry, selection | Rust, Tokio, Axum (`POST /infer`, `GET /adapters`) |
+| Metadata gossip | iroh-gossip over QUIC |
+| Weight transfer | iroh-blobs (BLAKE3-verified streams) plus the SHA-256 check above |
+| Signatures / hashing | ed25519-dalek, sha2 |
+| Registry persistence | RocksDB |
+| Adapter format | PEFT LoRA (`adapter_model.safetensors` + `adapter_config.json`) |
+| Inference | Python sidecar (`inference_engine.py`) on the Bhaskera `serve` branch (`HFEngineWrapper`), PEFT adapter hot-swapping with an LRU of loaded adapters |
+
+### Files
+
+| File | Role |
+|---|---|
+| `adapter_export.py` | Called by `ml_engine.py` after each round. Writes `{data_dir}/adapters/<sha256>/` (weights, config, `adapter_meta.json`) |
+| `ml_engine.py` | Training bridge; exports the adapter when `SLAKSHNA_INFERENCE_ENABLED=1` |
+| `src/registry.rs` | Signed `AdapterMeta`, the local registry, RocksDB persistence |
+| `src/network/blobs.rs` | iroh-blobs wrapper: add file, fetch by hash |
+| `src/network/mesh.rs` | Gossips `AdapterAnnounce`, re-announces periodically for late joiners |
+| `src/inference/selector.rs` | Selection strategies (`trust`, `self`, `latest`) |
+| `src/inference/mod.rs` | Publish, select, fetch + verify, cache eviction, sidecar client |
+| `src/api.rs` | `/adapters` and `/infer` endpoints |
+| `src/config.rs` | `[inference]` config block |
+| `inference_engine.py` | Local HTTP sidecar: base model + attached LoRA adapters |
+| `setup_serve.sh` | Creates the separate serve virtualenv (`Bhaskera-serve/.venv`) |
+| `examples/2node/` | Two-node **training** configs (inference enabled, no sidecar) |
+| `examples/2node-serve/` | Two-node **serve** configs (`serve_only = true`, node1 runs the sidecar) |
+| `tests/test_adapter_export.py` | Adapter export tests |
+
+### Configuration
+
+```toml
+[inference]
+enabled = true
+base_model = "allenai/OLMo-2-1124-7B"   # must equal model.name in node_template.yaml
+selection = "trust"                      # trust | self | latest
+min_trust = 0.0                          # ignore peers whose local trust is lower
+sidecar_port = 8765                      # use a different port per node on one machine
+sidecar_python = "Bhaskera-serve/.venv/bin/python"
+serve_bhaskera_path = "Bhaskera-serve"
+spawn_sidecar = true                     # false while training, to keep GPU memory free
+serve_only = false                       # true: skip training, only serve/answer
+cache_max_adapters = 16
+max_adapter_bytes = 2147483648
+```
+
+### Step-by-step: run the whole pipeline
+
+```bash
+# 0. One-time setup
+git submodule update --init --recursive
+cargo build --release
+./setup_serve.sh                       # serve venv with peft; training venv comes from setup.sh
+
+# 1. Train: each node creates and publishes its own adapter
+./start_cluster.sh 2                   # uses examples/2node
+sed 's/\x1b\[[0-9;]*m//g' logs/node1_cluster.log | grep -E "Publishing adapter|ML Engine failed"
+ls data-node1/adapters data-node2/adapters     # one <sha256>/ folder per round
+
+# 2. Stop training once adapters exist
+./stop_cluster.sh; pkill -f inference_engine.py
+
+# 3. Restart in serve mode (re-publishes the newest on-disk adapter)
+./start_cluster.sh 2 examples/2node-serve
+sed 's/\x1b\[[0-9;]*m//g' logs/node1_cluster.log | grep "inference_engine\] ready"
+
+# 4. Inspect the registry (metadata only)
+curl -s localhost:8545/adapters | jq '.adapters[] | {node_id, round, cached, is_self}'
+
+# 5. Query node1 using node2's adapter: fetched by hash, verified, attached
+curl -s localhost:8545/infer -H 'content-type: application/json' \
+  -d '{"prompt":"What is LoRA?","max_tokens":64,"from_node":"<NODE2_ID>"}' | jq
+
+# 6. Shut down
+./stop_cluster.sh; pkill -f inference_engine.py
+```
+
+`./stop_cluster.sh` stops the Rust nodes but not the Python sidecar, so run `pkill -f inference_engine.py` too, or the next start fails with `Address already in use`.
+
+### Checks
+
+| Check | How | Expected |
+|---|---|---|
+| Adapter exported | `sha256sum data-node1/adapters/*/adapter_model.safetensors` | equals the folder name |
+| Adapter matches the base model | `lora_A` shape of `q_proj` | `[16, 4096]`, 32 layers for OLMo-2-7B |
+| Published | log: `🧩 Publishing adapter round N` | no `Could not publish` warning |
+| Registry formed | `GET /adapters` on each node | every node listed; peers `cached: false` |
+| On-demand fetch | log: `⬇️ Fetching adapter …` then `✅ … verified and cached` | peer's adapter now `cached: true` |
+| Cache hit | repeat the same query | `cache_hit: true`, no `Fetching` line |
+| Selection | query with `"selection": "self"` / `"trust"` / `"latest"` | `self` always returns this node's adapter |
+| Fallback | stop the source node, query with an uncached adapter | answered by the base model, `note` explains why |
+| Integrity | log: `🚫 Hash mismatch` | adapter rejected, source marked bad, base-model fallback |
+
+### API
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /adapters` | The local registry: node, round, hash, size, advertised vs. locally computed trust, `cached`, `is_self` |
+| `POST /infer` | `{prompt, max_tokens?, temperature?, selection?, from_node?}`. `from_node` forces a given node's adapter (testing/simulation). Returns `{text, adapter{node_id, round, sha256, cache_hit}, note}` |
+
+### What the pipeline can do
+
+- Train collaboratively while every round yields a hash-addressed, signed, shareable adapter.
+- Give every node a live, serverless view of what adapters exist across the federation.
+- Answer a query with a peer's adapter that was never copied in advance, fetching only what is needed, only when needed.
+- Choose adapters by trust, personalization (own adapter), or recency, with a per-query override.
+- Reject tampered or corrupted weights before they reach the model, and degrade to the base model rather than failing.
+- Survive restarts: the registry and blob store are persisted, and a node re-publishes its newest on-disk adapter at startup.
+
+### Known limits
+
+- Adapters are only fetchable while a node that holds them is online.
+- All nodes must use the same base model; adapters for another base model are never selected.
+- Old training state from a different base model must be cleared before training (stale `ml_models/` and `ml_states/` can silently produce adapters with the wrong shape).
+- The sidecar answers one request at a time per node (`model.generate()` is serialized).
+
 ## 📄 License
 
 This project is licensed under the **Apache License 2.0** — see the [LICENSE](file:///mnt/disk1/slakshna/slakshnaFL/SLAKSHNA/LICENSE) file for details.
-
-
-
-## Federated Inference (optional)
-
-Nodes can answer queries with an adapter chosen from the whole federation: metadata is gossiped, weights are fetched by hash on demand and verified before use. Setup: `git submodule update --init --recursive`, `./setup_serve.sh`, then enable `[inference]` in the node config. Full design, wire format and API: [docs/federated_inference.md](docs/federated_inference.md).

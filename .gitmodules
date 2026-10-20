@@ -2,3 +2,7 @@
 	path = Bhaskera
 	url = https://github.com/dcll-iiitd/Bhaskera
 	branch = Slakshna
+[submodule "Bhaskera-serve"]
+	path = Bhaskera-serve
+	url = https://github.com/dcll-iiitd/Bhaskera
+	branch = serve

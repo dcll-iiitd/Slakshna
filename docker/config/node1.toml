@@ -1,0 +1,45 @@
+# SLAKSHNA node config for the Docker demo (3 nodes).
+# Differences from examples/*/nodeN.toml, and why:
+#   [node] data_dir = "/app/node-data"  absolute path = the node-data volume (identity + peer DB live here)
+#   [node] gpu_id = 0, num_gpus = 1     inside the container the assigned GPU always appears as device 0
+#   [network] host = "127.0.0.1"        API/WS only listen locally (P2P binds 0.0.0.0 regardless)
+#   [training] expected_peers = 3   must equal the number of nodes you start, otherwise every
+#                                       epoch waits the full sync_deadline_secs
+[federation]
+id = "slakshna-docker-demo"
+name = "SLAKSHNA Docker Demo"
+
+[training]
+epoch_duration_secs = 600
+sync_deadline_secs = 300
+expected_peers = 3
+
+[compression]
+enabled = true
+sparsity = 0.1
+quantization = "symmetric_int8"
+allow_legacy_delta_format = false
+max_payload_bytes = 7340032
+max_tensor_elements = 2000000000
+
+[node]
+id = "node-1"
+data_dir = "/app/node-data"
+gpu_id = 0
+num_gpus = 1
+
+[network]
+host = "127.0.0.1"
+p2p_port = 9000
+ws_port = 8546
+api_port = 8545
+peers = []
+
+[discovery]
+mdns = true
+dht = true
+dns = true
+relay = false
+
+[logging]
+level = "info"

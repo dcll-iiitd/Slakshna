@@ -1,0 +1,73 @@
+# Docker copy of ../../node_template.yaml.
+# ONLY these two lines differ from the original (hardcoded /mnt/disk1 lab paths):
+#   data.train_path     -> /data/South_Asia.jsonl   (dataset dir is mounted read-only at /data)
+#   data.tokenized_path -> /app/cache/tokenized     (per-node cache volume)
+
+federated:
+  mode: "finetuning"
+  # Set optimizer to "galore_muon" for full-parameter fine-tuning with GaLore+Muon
+  # Set optimizer to "muon" for 8-bit Muon with LoRA
+  optimizer: "muon"
+  trust_beta: 0.1
+  total_epochs: 8  # Total federated rounds/epochs to run (e.g., 10, 20; 0 or omitted = infinite)
+
+plugins:
+  optimizers: []
+
+model:
+  name: "allenai/OLMo-2-1124-7B"
+  dtype: "bfloat16"
+  trust_remote_code: true
+  use_liger_kernel: false
+
+data:
+  name: "local"
+  train_path: "/data/South_Asia.jsonl"
+  tokenized_path: "/app/cache/tokenized"
+  seq_len: 2048
+  pack_sequences: true
+  format: "chatml"
+  max_train_samples: 10000
+  
+lora:
+  # Set enabled to false for full-parameter fine-tuning (e.g. with GaLore+Muon)
+  # Set to true if you want to use LoRA adapters (and switch optimizer above)
+  enabled: true
+  rank: 16
+  alpha: 64
+  dropout: 0.03
+  target_modules: ["q_proj", "v_proj"]
+
+training:
+  batch_size: 8
+  gradient_accumulation_steps: 4
+  learning_rate: 3e-4
+  warmup_steps: 0
+  max_steps: 16
+  save_strategy: "steps"
+  save_steps: 5
+  save_total_limit: 5
+  optimizer:
+    backend: "default"
+    # Kwargs for muon optimizer
+    kwargs:
+      optim_bits: 8
+  distributed:
+    strategy: "fsdp" # change to "fsdp" if you want to use fsdp
+    fsdp:
+      param_dtype: "auto"
+      reduce_dtype: "auto"
+      buffer_dtype: "auto"
+      shard_experts_individually: true
+      activation_checkpointing: true
+      transformer_layer_cls: []
+
+checkpoint:
+  save_directory: "dummy"
+  local_interval: 1
+  sync_interval: 1
+  retention: 1
+
+logging:
+  tracker: "wandb"
+  project: "M0-dcll-slakshna"

@@ -1,0 +1,76 @@
+# SMOKE TEST template: tiny model, 4 steps, 1 federated round.
+# Verifies the whole pipeline (build, GPU, P2P, training, aggregation) in a few minutes
+# without downloading a 7B model. Differences from node_template.yaml:
+#   model.name Qwen/Qwen2.5-0.5B | max_train_samples 64 | batch_size 2 | grad_accum 1
+#   max_steps 4 | save_steps 2 | total_epochs 1 | tokenized_path .../tokenized_smoke_2048
+# seq_len stays 2048 on purpose: with packed sequences a shorter window can contain only
+# prompt tokens (all labels masked), which gives loss=nan even though the pipeline is fine.
+
+federated:
+  mode: "finetuning"
+  # Set optimizer to "galore_muon" for full-parameter fine-tuning with GaLore+Muon
+  # Set optimizer to "muon" for 8-bit Muon with LoRA
+  optimizer: "muon"
+  trust_beta: 0.1
+  total_epochs: 1
+
+plugins:
+  optimizers: []
+
+model:
+  name: "Qwen/Qwen2.5-0.5B"
+  dtype: "bfloat16"
+  trust_remote_code: true
+  use_liger_kernel: false
+
+data:
+  name: "local"
+  train_path: "/data/South_Asia.jsonl"
+  tokenized_path: "/app/cache/tokenized_smoke_2048"
+  seq_len: 2048
+  pack_sequences: true
+  format: "chatml"
+  max_train_samples: 64
+  
+lora:
+  # Set enabled to false for full-parameter fine-tuning (e.g. with GaLore+Muon)
+  # Set to true if you want to use LoRA adapters (and switch optimizer above)
+  enabled: true
+  rank: 16
+  alpha: 64
+  dropout: 0.03
+  target_modules: ["q_proj", "v_proj"]
+
+training:
+  batch_size: 2
+  gradient_accumulation_steps: 1
+  learning_rate: 3e-4
+  warmup_steps: 0
+  max_steps: 4
+  save_strategy: "steps"
+  save_steps: 2
+  save_total_limit: 5
+  optimizer:
+    backend: "default"
+    # Kwargs for muon optimizer
+    kwargs:
+      optim_bits: 8
+  distributed:
+    strategy: "fsdp" # change to "fsdp" if you want to use fsdp
+    fsdp:
+      param_dtype: "auto"
+      reduce_dtype: "auto"
+      buffer_dtype: "auto"
+      shard_experts_individually: true
+      activation_checkpointing: true
+      transformer_layer_cls: []
+
+checkpoint:
+  save_directory: "dummy"
+  local_interval: 1
+  sync_interval: 1
+  retention: 1
+
+logging:
+  tracker: "wandb"
+  project: "M0-dcll-slakshna"

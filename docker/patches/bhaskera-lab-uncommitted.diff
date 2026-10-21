@@ -1,0 +1,136 @@
+diff --git a/README.md b/README.md
+index e6b340c..13144a5 100644
+--- a/README.md
++++ b/README.md
+@@ -116,7 +116,11 @@ See `configs/` for working examples:
+ 
+ ### Supervised Fine-Tuning (SFT)
+ 
+-1. **Tokenise once.** `bhaskera-tokenize --config configs/tokenize.yaml [--split both]` writes a Parquet shard set under `cfg.data.cache_dir` and prints a `tokenized_path:` snippet.
++1. **Tokenise once.** You can use the provided `configs/tokenize_south_asia.yaml` file by simply changing the path of the dataset (`data.path`) and the cache (`data.cache_dir`) to point to your desired locations. Then run:
++   ```bash
++   bhaskera-tokenize --config configs/tokenize_south_asia.yaml
++   ```
++   This writes a Parquet shard set to the cache directory and prints a `tokenized_path:` snippet.
+ 2. **Paste the path** into the training config's `data.tokenized_path` (and `data.val_tokenized_path` if you tokenised a val split).
+ 3. **Train.** `bhaskera-train --config configs/your_run.yaml --num-workers <N>`. On SLURM, `scripts/submit.sh` bootstraps the Ray cluster and forwards to the same command.
+ 4. **Monitor.** Start `bhaskera-dashboard` on the login node for the MLflow UI; Ray Dashboard is exposed on `monitoring.dashboard_port` (default 8265).
+diff --git a/configs/train_south_asia.yaml b/configs/train_south_asia.yaml
+index 9e02878..6329b8e 100644
+--- a/configs/train_south_asia.yaml
++++ b/configs/train_south_asia.yaml
+@@ -50,7 +50,7 @@ training:
+       lr: 3.0e-4
+       momentum: 0.95
+       weight_decay: 0.01
+-      optim_bits: 8
++      optim_bits: 16
+ 
+   distributed:
+     strategy: "fsdp"
+diff --git a/src/bhaskera/plugins/optimizers/muon.py b/src/bhaskera/plugins/optimizers/muon.py
+index d0395f9..e9e96da 100644
+--- a/src/bhaskera/plugins/optimizers/muon.py
++++ b/src/bhaskera/plugins/optimizers/muon.py
+@@ -856,7 +856,7 @@ class MuonBase(Optimizer8bit):
+         ns_chunk_size: Maximum number of same-shape matrices orthogonalized
+             per batched NS call. Bounds the step's transient memory; the NS
+             working set is roughly 3-4 chunk-sized bf16 buffers.
+-        optim_bits: 32 for fp32, 8 for 8-bit dynamic quantisation, 4 for 4-bit
++        optim_bits: 32 for fp32, 16 for bfloat16, 8 for 8-bit dynamic quantisation, 4 for 4-bit
+             NF4/FP4 quantisation (~0.5 bytes/param for momentum).
+         min_8bit_size: Minimum element count to use quantised storage; smaller
+             parameters fall back to fp32 regardless of optim_bits.
+@@ -890,8 +890,8 @@ class MuonBase(Optimizer8bit):
+             raise ValueError(f"Invalid weight_decay: {weight_decay}")
+         if ns_chunk_size < 1:
+             raise ValueError(f"Invalid ns_chunk_size: {ns_chunk_size}")
+-        if optim_bits not in (4, 8, 32):
+-            raise ValueError(f"optim_bits must be 4, 8, or 32; got {optim_bits}")
++        if optim_bits not in (4, 8, 16, 32):
++            raise ValueError(f"optim_bits must be 4, 8, 16, or 32; got {optim_bits}")
+         if quant_type not in ("nf4", "fp4", "nvfp4"):
+             raise ValueError(f"quant_type must be 'nf4', 'fp4', or 'nvfp4'; got {quant_type!r}")
+ 
+@@ -977,16 +977,21 @@ class MuonBase(Optimizer8bit):
+         state = self.state[p]
+         state["step"] = 0
+ 
+-        # Fall back to fp32 for small parameters regardless of optim_bits.
++        # Fall back to fp32 for small parameters when using quantization (8-bit or 4-bit).
+         # Use global_n (world-size-independent) so the quantize-or-not decision
+         # is consistent regardless of how many ranks are training.
+-        if global_n < config["min_8bit_size"] or optim_bits == 32:
++        if optim_bits == 32 or (optim_bits in (4, 8) and global_n < config["min_8bit_size"]):
+             buf = self.get_state_buffer(p_local, dtype=torch.float32)
+             # Wrap as a DTensor so DCP can gather / reshard this momentum buffer
+             # across world sizes via the standard get_optimizer_state_dict API.
+             state["state1"] = _as_state_dtensor(buf, p)
+             return
+ 
++        if optim_bits == 16:
++            buf = self.get_state_buffer(p_local, dtype=torch.bfloat16)
++            state["state1"] = _as_state_dtensor(buf, p)
++            return
++
+         if optim_bits == 8:
+             if "dynamic" not in self.name2qmap:
+                 self.fill_qmap()
+@@ -1237,10 +1242,10 @@ class MuonBase(Optimizer8bit):
+                     ns_inputs.append(u_buf)
+                     continue
+ 
+-                if s1.dtype == torch.float32:
++                if s1.dtype in (torch.float32, torch.bfloat16, torch.float16):
+                     m = s1
+                     # m = beta*m + g (mixed-dtype add casts grad in-kernel)
+-                    m.mul_(beta).add_(grad)
++                    m.mul_(beta).add_(grad.to(s1.dtype))
+                     u = (grad + beta * m) if nesterov else m
+                 elif "quant_type1" in state:
+                     if state["quant_type1"] == "nvfp4":
+@@ -1627,6 +1632,44 @@ class Muon8bit(MuonBase):
+         )
+ 
+ 
++class Muon16bit(MuonBase):
++    """
++    Muon optimizer with 16-bit (bfloat16) momentum buffer.
++
++    Persistent state is ~2 bytes/param (bfloat16), giving roughly half
++    the memory footprint of fp32 without quantization overhead.
++
++    See :class:`MuonBase` for full documentation.
++    """
++
++    def __init__(
++        self,
++        params,
++        lr: float = 1e-3,
++        momentum: float = 0.95,
++        weight_decay: float = 0.1,
++        nesterov: bool = True,
++        adjust_lr: str | Callable | None = "rms_norm",
++        orthogonalize_fn: Optional[Callable[[Tensor], Tensor]] = None,
++        ns_chunk_size: int = 8,
++        min_8bit_size: int = 4096,
++        is_paged: bool = False,
++    ):
++        super().__init__(
++            params,
++            lr=lr,
++            momentum=momentum,
++            weight_decay=weight_decay,
++            nesterov=nesterov,
++            adjust_lr=adjust_lr,
++            orthogonalize_fn=orthogonalize_fn,
++            ns_chunk_size=ns_chunk_size,
++            optim_bits=16,
++            min_8bit_size=min_8bit_size,
++            is_paged=is_paged,
++        )
++
++
+ class Muon32bit(MuonBase):
+     """
+     Muon optimizer with 32-bit (fp32) momentum buffer.

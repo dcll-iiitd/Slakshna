@@ -1,0 +1,252 @@
+SYSTEM-ONE FEDERATED INFERENCE TEST REPORT (unattended run)
+Started monitoring: Thu Oct 22 10:48:19 AM UTC 2026
+Branch: system-one   (no commits made)
+Base model: Qwen/Qwen2.5-7B-Instruct
+Training: examples/2node, total_epochs=2, tokenized dataset stamped for Qwen
+
+== LOG ==
+[10:48:19] Training running since 10:34 UTC; waiting for round 2 adapters on both nodes
+[12:48:53] TRAINING COMPLETE. Rounds 1,2 published on both nodes.
+CHECK data-node1 28f83af0129f sha_ok= True q_lora_A (16, 3584) 28 layers
+CHECK data-node1 43f848269bec sha_ok= True q_lora_A (16, 3584) 28 layers
+CHECK data-node2 35bc3105639b sha_ok= True q_lora_A (16, 3584) 28 layers
+CHECK data-node2 67e4b1a22a57 sha_ok= True q_lora_A (16, 3584) 28 layers
+[12:50:21] training stopped, GPUs free. Starting serve mode (examples/2node-serve: node1 = query node)
+
+== SERVE MODE ==
+node1 (query node, API 8545) = slakshna1zyh420sd35j02hlyl42tnkj3df0f8xtjd29n3d
+node2 (adapter host, API 8555) = slakshna19dxtlf9sn6g23tfcylfh7cgj2xh6kzfvzazs7r
+Registry on node1 before any query:
+{"node":"slakshna19dxtl","round":2,"sha":"67e4b1a22a57","cached":false,"is_self":false,"local_trust":0.0}
+{"node":"slakshna1zyh42","round":2,"sha":"28f83af0129f","cached":true,"is_self":true,"local_trust":0.0}
+
+--- Q1 /infer from node2's adapter (fetch by hash expected, cache_hit=false)
+POST /infer  {"prompt":"What is LoRA?","max_tokens":64,"from_node":"slakshna19dxtlf9sn6g23tfcylfh7cgj2xh6kzfvzazs7r"}
+{
+  "result": {
+    "adapter": {
+      "cache_hit": false,
+      "node_id": "slakshna19dxtlf9sn6g23tfcylfh7cgj2xh6kzfvzazs7r",
+      "round": 2,
+      "sha256": "67e4b1a22a574602f939a7570b035c128960c4ce6bfefc045e638391039c58dc"
+    },
+    "note": null,
+    "text": " What is it used for?\n\nLoRA, or Low-Rank Adaptation, is a model adaptation technique that aims to make fine-tuning large language models (LLMs) more efficient and effective. It was introduced in the paper \"Low-Rank Adaptation of Large Language Models\" by Hugging Face.\n\n### Key"
+  },
+  "success": true
+}
+
+--- Q2 /infer same again (cache_hit=true expected)
+POST /infer  {"prompt":"What is LoRA?","max_tokens":64,"from_node":"slakshna19dxtlf9sn6g23tfcylfh7cgj2xh6kzfvzazs7r"}
+{
+  "result": {
+    "adapter": {
+      "cache_hit": true,
+      "node_id": "slakshna19dxtlf9sn6g23tfcylfh7cgj2xh6kzfvzazs7r",
+      "round": 2,
+      "sha256": "67e4b1a22a574602f939a7570b035c128960c4ce6bfefc045e638391039c58dc"
+    },
+    "note": null,
+    "text": " How does it work?\n\nLoRA, or Low-Rank Adaptation, is a technique used in machine learning, particularly for fine-tuning large language models. It's designed to reduce the computational and memory requirements for fine-tuning while maintaining performance.\n\n### How LoRA Works\n\n1. **Model Architecture**:\n  "
+  },
+  "success": true
+}
+
+--- Q3 /infer selection=self (registry-based, no forced node)
+POST /infer  {"prompt":"Name one use of federated learning.","max_tokens":32,"selection":"self"}
+{
+  "result": {
+    "adapter": {
+      "cache_hit": true,
+      "node_id": "slakshna1zyh420sd35j02hlyl42tnkj3df0f8xtjd29n3d",
+      "round": 2,
+      "sha256": "28f83af0129f3b79905caa3561219c0a6820fa4638473cd173ba9e21e14ab780"
+    },
+    "note": null,
+    "text": " Federated learning is used to train machine learning models across multiple decentralized devices or servers holding local data samples, without exchanging the data itself. This technique is particularly useful"
+  },
+  "success": true
+}
+
+--- Q3 /infer selection=trust (registry-based, no forced node)
+POST /infer  {"prompt":"Name one use of federated learning.","max_tokens":32,"selection":"trust"}
+{
+  "result": {
+    "adapter": {
+      "cache_hit": true,
+      "node_id": "slakshna19dxtlf9sn6g23tfcylfh7cgj2xh6kzfvzazs7r",
+      "round": 2,
+      "sha256": "67e4b1a22a574602f939a7570b035c128960c4ce6bfefc045e638391039c58dc"
+    },
+    "note": null,
+    "text": " Federated learning is often used in the context of mobile devices and edge computing to train machine learning models on decentralized data, without needing to send the raw data to"
+  },
+  "success": true
+}
+
+--- Q3 /infer selection=latest (registry-based, no forced node)
+POST /infer  {"prompt":"Name one use of federated learning.","max_tokens":32,"selection":"latest"}
+{
+  "result": {
+    "adapter": {
+      "cache_hit": true,
+      "node_id": "slakshna19dxtlf9sn6g23tfcylfh7cgj2xh6kzfvzazs7r",
+      "round": 2,
+      "sha256": "67e4b1a22a574602f939a7570b035c128960c4ce6bfefc045e638391039c58dc"
+    },
+    "note": null,
+    "text": " One use of federated learning is in the development of personalized healthcare applications, where patient data from various hospitals and clinics can be used to train machine learning models without"
+  },
+  "success": true
+}
+
+--- Q4 /decide mixes adapters from both nodes (System One)
+POST /decide  {"state":"Disk usage 97%, build failing with ENOSPC","question":"What is the best next action?","options":["Delete old logs","Restart the service","Ignore it"]}
+{
+  "result": {
+    "decision": {
+      "agreement": 1.0,
+      "choice": 0,
+      "confidence": 0.9909573331731484,
+      "entropy": 0.05331199962682117,
+      "finalists": [],
+      "label": "Delete old logs",
+      "margin": 0.982354041260996,
+      "members": [
+        {
+          "format_mass": 0.9873046423315386,
+          "name": "28f83af0129f3b79905caa3561219c0a6820fa4638473cd173ba9e21e14ab780",
+          "probabilities": [
+            0.9909702190748776,
+            0.008603325250144614,
+            0.00042645567497775057
+          ],
+          "weight": 0.5
+        },
+        {
+          "format_mass": 0.9865053697000664,
+          "name": "67e4b1a22a574602f939a7570b035c128960c4ce6bfefc045e638391039c58dc",
+          "probabilities": [
+            0.990944447271419,
+            0.008603258574160064,
+            0.00045229415442101553
+          ],
+          "weight": 0.5
+        }
+      ],
+      "min_format_mass": 0.9865053697000664,
+      "probabilities": [
+        0.9909573331731484,
+        0.008603291912152339,
+        0.00043937491469938305
+      ],
+      "two_stage": false
+    },
+    "note": null,
+    "sources": [
+      {
+        "cache_hit": true,
+        "node_id": "slakshna1zyh420sd35j02hlyl42tnkj3df0f8xtjd29n3d",
+        "round": 2,
+        "sha256": "28f83af0129f3b79905caa3561219c0a6820fa4638473cd173ba9e21e14ab780",
+        "weight": 0.5
+      },
+      {
+        "cache_hit": true,
+        "node_id": "slakshna19dxtlf9sn6g23tfcylfh7cgj2xh6kzfvzazs7r",
+        "round": 2,
+        "sha256": "67e4b1a22a574602f939a7570b035c128960c4ce6bfefc045e638391039c58dc",
+        "weight": 0.5
+      }
+    ]
+  },
+  "success": true
+}
+
+--- Q5 /decide restricted to node2 only, k=1
+POST /decide  {"state":"Disk usage 97%, build failing with ENOSPC","question":"What is the best next action?","options":["Delete old logs","Restart the service","Ignore it"],"from_nodes":["slakshna19dxtlf9sn6g23tfcylfh7cgj2xh6kzfvzazs7r"],"k":1}
+{
+  "result": {
+    "decision": {
+      "agreement": 1.0,
+      "choice": 0,
+      "confidence": 0.9909702190748776,
+      "entropy": 0.05321221555466368,
+      "finalists": [],
+      "label": "Delete old logs",
+      "margin": 0.9823668938247332,
+      "members": [
+        {
+          "format_mass": 0.9873046423315386,
+          "name": "28f83af0129f3b79905caa3561219c0a6820fa4638473cd173ba9e21e14ab780",
+          "probabilities": [
+            0.9909702190748776,
+            0.008603325250144614,
+            0.00042645567497775057
+          ],
+          "weight": 1.0
+        }
+      ],
+      "min_format_mass": 0.9873046423315386,
+      "probabilities": [
+        0.9909702190748776,
+        0.008603325250144614,
+        0.00042645567497775057
+      ],
+      "two_stage": false
+    },
+    "note": null,
+    "sources": [
+      {
+        "cache_hit": true,
+        "node_id": "slakshna1zyh420sd35j02hlyl42tnkj3df0f8xtjd29n3d",
+        "round": 2,
+        "sha256": "28f83af0129f3b79905caa3561219c0a6820fa4638473cd173ba9e21e14ab780",
+        "weight": 1.0
+      }
+    ]
+  },
+  "success": true
+}
+
+--- node1 log lines for fetch/verify/attach
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]  2026-10-22T12:51:21.990983Z  INFO  📡 Gossiped model update received from 25f38c8843473de9f28cb1883d3425e049c4e57ecf6db12f9b279f0f8830302d | Network Payload Siz
+Fetching 4 files:  25%|██▌       | 1/4 [02:04<06:14, 124.93s/it]Fetching 4 files:  50%|█████     | 2/4 [02:07<01:46, 53.00s/it] Fetching 4 files:  75%|███████▌  | 3/4 [02:08<00:29, 29.2
+  2026-10-22T12:53:03.366288Z  INFO  ⬇️ Fetching adapter 67e4b1a22a57 from slakshna19dxtlf9sn6g23tfcylfh7cgj2xh6kzfvzazs7r
+  2026-10-22T12:53:03.473489Z  INFO  ✅ Adapter 67e4b1a22a57 verified and cached
+[inference_engine] attached adapter 67e4b1a22a57 (1 loaded)
+[inference_engine] attached adapter 28f83af0129f (2 loaded)
+[inference_engine] "POST /decide HTTP/1.1" 200 -
+[inference_engine] "POST /decide HTTP/1.1" 200 -
+
+--- registry after queries
+{"node":"slakshna19dxtl","round":2,"cached":true,"is_self":false}
+{"node":"slakshna1zyh42","round":2,"cached":true,"is_self":true}
+
+== SUMMARY ==
+Q1 /infer from node2's adapter (fetch by hash expected, cache_hit=false)
+   adapter_node=slakshna19dxtl cache_hit=False note=None
+Q2 /infer same again (cache_hit=true expected)
+   adapter_node=slakshna19dxtl cache_hit=True note=None
+Q3 /infer selection=self (registry-based, no forced node)
+   adapter_node=slakshna1zyh42 cache_hit=True note=None
+Q3 /infer selection=trust (registry-based, no forced node)
+   adapter_node=slakshna19dxtl cache_hit=True note=None
+Q3 /infer selection=latest (registry-based, no forced node)
+   adapter_node=slakshna19dxtl cache_hit=True note=None
+Q4 /decide mixes adapters from both nodes (System One)
+   label=Delete old logs confidence=0.991 members=['28f83af0129f', '67e4b1a22a57']
+Q5 /decide restricted to node2 only, k=1
+   label=Delete old logs confidence=0.991 members=['28f83af0129f']
+
+[12:53:47] SHUTDOWN. GPUs: 4 MiB 4 MiB 4 MiB  iiitd procs: 0  ports: 0
+
+== NOTES ==
+- All 7 queries returned success=true. Training adapters verified: sha256 == folder name, q_proj lora_A (16,3584) x 28 layers (Qwen2.5-7B shape).
+- Q5 caveat: /decide "from_nodes" always keeps the query node's OWN adapter in the pool (src/inference/mod.rs:395), so with k=1 the
+  top-trust pick was node1's own adapter (28f83af0129f), not node2's. It does not force node2. Use k=2 and from_nodes=[node2] to include node2,
+  or /infer with from_node to force one node's adapter (Q1/Q2 did).
+- Q3: selection=self -> node1's adapter; trust/latest -> node2's adapter (higher local trust / tie-break). Both cache_hit=true after Q1 fetched it.
+- Not tested: node2 as a query node (needs spawn_sidecar=true in examples/2node-serve/node2.toml), hash-mismatch rejection, base-model fallback.
+- Nothing committed to git. Files modified in working tree: node_template.yaml (trained with total_epochs=2), logs/*.csv.
+- Full logs: logs/node1_cluster.log, logs/node2_cluster.log

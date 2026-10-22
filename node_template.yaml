@@ -28,7 +28,7 @@ model:
 data:
   name: "local"
   train_path: "/mnt/disk1/slakshna/training/Bhaskera/dataset/South_Asia.jsonl"
-  tokenized_path: "/mnt/disk1/slakshna/training/Bhaskera/cache/local_train_079a0daaff30bc4e"
+  tokenized_path: "/mnt/disk1/slakshna/training/Bhaskera/cache/local_train_079a0daaff30bc4e/local_train_2dd08ecf92b0e06d"
   seq_len: 2048
   pack_sequences: true
   format: "chatml"

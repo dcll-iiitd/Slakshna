@@ -44,6 +44,7 @@ import yaml
 import base64
 import io
 import math
+from federated_communication import trust, tokenized_cache  # peer trust; tokenized-dataset check
 
 # CONFIGURATION
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -128,14 +129,6 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", sta
     node_ckpt_dir = os.path.join(MODEL_DIR, f"ckpt_{my_id}")
     os.makedirs(node_data_dir, exist_ok=True)
     os.makedirs(node_ckpt_dir, exist_ok=True)
-
-    if os.path.exists(node_cache_dir):
-        # We NO LONGER delete the cache, so it doesn't re-tokenize on every epoch!
-        print(f"[{my_id}] Found existing tokenized cache, skipping re-tokenization!", file=sys.stderr)
-
-    # os.makedirs(node_data_dir, exist_ok=True)
-    # os.makedirs(node_ckpt_dir, exist_ok=True)
-    os.makedirs(node_cache_dir, exist_ok=True)
 
     config["data"]["tokenized_path"] = node_cache_dir
     config["data"]["cache_dir"] = node_cache_dir  # Required by Bhaskera tokenizer
@@ -364,9 +357,12 @@ def main():
     else:
         print(f"[{my_id}] 🌐 Federated Round {state['round']} (continuous mode)", file=sys.stderr)
 
+    fed_cfg = template_config.get("federated", {})
     for j in all_nodes:
         if j not in state["alpha"]:
-            state["alpha"][j] = float(np.random.normal(0, 1))
+            # Uniform by default: a peer we have never exchanged anything with starts
+            # with the same weight as every other. (Legacy: trust_init: random.)
+            state["alpha"][j] = trust.init_alpha(fed_cfg.get("trust_init", "uniform"), my_id, j)
             state["grad_alpha"][j] = 0.0
 
     alphas = torch.tensor([state["alpha"][j] for j in all_nodes], dtype=torch.float32)
@@ -379,30 +375,15 @@ def main():
     config_path, tokenized_path, ckpt_dir = prepare_bhaskera_config(my_id, is_malicious, TRAINING_MODE)
 
     try:
-        # 2. Tokenize dataset once if not present
-        has_parquets = False
-        corrupted = False
-        if os.path.exists(tokenized_path):
-            for root, dirs, files in os.walk(tokenized_path):
-                for f in files:
-                    if f.endswith('.parquet'):
-                        filepath = os.path.join(root, f)
-                        if os.path.getsize(filepath) < 100:  # Minimum valid parquet is > 8 bytes
-                            corrupted = True
-                            break
-                        has_parquets = True
-                if corrupted:
-                    break
-
-        if corrupted:
-            import shutil
-            print(f"[{my_id}] Found corrupted parquet cache from a previous aborted run. Clearing...", file=sys.stderr)
-            shutil.rmtree(tokenized_path)
-            os.makedirs(tokenized_path, exist_ok=True)
-            has_parquets = False
-
-        if not has_parquets:
-            subprocess.run([sys.executable, "-m", "bhaskera.launcher.tokenize", "--config", config_path], check=True)
+        # 2. The tokenized dataset must already exist: tokenization is a separate step that
+        # runs once before training (scripts/tokenize_dataset.py). This only verifies it,
+        # because a missing, truncated or other-model cache must stop the run, not be
+        # silently rebuilt or trained on.
+        tok_model = template_config.get("model", {}).get("name", "")
+        tok_status = tokenized_cache.cache_status(tokenized_path, tok_model)
+        if tok_status != tokenized_cache.READY:
+            print(f"[{my_id}] ❌ {tokenized_cache.explain(tok_status, tokenized_path, tok_model)}", file=sys.stderr)
+            sys.exit(1)
 
         if os.path.exists(tokenized_path):
             subfolders = [f.path for f in os.scandir(tokenized_path) if f.is_dir() and not f.name.startswith('.')]
@@ -825,7 +806,42 @@ def main():
     # [Network Aggregation & Peer Evaluation]
     # Multiply each received peer's delta by its local trust score (reputation), 
     # then sum them together to form the global model update.
-    delta_agg = aggregate_deltas(available_deltas, w_i)
+    # The softmax above covers every known peer, but only some deltas arrived. Rescale
+    # over the ones we actually have, otherwise a missing peer's share silently
+    # shrinks the aggregated update.
+    w_eff = trust.renormalise(w_i, available_deltas.keys())
+    missing = [j for j in all_nodes if j not in available_deltas]
+    if missing:
+        print(f"[{my_id}] No delta from {missing}; weights renormalised over {sorted(w_eff)}", file=sys.stderr)
+
+    # Decision quality: does applying each peer's delta lower the loss on a probe set?
+    eval_mode = fed_cfg.get("eval_mode", "both")  # cosine | heldout | both
+    heldout_changes, heldout_base = {}, None
+    if eval_mode in ("heldout", "both") and old_sd and TRAINING_MODE == "finetuning":
+        peers_only = {j: d for j, d in available_deltas.items() if j != my_id}
+        if peers_only:
+            try:
+                from federated_communication.peer_eval import evaluate_peers
+                heldout_base, heldout_changes = evaluate_peers(
+                    config_path, old_sd, peers_only, device,
+                    method=fed_cfg.get("eval_method", "first_order"),
+                    n_batches=int(fed_cfg.get("eval_batches", 4)),
+                    seed=int(state["round"]),
+                    max_len=int(fed_cfg.get("eval_max_len", 1024)),
+                )
+                print(f"[{my_id}] Probe loss {heldout_base:.4f}; per-peer loss change "
+                      f"{ {k: round(v, 5) for k, v in heldout_changes.items()} }", file=sys.stderr)
+            except Exception as e:
+                print(f"[{my_id}] Decision-quality probe unavailable ({type(e).__name__}: {e}); "
+                      f"using cosine similarity only", file=sys.stderr)
+                heldout_changes, heldout_base = {}, None
+
+    delta_agg = aggregate_deltas(available_deltas, w_eff)
+
+    # What this node tells the federation about each peer: its weight relative to the
+    # other peers only. Self takes a share of w_eff (and its raw score only rises), so
+    # reporting w_eff would shrink every peer's reported trust as the federation grows.
+    w_report = trust.renormalise(w_eff, [j for j in w_eff if j != my_id])
 
     # Save aggregated LoRA as base for next epoch OR apply full-model updates
     adapter_info = {}
@@ -862,7 +878,7 @@ def main():
         # content-addressed PEFT dir. Never allowed to break training.
         if os.environ.get("SLAKSHNA_INFERENCE_ENABLED") == "1" and rust_data_dir:
             try:
-                from adapter_export import export_adapter
+                from federated_inference.adapter_export import export_adapter
                 lora_cfg = template_config.get("lora", {})
                 adapter_info = export_adapter(
                     final_sd,
@@ -931,12 +947,26 @@ def main():
 
     # Trust update
     beta = template_config.get("federated", {}).get("trust_beta", 0.1)
-    for j in all_nodes:
-        Delta_L_j = peer_improvements.get(j, 0.0)
-        # Cosine similarity gives [-1, 1], directly correlates to gradient alignment
-        step = beta * Delta_L_j * w_i[j] * (1.0 - w_i[j])
-        state["alpha"][j] += step
-        state["alpha"][j] *= 0.98
+    decision_weight = 1.0 if eval_mode == "heldout" else float(fed_cfg.get("decision_weight", 0.5))
+    rel_scale = float(fed_cfg.get("utility_rel_scale", 0.01))
+    signals = {}
+    for j in available_deltas:
+        cos_j = peer_improvements.get(j, 0.0)  # alignment of update direction, in [-1, 1]
+        util_j = None
+        if eval_mode != "cosine" and j in heldout_changes and heldout_base is not None:
+            util_j = trust.utility_from_loss_change(heldout_changes[j], heldout_base, rel_scale)
+        signals[j] = trust.combine_signal(cos_j, util_j, decision_weight)
+        log_runtime(
+            my_id,
+            "peer_signal",
+            peer_id=j,
+            cosine=f"{cos_j:.6f}",
+            loss_change="" if j not in heldout_changes else f"{heldout_changes[j]:.8f}",
+            utility="" if util_j is None else f"{util_j:.6f}",
+            signal=f"{signals[j]:.6f}",
+        )
+    # Peers with evidence move; every score decays towards uniform trust.
+    trust.update_alpha(state["alpha"], w_eff, signals, beta)
 
     score = final_epoch_score
     state["score"] = score
@@ -962,7 +992,7 @@ def main():
     output = {
         "validation_score": float(score),
         "model_hash": model_hash,
-        "weights": w_i,
+        "weights": w_report,
         "metadata": f"Loss: {score:.4f} | Mode: SparseLoCo | Delta: {DELTA_FORMAT}/v{DELTA_VERSION}",
         "compressed_delta": b64_delta,  # Sending the actual weights to Rust
         "round": state["round"],

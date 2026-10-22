@@ -2,7 +2,7 @@ use crate::history::{ UpdateHistory, BoxError };
 use crate::config::Config;
 use crate::state::State;
 use crate::network::Network;
-use crate::inference::{ InferRequest, InferenceService };
+use crate::inference::{ DecideRequest, InferRequest, InferenceService };
 use axum::{
     extract::{ Path, State as AxumState, WebSocketUpgrade, ws::{ WebSocket, Message } },
     http::StatusCode,
@@ -52,6 +52,7 @@ pub async fn start_api_server(
         .route("/peers", get(get_peers))
         .route("/adapters", get(get_adapters))
         .route("/infer", post(post_infer))
+        .route("/decide", post(post_decide))
         .route("/ws", get(ws_handler))
         .layer(CorsLayer::permissive())
         .with_state(app_state);
@@ -79,7 +80,8 @@ async fn index() -> impl IntoResponse {
             },
             "inference": {
                 "adapters": "GET /adapters",
-                "infer": "POST /infer {prompt, max_tokens?, temperature?, selection?}"
+                "infer": "POST /infer {prompt, max_tokens?, temperature?, selection?}",
+                "decide": "POST /decide {state, question, options[], k?, combine?, permutations?, calibration_temperature?}"
             },
             "network": {
                 "leaderboard": "GET /leaderboard",
@@ -260,6 +262,24 @@ async fn post_infer(
         Err(e) => (
             StatusCode::BAD_GATEWAY,
             Json(serde_json::json!({ "success": false, "error": "inference_failed", "message": e.to_string() })),
+        ).into_response(),
+    }
+}
+
+/// System One: a probability for every allowed option, from several
+/// nodes' adapters scored locally in one pass each. No text is generated.
+async fn post_decide(
+    AxumState(state): AxumState<SharedState>,
+    Json(req): Json<DecideRequest>
+) -> impl IntoResponse {
+    let Some(svc) = &state.inference else {
+        return inference_disabled().into_response();
+    };
+    match svc.decide(req).await {
+        Ok(resp) => Json(serde_json::json!({ "success": true, "result": resp })).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({ "success": false, "error": "decision_failed", "message": e.to_string() })),
         ).into_response(),
     }
 }

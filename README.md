@@ -101,7 +101,7 @@ SLAKSHNA is built from the ground up to operate securely over untrusted public n
 | `Bhaskera/`                | Submodule / embedded repository containing the distributed LLM training framework                                               |
 | `Bhaskera-serve/`          | Second submodule (branch `serve`) used by federated inference; see [Federated Inference](#federated-inference-optional)                  |
 | `inference_engine.py`      | Local inference sidecar: base model + hot-swapped LoRA adapters                                                                 |
-| `adapter_export.py`        | Exports each round's aggregated LoRA as a content-addressed PEFT directory                                                      |
+| `federated_inference/`     | `adapter_export.py` (publishes each round's adapter) and `system_one.py` (typed decisions). Exports each round's aggregated LoRA as a content-addressed PEFT directory Exports each round's aggregated LoRA as a content-addressed PEFT directory                                                      |
 | `node_template.yaml`       | Base YAML template for HuggingFace / Ray / PEFT training arguments                                                              |
 | `node1.toml`               | Node-1 configuration file                                                                                                       |
 | `node2.toml`, `node3.toml` | Peer node configuration files                                                                                                   |
@@ -348,21 +348,21 @@ Developers should modify `node_template.yaml` to adjust:
 
 ## Dataset Tokenization
 
-Before starting the federated training process, you must tokenize your dataset. The tokenization process converts your raw JSONL data into packed Parquet shards which the training engine loads directly.
+Tokenization is a **separate step that runs once, before training**. `ml_engine.py` never tokenizes: it only reads the result, and stops with a clear message if the dataset is missing, truncated, or was tokenized for a different base model (token ids from another model train without any error and silently give garbage).
 
-1. **Configure Tokenization:**
-   Navigate to the `Bhaskera` submodule and open the provided tokenization config:
-   `configs/tokenize_south_asia.yaml`.
-   Update the `data.path` to point to your raw JSONL dataset and `data.cache_dir` to your desired output directory.
+```bash
+source Bhaskera/bhaskera-activate.sh               # the Bhaskera training environment
+python scripts/tokenize_dataset.py                 # tokenize if needed
+python scripts/tokenize_dataset.py --check         # exit 0 only if training can start
+```
 
-2. **Run the Tokenizer:**
-   Run the following command from inside the `Bhaskera` directory:
-   ```bash
-   bhaskera-tokenize --config configs/tokenize_south_asia.yaml
-   ```
-   
-3. **Update Training Config:**
-   The command above will output a `tokenized_path:` snippet at the end. Copy this path and paste it into your `node_template.yaml` under `data.tokenized_path`.
+It reads `node_template.yaml` (the same file training uses), so the tokenizer, sequence length and data format match training exactly, writes into `data.tokenized_path` (which must be a real directory every node can read, not `"dummy"`), and stamps it with a `tokenizer_model.txt` naming `model.name`.
+
+| Situation | What to run |
+|---|---|
+| First run, or you changed `model.name` | `python scripts/tokenize_dataset.py --force` (an existing directory is moved aside to `<path>.bak-<time>`, never deleted) |
+| Cache from before this check, known to match `model.name` | `python scripts/tokenize_dataset.py --stamp` |
+| Several nodes sharing one path | tokenize once, then start the nodes |
 
 ---
 
@@ -502,7 +502,7 @@ Gossip is cheap, weights are not. So nodes gossip only tiny *metadata* about the
 
 | File | Role |
 |---|---|
-| `adapter_export.py` | Called by `ml_engine.py` after each round. Writes `{data_dir}/adapters/<sha256>/` (weights, config, `adapter_meta.json`) |
+| `federated_inference/adapter_export.py` | Called by `ml_engine.py` after each round. Writes `{data_dir}/adapters/<sha256>/` (weights, config, `adapter_meta.json`) |
 | `ml_engine.py` | Training bridge; exports the adapter when `SLAKSHNA_INFERENCE_ENABLED=1` |
 | `src/registry.rs` | Signed `AdapterMeta`, the local registry, RocksDB persistence |
 | `src/network/blobs.rs` | iroh-blobs wrapper: add file, fetch by hash |
@@ -512,7 +512,7 @@ Gossip is cheap, weights are not. So nodes gossip only tiny *metadata* about the
 | `src/api.rs` | `/adapters` and `/infer` endpoints |
 | `src/config.rs` | `[inference]` config block |
 | `inference_engine.py` | Local HTTP sidecar: base model + attached LoRA adapters |
-| `setup_serve.sh` | Creates the separate serve virtualenv (`Bhaskera-serve/.venv`) |
+| `scripts/setup_serve.sh` | Creates the separate serve virtualenv (`Bhaskera-serve/.venv`) |
 | `examples/2node/` | Two-node **training** configs (inference enabled, no sidecar) |
 | `examples/2node-serve/` | Two-node **serve** configs (`serve_only = true`, node1 runs the sidecar) |
 | `tests/test_adapter_export.py` | Adapter export tests |
@@ -522,7 +522,7 @@ Gossip is cheap, weights are not. So nodes gossip only tiny *metadata* about the
 ```toml
 [inference]
 enabled = true
-base_model = "allenai/OLMo-2-1124-7B"   # must equal model.name in node_template.yaml
+base_model = "Qwen/Qwen2.5-7B-Instruct"   # must equal model.name in node_template.yaml
 selection = "trust"                      # trust | self | latest
 min_trust = 0.0                          # ignore peers whose local trust is lower
 sidecar_port = 8765                      # use a different port per node on one machine
@@ -540,7 +540,7 @@ max_adapter_bytes = 2147483648
 # 0. One-time setup
 git submodule update --init --recursive
 cargo build --release
-./setup_serve.sh                       # serve venv with peft; training venv comes from setup.sh
+./scripts/setup_serve.sh               # serve venv with peft; training venv comes from setup.sh
 
 # 1. Train: each node creates and publishes its own adapter
 ./start_cluster.sh 2                   # uses examples/2node
@@ -572,7 +572,7 @@ curl -s localhost:8545/infer -H 'content-type: application/json' \
 | Check | How | Expected |
 |---|---|---|
 | Adapter exported | `sha256sum data-node1/adapters/*/adapter_model.safetensors` | equals the folder name |
-| Adapter matches the base model | `lora_A` shape of `q_proj` | `[16, 4096]`, 32 layers for OLMo-2-7B |
+| Adapter matches the base model | `lora_A` shape of `q_proj` | `[16, 3584]`, 28 layers for Qwen2.5-7B |
 | Published | log: `🧩 Publishing adapter round N` | no `Could not publish` warning |
 | Registry formed | `GET /adapters` on each node | every node listed; peers `cached: false` |
 | On-demand fetch | log: `⬇️ Fetching adapter …` then `✅ … verified and cached` | peer's adapter now `cached: true` |

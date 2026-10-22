@@ -28,7 +28,7 @@ class AdapterExportTests(unittest.TestCase):
         }
 
     def _export(self, sd, round_num=1):
-        from adapter_export import export_adapter
+        from federated_inference.adapter_export import export_adapter
         return export_adapter(sd, self.tmp, "slakshna1abc", round_num, "base/model")
 
     def test_hash_matches_file_and_dir_is_content_addressed(self):
@@ -40,6 +40,14 @@ class AdapterExportTests(unittest.TestCase):
         self.assertEqual(os.path.getsize(weights), info["adapter_size"])
         self.assertEqual(info["adapter_rank"], 4)
         self.assertEqual(json.loads(info["adapter_config"])["peft_type"], "LORA")
+
+    def test_rank_and_targets_come_from_the_weights_not_the_config(self):
+        from federated_inference.adapter_export import export_adapter
+        info = export_adapter(self.sd, self.tmp, "slakshna1abc", 1, "base/model",
+                              rank=99, target_modules=["k_proj"])
+        cfg = json.loads(info["adapter_config"])
+        self.assertEqual(cfg["r"], 4)
+        self.assertEqual(cfg["target_modules"], ["q_proj"])
 
     def test_same_weights_same_hash_across_rounds(self):
         a = self._export(self.sd, 1)

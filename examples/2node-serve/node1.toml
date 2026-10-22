@@ -36,7 +36,7 @@ relay = false
 
 [inference]
 enabled = true
-base_model = "allenai/OLMo-2-1124-7B"   # must match model.name in node_template.yaml
+base_model = "Qwen/Qwen2.5-7B-Instruct"   # must match model.name in node_template.yaml
 selection = "trust"                      # trust | self | latest
 min_trust = 0.0
 sidecar_port = 8765

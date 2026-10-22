@@ -4,15 +4,25 @@ federated:
   # Set optimizer to "muon" for 8-bit Muon with LoRA
   optimizer: "muon"
   trust_beta: 0.1
+  # --- Peer trust ---
+  trust_init: "uniform"      # uniform | seeded | random(legacy): starting trust of a peer never heard from
+  # How a peer is judged each round: "cosine" = update direction alignment only (legacy),
+  # "heldout" = loss change on a probe set only, "both" = blend. Falls back to cosine if the probe fails.
+  eval_mode: "cosine"
+  eval_method: "first_order"  # first_order (one fwd+bwd, cheap) | exact (one forward per peer)
+  eval_batches: 4            # probe rows (one sequence each)
+  eval_max_len: 1024         # tokens per probe row
+  decision_weight: 0.5       # blend: 0 = cosine only, 1 = loss change only
+  utility_rel_scale: 0.01    # a 1% probe-loss improvement counts as roughly full marks
   total_epochs: 2  # short run for inference testing
 
 plugins:
   optimizers: []
 
 model:
-  name: "allenai/OLMo-2-1124-7B"
+  name: "Qwen/Qwen2.5-7B-Instruct"
   dtype: "bfloat16"
-  trust_remote_code: true
+  trust_remote_code: false   # not needed for Qwen2.5
   use_liger_kernel: false
 
 data:
@@ -29,6 +39,7 @@ lora:
   # Set to true if you want to use LoRA adapters (and switch optimizer above)
   enabled: true
   rank: 16
+  r: 16        # Bhaskera reads `r` (default 16); `rank` above is read only by ml_engine.py. Keep them equal.
   alpha: 64
   dropout: 0.03
   target_modules: ["q_proj", "v_proj"]

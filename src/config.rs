@@ -58,8 +58,39 @@ pub struct InferenceConfig {
     /// adapters and answers queries. For testing inference on saved adapters.
     #[serde(default)]
     pub serve_only: bool,
+    /// System One decisions: how many nodes' adapters are mixed.
+    #[serde(default = "default_decision_k")]
+    pub decision_k: usize,
+    /// How adapters' probabilities are mixed: "prob_mean" (default; a bad
+    /// member's influence is bounded by its weight) or "logit_mean".
+    #[serde(default = "default_combine")]
+    pub combine: String,
+    /// Softmax temperature turning local trust into mixing weights.
+    #[serde(default = "default_weight_temperature")]
+    pub weight_temperature: f64,
+    /// Re-score the options under this many cyclic re-orderings and average,
+    /// which cancels letter/position bias. 0 = auto (every shift for up to 6
+    /// options, 6 evenly spread shifts beyond that), 1 = a single, undebiased
+    /// pass. Cost is this many forward passes per adapter.
+    #[serde(default = "default_permutations")]
+    pub permutations: u32,
+    /// Divides the label logits before the softmax. Fit offline on held-out
+    /// decisions (>1 softens an over-confident model). 1.0 = no scaling.
+    #[serde(default = "default_calibration_temperature")]
+    pub calibration_temperature: f64,
+    /// Max time to wait for missing adapters; slow ones are dropped.
+    #[serde(default = "default_fetch_timeout")]
+    pub fetch_timeout_secs: u64,
 }
 
+fn default_decision_k() -> usize { 3 }
+fn default_combine() -> String { "prob_mean".to_string() }
+// Trust scores are per-round averages on a ~0..1 scale (see `rank_trust`), so
+// differences between peers are small; a low temperature keeps them meaningful.
+fn default_weight_temperature() -> f64 { 0.1 }
+fn default_permutations() -> u32 { 0 }
+fn default_calibration_temperature() -> f64 { 1.0 }
+fn default_fetch_timeout() -> u64 { 30 }
 fn default_selection() -> String { "trust".to_string() }
 fn default_cache_max_adapters() -> usize { 16 }
 fn default_max_adapter_bytes() -> u64 { 2 * 1024 * 1024 * 1024 }
@@ -81,6 +112,12 @@ impl Default for InferenceConfig {
             sidecar_python: default_sidecar_python(),
             spawn_sidecar: true,
             serve_only: false,
+            decision_k: default_decision_k(),
+            combine: default_combine(),
+            weight_temperature: default_weight_temperature(),
+            permutations: default_permutations(),
+            calibration_temperature: default_calibration_temperature(),
+            fetch_timeout_secs: default_fetch_timeout(),
         }
     }
 }
@@ -197,6 +234,11 @@ pub struct NetworkConfig {
     /// If non-empty, only these peers may connect (whitelisting).
     #[serde(default)]
     pub allowed_peers: Option<Vec<String>>,
+    /// Reject model updates and peer reviews that are not signed by the key
+    /// behind their `node_id`. Turn off only while migrating a federation whose
+    /// nodes still run builds that send placeholder signatures.
+    #[serde(default = "default_true")]
+    pub require_signed_records: bool,
 }
 
 /// Which serverless discovery mechanisms this node participates in. All of them
@@ -260,6 +302,23 @@ impl Config {
         }
         if !matches!(config.inference.selection.as_str(), "trust" | "self" | "latest") {
             return Err("inference.selection must be one of: trust, self, latest".into());
+        }
+        if !matches!(config.inference.combine.as_str(), "prob_mean" | "logit_mean") {
+            return Err("inference.combine must be one of: prob_mean, logit_mean".into());
+        }
+        if config.inference.decision_k == 0 || config.inference.decision_k > 16 {
+            return Err("inference.decision_k must be between 1 and 16".into());
+        }
+        if config.inference.permutations > 8 {
+            return Err("inference.permutations must be between 0 (auto) and 8".into());
+        }
+        for (name, v) in [
+            ("weight_temperature", config.inference.weight_temperature),
+            ("calibration_temperature", config.inference.calibration_temperature),
+        ] {
+            if !v.is_finite() || v <= 0.0 {
+                return Err(format!("inference.{name} must be finite and positive").into());
+            }
         }
         if config.inference.enabled && config.inference.base_model.is_empty() {
             return Err("inference.base_model must be set when inference.enabled = true".into());

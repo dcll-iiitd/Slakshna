@@ -5,11 +5,12 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
-SERVE_DIR="$SCRIPT_DIR/Bhaskera-serve"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SERVE_DIR="$REPO_DIR/Bhaskera-serve"
 
 if [ ! -f "$SERVE_DIR/pyproject.toml" ]; then
     echo "Bhaskera-serve is not checked out; initialising submodule..."
-    git -C "$SCRIPT_DIR" submodule update --init Bhaskera-serve
+    git -C "$REPO_DIR" submodule update --init Bhaskera-serve
 fi
 
 echo "=== Creating serve virtualenv at $SERVE_DIR/.venv ==="

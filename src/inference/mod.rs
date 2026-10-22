@@ -13,8 +13,8 @@ use crate::network::mesh::MeshNetwork;
 use crate::network::Network;
 use crate::registry::{AdapterMeta, AdapterRegistry};
 use crate::state::State;
-use selector::{select, SelectionContext, Strategy};
-use serde::{Deserialize, Serialize};
+use selector::{select, select_top_k, SelectionContext, Strategy};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::io::Read;
@@ -83,6 +83,98 @@ struct SidecarRequest<'a> {
     adapter_dir: Option<&'a str>,
 }
 
+/// A System One query: program state plus a closed set of allowed answers.
+/// The reply is a probability for every option, not generated text.
+#[derive(Debug, Deserialize)]
+pub struct DecideRequest {
+    /// The situation, as plain text (logs, a record, a message...).
+    #[serde(default)]
+    pub state: String,
+    pub question: String,
+    /// The allowed answers: 2..=255 distinct, non-empty strings.
+    pub options: Vec<String>,
+    /// Overrides `[inference] decision_k` (adapters mixed).
+    #[serde(default)]
+    pub k: Option<usize>,
+    /// Overrides `[inference] combine`.
+    #[serde(default)]
+    pub combine: Option<String>,
+    /// Overrides `[inference] permutations` (0 = auto, 1 = no debiasing, max 8).
+    #[serde(default)]
+    pub permutations: Option<u32>,
+    /// Overrides `[inference] calibration_temperature`.
+    #[serde(default)]
+    pub calibration_temperature: Option<f64>,
+    /// Restrict the adapter pool to these nodes (simulation / testing).
+    #[serde(default)]
+    pub from_nodes: Option<Vec<String>>,
+}
+
+/// One adapter's own distribution over the options.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DecisionMember {
+    /// The adapter's SHA-256 (its identity), as used by the sidecar.
+    pub name: String,
+    /// Mixing weight after renormalising over the adapters that were available.
+    pub weight: f64,
+    pub probabilities: Vec<f64>,
+    /// Probability mass the model put on the answer labels before restricting
+    /// to them; low means it was not following the answer format.
+    pub format_mass: f64,
+}
+
+/// The sidecar's typed decision (see `federated_inference/system_one.py`).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Decision {
+    pub choice: usize,
+    pub label: String,
+    pub probabilities: Vec<f64>,
+    pub confidence: f64,
+    pub margin: f64,
+    pub entropy: f64,
+    /// Weight share of members whose own top choice equals the mixed choice.
+    pub agreement: f64,
+    pub two_stage: bool,
+    pub finalists: Vec<usize>,
+    pub min_format_mass: f64,
+    pub members: Vec<DecisionMember>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DecisionSource {
+    pub node_id: String,
+    pub round: u64,
+    pub sha256: String,
+    pub weight: f64,
+    pub cache_hit: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DecideResponse {
+    pub decision: Decision,
+    /// Which node's adapter each member of `decision.members` came from (same order).
+    pub sources: Vec<DecisionSource>,
+    pub note: Option<String>,
+}
+
+#[derive(Serialize)]
+struct SidecarMember<'a> {
+    id: &'a str,
+    dir: &'a str,
+    weight: f64,
+}
+
+#[derive(Serialize)]
+struct SidecarDecideRequest<'a> {
+    state: &'a str,
+    question: &'a str,
+    options: &'a [String],
+    adapters: Vec<SidecarMember<'a>>,
+    combine: &'a str,
+    permutations: u32,
+    calibration_temperature: f64,
+}
+
 #[derive(Deserialize)]
 struct SidecarResponse {
     text: String,
@@ -96,7 +188,7 @@ pub struct InferenceService {
     network: Arc<RwLock<MeshNetwork>>,
     http: reqwest::Client,
     /// Serialises downloads so two queries for the same adapter fetch it once.
-    fetch_lock: Mutex<()>,
+    fetch_locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
     sidecar: Mutex<Option<tokio::process::Child>>,
 }
 
@@ -115,7 +207,7 @@ impl InferenceService {
             state,
             network,
             http: reqwest::Client::new(),
-            fetch_lock: Mutex::new(()),
+            fetch_locks: Mutex::new(HashMap::new()),
             sidecar: Mutex::new(None),
         }
     }
@@ -248,6 +340,147 @@ impl InferenceService {
     // Steps 3-6: answer a query
     // ------------------------------------------------------------------
 
+    /// POST JSON to a local sidecar endpoint and decode the reply.
+    async fn post_sidecar<B: Serialize, R: DeserializeOwned>(&self, path: &str, body: &B) -> Result<R, BoxError> {
+        let resp = self
+            .http
+            .post(format!("http://127.0.0.1:{}{}", self.config.inference.sidecar_port, path))
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| format!("inference sidecar unreachable: {e}"))?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            return Err(format!("inference sidecar error {status}: {text}").into());
+        }
+        Ok(resp.json().await.map_err(|e| format!("bad sidecar reply: {e}"))?)
+    }
+
+    /// System One: a typed decision (probabilities) over a closed set of options.
+    ///
+    /// 3. pick the top-K adapters by this node's own trust (local registry only);
+    /// 4-5. fetch the missing ones by hash concurrently, verifying each SHA-256;
+    /// 6. every adapter scores the options in ONE forward pass on this machine
+    ///    (no generation) and the distributions are mixed with trust weights.
+    /// The state, question and options never leave the node.
+    pub async fn decide(&self, req: DecideRequest) -> Result<DecideResponse, BoxError> {
+        let inf = &self.config.inference;
+        if req.options.len() < 2 || req.options.len() > 255 {
+            return Err("options must contain between 2 and 255 entries".into());
+        }
+        let k = req.k.unwrap_or(inf.decision_k).clamp(1, 16);
+        let combine = req.combine.clone().unwrap_or_else(|| inf.combine.clone());
+        if !matches!(combine.as_str(), "prob_mean" | "logit_mean") {
+            return Err(format!("unknown combine rule '{combine}'").into());
+        }
+        let permutations = req.permutations.unwrap_or(inf.permutations).min(8);
+        let calibration_temperature = req.calibration_temperature.unwrap_or(inf.calibration_temperature);
+        if !calibration_temperature.is_finite() || calibration_temperature <= 0.0 {
+            return Err("calibration_temperature must be finite and positive".into());
+        }
+
+        // 3. Local registry only: no network.
+        let registry = self.network.read().await.registry();
+        let candidates: Vec<AdapterMeta> = {
+            let reg = registry.read().await;
+            reg.latest_per_node().into_iter().cloned().collect()
+        };
+        let local_trust: HashMap<String, f64> = {
+            let history = self.history.read().await;
+            history.trust_rankings(usize::MAX).into_iter().collect()
+        };
+        let mut refs: Vec<&AdapterMeta> = candidates.iter().collect();
+        if let Some(nodes) = &req.from_nodes {
+            refs.retain(|m| nodes.contains(&m.node_id) || m.node_id == self.own_node_id);
+        }
+        let picked: Vec<(AdapterMeta, f64)> = select_top_k(
+            &refs,
+            &SelectionContext {
+                own_node_id: &self.own_node_id,
+                local_trust: &local_trust,
+                min_trust: inf.min_trust,
+                base_model: &inf.base_model,
+            },
+            k,
+            inf.weight_temperature,
+        )
+        .into_iter()
+        .map(|(m, w)| (m.clone(), w))
+        .collect();
+
+        // 4-5. Fetch + verify concurrently; slow or failing adapters are dropped.
+        let deadline = std::time::Duration::from_secs(inf.fetch_timeout_secs);
+        let fetched = futures::future::join_all(picked.iter().map(|(m, _)| {
+            let registry = registry.clone();
+            async move { tokio::time::timeout(deadline, self.ensure_adapter(m, &registry)).await }
+        }))
+        .await;
+
+        let mut notes: Vec<String> = Vec::new();
+        let mut ready: Vec<(AdapterMeta, f64, PathBuf, bool)> = Vec::new();
+        for ((meta, w), res) in picked.into_iter().zip(fetched) {
+            match res {
+                Ok(Ok((dir, hit))) => ready.push((meta, w, dir, hit)),
+                Ok(Err(e)) => {
+                    warn!("⚠️ Adapter {} dropped from the decision: {}", &meta.sha256[..12], e);
+                    notes.push(format!("{} dropped ({e})", &meta.sha256[..12]));
+                }
+                Err(_) => {
+                    warn!("⚠️ Adapter {} timed out", &meta.sha256[..12]);
+                    notes.push(format!("{} dropped (fetch timeout)", &meta.sha256[..12]));
+                }
+            }
+        }
+        let total: f64 = ready.iter().map(|(_, w, _, _)| w).sum();
+        if total > 0.0 {
+            for r in ready.iter_mut() {
+                r.1 /= total;
+            }
+        }
+        if ready.is_empty() {
+            notes.push("no adapter available; decided with the base model".into());
+        }
+
+        // 6. Local single-pass scoring.
+        let dirs: Vec<String> = ready.iter().map(|(_, _, d, _)| d.to_string_lossy().to_string()).collect();
+        let body = SidecarDecideRequest {
+            state: &req.state,
+            question: &req.question,
+            options: &req.options,
+            adapters: ready
+                .iter()
+                .zip(&dirs)
+                .map(|((m, w, _, _), d)| SidecarMember { id: &m.sha256, dir: d, weight: *w })
+                .collect(),
+            combine: &combine,
+            permutations,
+            calibration_temperature,
+        };
+        let decision: Decision = self.post_sidecar("/decide", &body).await?;
+        if decision.min_format_mass < 0.5 {
+            notes.push(format!(
+                "a model put only {:.0}% of its probability on the answer labels; treat the probabilities with care",
+                decision.min_format_mass * 100.0
+            ));
+        }
+
+        Ok(DecideResponse {
+            decision,
+            sources: ready
+                .into_iter()
+                .map(|(m, w, _, hit)| DecisionSource {
+                    node_id: m.node_id,
+                    round: m.round,
+                    sha256: m.sha256,
+                    weight: w,
+                    cache_hit: hit,
+                })
+                .collect(),
+            note: if notes.is_empty() { None } else { Some(notes.join("; ")) },
+        })
+    }
+
     pub async fn infer(&self, req: InferRequest) -> Result<InferResponse, BoxError> {
         let strategy: Strategy = req
             .selection
@@ -348,7 +581,11 @@ impl InferenceService {
             return Ok((final_dir, true));
         }
 
-        let _guard = self.fetch_lock.lock().await;
+        let hash_lock = {
+            let mut locks = self.fetch_locks.lock().await;
+            locks.entry(meta.sha256.clone()).or_default().clone()
+        };
+        let _guard = hash_lock.lock().await;
         // Another query may have finished the download while we waited.
         if final_dir.join(WEIGHTS_FILE).is_file() && final_dir.join(CONFIG_FILE).is_file() {
             return Ok((final_dir, true));
@@ -487,4 +724,34 @@ async fn sha256_file(path: &Path) -> Result<String, BoxError> {
         Ok(hex::encode(hasher.finalize()))
     })
     .await?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The shape `system_one.Decision.to_dict()` produces must deserialize.
+    #[test]
+    fn decision_matches_the_python_sidecar_shape() {
+        let json = r#"{
+            "choice": 1, "label": "free disk space",
+            "probabilities": [0.1, 0.7, 0.15, 0.05],
+            "confidence": 0.7, "margin": 0.55, "entropy": 0.9, "agreement": 1.0,
+            "two_stage": false, "finalists": [], "min_format_mass": 0.98,
+            "members": [{"name": "abc", "weight": 1.0,
+                         "probabilities": [0.1, 0.7, 0.15, 0.05], "format_mass": 0.98}]
+        }"#;
+        let d: Decision = serde_json::from_str(json).expect("sidecar JSON must parse");
+        assert_eq!(d.choice, 1);
+        assert_eq!(d.members.len(), 1);
+        assert!((d.probabilities.iter().sum::<f64>() - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn decide_request_needs_only_question_and_options() {
+        let r: DecideRequest = serde_json::from_str(r#"{"question":"q","options":["a","b"]}"#).unwrap();
+        assert_eq!(r.state, "");
+        assert!(r.k.is_none() && r.permutations.is_none() && r.from_nodes.is_none());
+        assert!(serde_json::from_str::<DecideRequest>(r#"{"options":["a","b"]}"#).is_err());
+    }
 }

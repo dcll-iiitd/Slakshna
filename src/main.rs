@@ -273,8 +273,9 @@ async fn main() -> Result<(), BoxError> {
                     delta_hash: "error_hash".to_string(),
                     compressed_delta: String::new(),
                 },
-                signature: format!("node_signature_{}", epoch_start),
+                signature: String::new(), // signed below, once the hash is final
                 hash: String::new(),
+                pubkey: String::new(),
             };
 
             let mut reviews = Vec::new();
@@ -314,6 +315,10 @@ async fn main() -> Result<(), BoxError> {
 
                         // Record one peer review per evaluated peer
                         for (peer_id, weight) in ml_data.weights {
+                            // A node's opinion of itself is not evidence about its trustworthiness.
+                            if peer_id == node_id_loop {
+                                continue;
+                            }
                             let mut reviewed_update_hash = None;
                             if let Some(peer_records) = history.peer_updates.get(&peer_id) {
                                 for record in peer_records.iter().rev() {
@@ -346,9 +351,11 @@ async fn main() -> Result<(), BoxError> {
                                     update_hash: target_update_hash,
                                     loss_drop: 0.0, // Simplified for now
                                     trust_score: weight,
+                                    round: current_round_num,
                                 },
-                                signature: format!("review_sig_{}", epoch_start),
+                                signature: String::new(), // signed below, once the hash is final
                                 hash: String::new(),
+                                pubkey: String::new(),
                             };
                             review.hash = review.calculate_hash();
                             current_tail_hash = review.hash.clone();
@@ -368,11 +375,25 @@ async fn main() -> Result<(), BoxError> {
                 Err(e) => tracing::error!("❌ Failed to start Python process: {}", e),
             }
 
+            // Sign everything this node authored this round with its real key.
+            let signing_key = state_loop.read().await.get_keypair().cloned();
+            match signing_key {
+                Some(kp) => {
+                    if !my_update.hash.is_empty() {
+                        my_update.sign(&kp);
+                    }
+                    for review in reviews.iter_mut() {
+                        review.sign(&kp);
+                    }
+                }
+                None => tracing::error!("No node keypair loaded; records will be rejected as unsigned by peers"),
+            }
+
             {
                 let mut history = hist_loop.write().await;
-                history.record_update(my_update.clone());
+                history.record_update(my_update.clone()).await;
                 for review in &reviews {
-                    history.record_update(review.clone());
+                    history.record_update(review.clone()).await;
                 }
             }
 

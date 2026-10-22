@@ -58,8 +58,33 @@ pub struct InferenceConfig {
     /// adapters and answers queries. For testing inference on saved adapters.
     #[serde(default)]
     pub serve_only: bool,
+    /// Max time to wait for a missing adapter before trying the next candidate.
+    #[serde(default = "default_fetch_timeout")]
+    pub fetch_timeout_secs: u64,
+    /// Max time to wait for the local sidecar to answer.
+    #[serde(default = "default_request_timeout")]
+    pub request_timeout_secs: u64,
+    /// Hard cap on tokens generated per query, whatever the caller asks for.
+    #[serde(default = "default_max_new_tokens_limit")]
+    pub max_new_tokens_limit: u32,
+    /// Longest accepted prompt, in characters.
+    #[serde(default = "default_max_prompt_chars")]
+    pub max_prompt_chars: usize,
+    /// Format prompts with the model's chat template (the adapters were trained on
+    /// chat-formatted data). Without it a chat model tends to continue the prompt
+    /// instead of answering it. A request can opt out with `"raw": true`.
+    #[serde(default = "default_true")]
+    pub chat_template: bool,
+    /// If set, `POST /infer` requires `Authorization: Bearer <token>`. The API
+    /// listens on `network.host`, which is usually 0.0.0.0, and each query costs GPU time.
+    #[serde(default)]
+    pub api_token: Option<String>,
 }
 
+fn default_fetch_timeout() -> u64 { 30 }
+fn default_request_timeout() -> u64 { 300 }
+fn default_max_new_tokens_limit() -> u32 { 1024 }
+fn default_max_prompt_chars() -> usize { 32 * 1024 }
 fn default_selection() -> String { "trust".to_string() }
 fn default_cache_max_adapters() -> usize { 16 }
 fn default_max_adapter_bytes() -> u64 { 2 * 1024 * 1024 * 1024 }
@@ -81,6 +106,12 @@ impl Default for InferenceConfig {
             sidecar_python: default_sidecar_python(),
             spawn_sidecar: true,
             serve_only: false,
+            fetch_timeout_secs: default_fetch_timeout(),
+            request_timeout_secs: default_request_timeout(),
+            max_new_tokens_limit: default_max_new_tokens_limit(),
+            max_prompt_chars: default_max_prompt_chars(),
+            chat_template: true,
+            api_token: None,
         }
     }
 }
@@ -197,6 +228,11 @@ pub struct NetworkConfig {
     /// If non-empty, only these peers may connect (whitelisting).
     #[serde(default)]
     pub allowed_peers: Option<Vec<String>>,
+    /// Reject model updates and peer reviews that are not signed by the key
+    /// behind their `node_id`. Turn off only while migrating a federation whose
+    /// nodes still run builds that send placeholder signatures.
+    #[serde(default = "default_true")]
+    pub require_signed_records: bool,
 }
 
 /// Which serverless discovery mechanisms this node participates in. All of them
@@ -260,6 +296,12 @@ impl Config {
         }
         if !matches!(config.inference.selection.as_str(), "trust" | "self" | "latest") {
             return Err("inference.selection must be one of: trust, self, latest".into());
+        }
+        if config.inference.max_new_tokens_limit == 0 {
+            return Err("inference.max_new_tokens_limit must be positive".into());
+        }
+        if config.inference.api_token.as_deref().map_or(false, |t| t.is_empty()) {
+            return Err("inference.api_token must not be empty (remove it to disable the check)".into());
         }
         if config.inference.enabled && config.inference.base_model.is_empty() {
             return Err("inference.base_model must be set when inference.enabled = true".into());

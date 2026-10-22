@@ -2,10 +2,10 @@ use crate::history::{ UpdateHistory, BoxError };
 use crate::config::Config;
 use crate::state::State;
 use crate::network::Network;
-use crate::inference::{ InferRequest, InferenceService };
+use crate::inference::{ InferRequest, InferenceService, InvalidRequest };
 use axum::{
     extract::{ Path, State as AxumState, WebSocketUpgrade, ws::{ WebSocket, Message } },
-    http::StatusCode,
+    http::{ HeaderMap, StatusCode },
     response::{ IntoResponse, Json },
     routing::{ get, post },
     Router,
@@ -250,17 +250,75 @@ async fn get_adapters(AxumState(state): AxumState<SharedState>) -> impl IntoResp
 /// if needed, and generate locally.
 async fn post_infer(
     AxumState(state): AxumState<SharedState>,
+    headers: HeaderMap,
     Json(req): Json<InferRequest>
 ) -> impl IntoResponse {
     let Some(svc) = &state.inference else {
         return inference_disabled().into_response();
     };
+    if !authorized(state.config.inference.api_token.as_deref(), &headers) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "unauthorized",
+                "message": "send Authorization: Bearer <inference.api_token>"
+            })),
+        ).into_response();
+    }
     match svc.infer(req).await {
         Ok(resp) => Json(serde_json::json!({ "success": true, "result": resp })).into_response(),
-        Err(e) => (
-            StatusCode::BAD_GATEWAY,
-            Json(serde_json::json!({ "success": false, "error": "inference_failed", "message": e.to_string() })),
-        ).into_response(),
+        Err(e) => {
+            let (status, kind) = if e.downcast_ref::<InvalidRequest>().is_some() {
+                (StatusCode::BAD_REQUEST, "invalid_request")
+            } else {
+                (StatusCode::BAD_GATEWAY, "inference_failed")
+            };
+            (
+                status,
+                Json(serde_json::json!({ "success": false, "error": kind, "message": e.to_string() })),
+            ).into_response()
+        }
+    }
+}
+
+/// `Authorization: Bearer <token>` check; open when no token is configured.
+fn authorized(token: Option<&str>, headers: &HeaderMap) -> bool {
+    let Some(expected) = token else { return true };
+    let given = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or("");
+    // Compare every byte so the time taken does not reveal how much of a guess was right.
+    given.len() == expected.len()
+        && given.bytes().zip(expected.bytes()).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn headers(v: Option<&str>) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        if let Some(v) = v {
+            h.insert(axum::http::header::AUTHORIZATION, v.parse().unwrap());
+        }
+        h
+    }
+
+    #[test]
+    fn no_token_configured_means_open() {
+        assert!(authorized(None, &headers(None)));
+    }
+
+    #[test]
+    fn token_must_match_exactly() {
+        assert!(authorized(Some("s3cret"), &headers(Some("Bearer s3cret"))));
+        assert!(!authorized(Some("s3cret"), &headers(Some("Bearer s3creT"))));
+        assert!(!authorized(Some("s3cret"), &headers(Some("Bearer s3cret!"))));
+        assert!(!authorized(Some("s3cret"), &headers(Some("s3cret"))));
+        assert!(!authorized(Some("s3cret"), &headers(None)));
     }
 }
 

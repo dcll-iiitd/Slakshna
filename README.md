@@ -348,21 +348,21 @@ Developers should modify `node_template.yaml` to adjust:
 
 ## Dataset Tokenization
 
-Before starting the federated training process, you must tokenize your dataset. The tokenization process converts your raw JSONL data into packed Parquet shards which the training engine loads directly.
+Tokenization is a **separate step that runs once, before training**. `ml_engine.py` never tokenizes: it only reads the result, and stops with a clear message if the dataset is missing, truncated, or was tokenized for a different base model (token ids from another model train without any error and silently give garbage).
 
-1. **Configure Tokenization:**
-   Navigate to the `Bhaskera` submodule and open the provided tokenization config:
-   `configs/tokenize_south_asia.yaml`.
-   Update the `data.path` to point to your raw JSONL dataset and `data.cache_dir` to your desired output directory.
+```bash
+source Bhaskera/bhaskera-activate.sh               # the Bhaskera training environment
+python scripts/tokenize_dataset.py                 # tokenize if needed
+python scripts/tokenize_dataset.py --check         # exit 0 only if training can start
+```
 
-2. **Run the Tokenizer:**
-   Run the following command from inside the `Bhaskera` directory:
-   ```bash
-   bhaskera-tokenize --config configs/tokenize_south_asia.yaml
-   ```
-   
-3. **Update Training Config:**
-   The command above will output a `tokenized_path:` snippet at the end. Copy this path and paste it into your `node_template.yaml` under `data.tokenized_path`.
+It reads `node_template.yaml` (the same file training uses), so the tokenizer, sequence length and data format match training exactly, writes into `data.tokenized_path` (which must be a real directory every node can read, not `"dummy"`), and stamps it with a `tokenizer_model.txt` naming `model.name`.
+
+| Situation | What to run |
+|---|---|
+| First run, or you changed `model.name` | `python scripts/tokenize_dataset.py --force` (an existing directory is moved aside to `<path>.bak-<time>`, never deleted) |
+| Existing cache from before this check, known to match `model.name` | `python scripts/tokenize_dataset.py --stamp` |
+| Several nodes sharing one path | tokenize once, then start the nodes |
 
 ---
 
@@ -542,6 +542,7 @@ git submodule update --init --recursive
 cargo build --release
 ./setup_serve.sh                       # serve venv with peft; training venv comes from setup.sh
 
+# 0b. Tokenize once (ml_engine no longer does it): python scripts/tokenize_dataset.py --check || python scripts/tokenize_dataset.py
 # 1. Train: each node creates and publishes its own adapter
 ./start_cluster.sh 2                   # uses examples/2node
 sed 's/\x1b\[[0-9;]*m//g' logs/node1_cluster.log | grep -E "Publishing adapter|ML Engine failed"

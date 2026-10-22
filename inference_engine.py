@@ -8,8 +8,11 @@ adapters per request, so the full forward pass runs on this machine.
 
 Protocol (loopback HTTP, JSON):
     GET  /health
-    POST /generate {prompt, max_new_tokens, temperature, adapter_id?, adapter_dir?}
+    POST /generate {prompt, max_new_tokens, temperature, adapter_id?, adapter_dir?, chat?, system?}
          -> {text, adapter_id}
+         chat (default true): wrap the prompt in the model's chat template, because the
+         adapters were trained on chat-formatted data; a chat model fed a bare prompt tends
+         to continue it ("What is LoRA?" -> " What is it used for?") instead of answering.
 
 The Rust node has already selected, downloaded and SHA-256-verified the adapter
 directory before calling /generate; this process never touches the network.
@@ -19,6 +22,7 @@ Environment:
     SLAKSHNA_INFER_BASE_MODEL  HF model name or local path
     SLAKSHNA_SERVE_PATH        path to the Bhaskera-serve checkout
     SLAKSHNA_INFER_MAX_ADAPTERS  adapters kept loaded at once (default 4)
+    SLAKSHNA_INFER_MAX_NEW_TOKENS  hard cap per request (default 2048)
 """
 from __future__ import annotations
 
@@ -33,6 +37,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 MAX_BODY_BYTES = 4 * 1024 * 1024
+MAX_NEW_TOKENS = int(os.environ.get("SLAKSHNA_INFER_MAX_NEW_TOKENS", "2048"))
+
+
+def format_prompt(tok, prompt: str, chat: bool = True, system: str | None = None) -> str:
+    """The text actually fed to the model. With a chat template (and chat=True) the
+    prompt becomes a user turn followed by the assistant-turn opener."""
+    if chat and getattr(tok, "chat_template", None):
+        messages = ([{"role": "system", "content": system}] if system else []) + [
+            {"role": "user", "content": prompt}
+        ]
+        return tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    return prompt
 
 
 def log(msg: str) -> None:
@@ -99,7 +115,18 @@ class AdapterModel:
             log(f"evicted adapter {victim[:12]}")
 
     def generate(self, prompt: str, max_new_tokens: int, temperature: float,
-                 adapter_id: str | None, adapter_dir: str | None) -> str:
+                 adapter_id: str | None, adapter_dir: str | None,
+                 chat: bool = True, system: str | None = None) -> str:
+        if not 0.0 <= temperature <= 2.0:
+            raise ValueError("temperature must be between 0 and 2")
+        max_new_tokens = max(1, min(max_new_tokens, MAX_NEW_TOKENS))
+        tok = self._engine.get_tokenizer()
+        prompt = format_prompt(tok, prompt, chat, system)
+        limit = getattr(getattr(self._engine._model, "config", None), "max_position_embeddings", None)
+        if limit:
+            n_prompt = len(tok(prompt)["input_ids"])
+            if n_prompt + max_new_tokens > limit:
+                raise ValueError(f"prompt ({n_prompt} tokens) plus max_new_tokens ({max_new_tokens}) exceeds the model limit of {limit}")
         params = self._GenerationParams(max_new_tokens=max_new_tokens, temperature=temperature)
         with self._lock:
             if adapter_id and adapter_dir:
@@ -151,8 +178,12 @@ def make_handler(model: AdapterModel):
                     float(req.get("temperature", 0.7)),
                     adapter_id,
                     adapter_dir,
+                    bool(req.get("chat", True)),
+                    req.get("system"),
                 )
                 self._send(200, {"text": text, "adapter_id": adapter_id})
+            except ValueError as e:  # bad temperature, prompt too long, ...
+                self._send(400, {"error": str(e)})
             except KeyError as e:
                 self._send(400, {"error": f"missing field {e}"})
             except Exception as e:  # surfaced to the Rust node, which degrades gracefully

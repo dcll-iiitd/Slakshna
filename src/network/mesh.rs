@@ -427,7 +427,7 @@ impl Network for MeshNetwork {
                                             match p2p_msg {
                                                 P2PMessage::NewUpdate(record) => {
                                                     let mut history = history_clone.write().await;
-                                                    history.record_update(record);
+                                                    history.record_update(record).await;
                                                 }
                                                 P2PMessage::AdapterAnnounce(meta) => {
                                                     let mut reg = registry_clone.write().await;

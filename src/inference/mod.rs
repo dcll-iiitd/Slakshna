@@ -13,7 +13,7 @@ use crate::network::mesh::MeshNetwork;
 use crate::network::Network;
 use crate::registry::{AdapterMeta, AdapterRegistry};
 use crate::state::State;
-use selector::{select, SelectionContext, Strategy};
+use selector::{rank, SelectionContext, Strategy};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -22,6 +22,22 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tracing::{info, warn};
+
+/// The caller's request is invalid (HTTP 400), as opposed to the node failing to serve it.
+#[derive(Debug)]
+pub struct InvalidRequest(pub String);
+
+impl std::fmt::Display for InvalidRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for InvalidRequest {}
+
+fn bad(msg: impl Into<String>) -> BoxError {
+    Box::new(InvalidRequest(msg.into()))
+}
 
 const WEIGHTS_FILE: &str = "adapter_model.safetensors";
 const CONFIG_FILE: &str = "adapter_config.json";
@@ -56,6 +72,12 @@ pub struct InferRequest {
     /// Falls through to normal selection if that node has none.
     #[serde(default)]
     pub from_node: Option<String>,
+    /// Optional system message for the chat template.
+    #[serde(default)]
+    pub system: Option<String>,
+    /// Send the prompt as-is, without the chat template.
+    #[serde(default)]
+    pub raw: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -81,6 +103,8 @@ struct SidecarRequest<'a> {
     temperature: f64,
     adapter_id: Option<&'a str>,
     adapter_dir: Option<&'a str>,
+    chat: bool,
+    system: Option<&'a str>,
 }
 
 #[derive(Deserialize)]
@@ -95,8 +119,9 @@ pub struct InferenceService {
     state: Arc<RwLock<State>>,
     network: Arc<RwLock<MeshNetwork>>,
     http: reqwest::Client,
-    /// Serialises downloads so two queries for the same adapter fetch it once.
-    fetch_lock: Mutex<()>,
+    /// One lock per adapter hash: two queries for the same adapter fetch it once, while
+    /// different adapters (and unrelated queries) are never stuck behind a slow download.
+    fetch_locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
     sidecar: Mutex<Option<tokio::process::Child>>,
 }
 
@@ -114,8 +139,12 @@ impl InferenceService {
             history,
             state,
             network,
-            http: reqwest::Client::new(),
-            fetch_lock: Mutex::new(()),
+            // A stuck sidecar must not hang the request forever.
+            http: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(config.inference.request_timeout_secs))
+                .build()
+                .unwrap_or_default(),
+            fetch_locks: Mutex::new(HashMap::new()),
             sidecar: Mutex::new(None),
         }
     }
@@ -249,13 +278,34 @@ impl InferenceService {
     // ------------------------------------------------------------------
 
     pub async fn infer(&self, req: InferRequest) -> Result<InferResponse, BoxError> {
+        let inf = &self.config.inference;
+
+        // Validate before any work: the API is reachable by anyone who can reach the port.
+        if req.prompt.trim().is_empty() {
+            return Err(bad("prompt is empty"));
+        }
+        if req.prompt.chars().count() > inf.max_prompt_chars {
+            return Err(bad(format!("prompt is longer than {} characters", inf.max_prompt_chars)));
+        }
+        let temperature = req.temperature.unwrap_or(0.7);
+        if !temperature.is_finite() || !(0.0..=2.0).contains(&temperature) {
+            return Err(bad("temperature must be between 0 and 2"));
+        }
+        let mut notes: Vec<String> = Vec::new();
+        let asked = req.max_tokens.unwrap_or(256).max(1);
+        let max_tokens = asked.min(inf.max_new_tokens_limit);
+        if max_tokens < asked {
+            notes.push(format!("max_tokens reduced from {asked} to the limit of {max_tokens}"));
+        }
+
         let strategy: Strategy = req
             .selection
             .as_deref()
-            .unwrap_or(&self.config.inference.selection)
-            .parse()?;
+            .unwrap_or(&inf.selection)
+            .parse()
+            .map_err(|e: String| bad(e))?;
 
-        // 3. Select from the local registry; no network involved.
+        // 3. Rank from the local registry; no network involved.
         let (candidates, registry): (Vec<AdapterMeta>, Arc<RwLock<AdapterRegistry>>) = {
             let registry = self.network.read().await.registry();
             let reg = registry.read().await;
@@ -273,30 +323,51 @@ impl InferenceService {
                 warn!("from_node {} has no adapter in the registry; using normal selection", n);
             }
         }
-        let chosen = select(
+        let ranked = rank(
             &refs,
             strategy,
             &SelectionContext {
                 own_node_id: &self.own_node_id,
                 local_trust: &local_trust,
-                min_trust: self.config.inference.min_trust,
-                base_model: &self.config.inference.base_model,
+                min_trust: inf.min_trust,
+                base_model: &inf.base_model,
             },
-        )
-        .cloned();
+        );
+        // Be honest when "trust" is not actually deciding anything.
+        if strategy == Strategy::Trust && req.from_node.is_none() && ranked.len() > 1 {
+            let t0 = local_trust.get(&ranked[0].node_id).copied().unwrap_or(0.0);
+            if ranked.iter().all(|m| local_trust.get(&m.node_id).copied().unwrap_or(0.0) == t0) {
+                notes.push("no trust scores separate the adapters yet; chose by newest round, then own adapter".into());
+            }
+        }
 
-        // 4-5. Fetch (if needed) and verify. Any failure degrades to the base model.
-        let mut note = None;
+        // 4-5. Fetch (if needed) and verify, walking down the ranking: one dead or
+        // corrupt adapter falls through to the next best before the base model.
+        const MAX_ATTEMPTS: usize = 3;
+        let deadline = std::time::Duration::from_secs(inf.fetch_timeout_secs);
         let mut used: Option<(AdapterMeta, PathBuf, bool)> = None;
-        match chosen {
-            Some(meta) => match self.ensure_adapter(&meta, &registry).await {
-                Ok((dir, hit)) => used = Some((meta, dir, hit)),
-                Err(e) => {
-                    warn!("⚠️ Adapter {} unavailable: {}", &meta.sha256[..12], e);
-                    note = Some(format!("adapter unavailable ({e}); answered with the base model"));
+        for meta in ranked.iter().take(MAX_ATTEMPTS) {
+            match tokio::time::timeout(deadline, self.ensure_adapter(meta, &registry)).await {
+                Ok(Ok((dir, hit))) => {
+                    used = Some(((*meta).clone(), dir, hit));
+                    break;
                 }
-            },
-            None => note = Some("no suitable adapter in the registry; answered with the base model".into()),
+                Ok(Err(e)) => {
+                    warn!("⚠️ Adapter {} unavailable: {}", &meta.sha256[..12], e);
+                    notes.push(format!("adapter {} unavailable ({e})", &meta.sha256[..12]));
+                }
+                Err(_) => {
+                    warn!("⚠️ Adapter {} timed out after {:?}", &meta.sha256[..12], deadline);
+                    notes.push(format!("adapter {} timed out", &meta.sha256[..12]));
+                }
+            }
+        }
+        if used.is_none() {
+            notes.push(if ranked.is_empty() {
+                "no suitable adapter in the registry; answered with the base model".into()
+            } else {
+                "no adapter could be fetched; answered with the base model".into()
+            });
         }
 
         // 6. Local forward pass.
@@ -304,14 +375,16 @@ impl InferenceService {
         let adapter_dir = used.as_ref().map(|(_, d, _)| d.to_string_lossy().to_string());
         let body = SidecarRequest {
             prompt: &req.prompt,
-            max_new_tokens: req.max_tokens.unwrap_or(256),
-            temperature: req.temperature.unwrap_or(0.7),
+            max_new_tokens: max_tokens,
+            temperature,
             adapter_id: adapter_id.as_deref(),
             adapter_dir: adapter_dir.as_deref(),
+            chat: inf.chat_template && !req.raw,
+            system: req.system.as_deref(),
         };
         let resp = self
             .http
-            .post(format!("http://127.0.0.1:{}/generate", self.config.inference.sidecar_port))
+            .post(format!("http://127.0.0.1:{}/generate", inf.sidecar_port))
             .json(&body)
             .send()
             .await
@@ -331,7 +404,7 @@ impl InferenceService {
                 sha256: m.sha256,
                 cache_hit: hit,
             }),
-            note,
+            note: if notes.is_empty() { None } else { Some(notes.join("; ")) },
         })
     }
 
@@ -348,7 +421,11 @@ impl InferenceService {
             return Ok((final_dir, true));
         }
 
-        let _guard = self.fetch_lock.lock().await;
+        let hash_lock = {
+            let mut locks = self.fetch_locks.lock().await;
+            locks.entry(meta.sha256.clone()).or_default().clone()
+        };
+        let _guard = hash_lock.lock().await;
         // Another query may have finished the download while we waited.
         if final_dir.join(WEIGHTS_FILE).is_file() && final_dir.join(CONFIG_FILE).is_file() {
             return Ok((final_dir, true));

@@ -6,6 +6,7 @@ use std::path::Path;
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 const PEER_PREFIX: &[u8] = b"peer:";
+const REVIEW_PREFIX: &[u8] = b"review:";
 
 fn peer_key(endpoint_id: &str) -> Vec<u8> {
     let mut key = PEER_PREFIX.to_vec();
@@ -141,6 +142,31 @@ impl State {
         for item in iter {
             let Ok((key, value)) = item else { continue };
             if !key.starts_with(ADAPTER_PREFIX) {
+                break;
+            }
+            if let Ok(s) = String::from_utf8(value.to_vec()) {
+                out.push(s);
+            }
+        }
+        out
+    }
+
+    /// Persist one signed peer review (JSON) under `review:<reviewer>:<round>:<target>`.
+    /// Reviews are tiny, unlike model updates, and without them every restart forgets
+    /// all trust: selection then silently degrades to a tie-break.
+    pub fn save_review(&mut self, reviewer: &str, round: u64, target: &str, json: &str) -> Result<(), BoxError> {
+        let mut key = REVIEW_PREFIX.to_vec();
+        key.extend_from_slice(format!("{}:{:020}:{}", reviewer, round, target).as_bytes());
+        self.db.put(key, json.as_bytes())?;
+        Ok(())
+    }
+
+    pub fn load_reviews(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        let iter = self.db.iterator(IteratorMode::From(REVIEW_PREFIX, Direction::Forward));
+        for item in iter {
+            let Ok((key, value)) = item else { continue };
+            if !key.starts_with(REVIEW_PREFIX) {
                 break;
             }
             if let Ok(s) = String::from_utf8(value.to_vec()) {

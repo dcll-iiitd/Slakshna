@@ -45,5 +45,12 @@ serve_bhaskera_path = "Bhaskera-serve"
 spawn_sidecar = false                  # no model server while training (saves GPU memory)
 serve_only = false
 
+# Optional inference limits (defaults shown):
+# fetch_timeout_secs = 30       # wait this long for a missing adapter, then try the next best
+# request_timeout_secs = 300    # wait this long for the local model
+# max_new_tokens_limit = 1024   # hard cap per query
+# chat_template = true          # wrap prompts in the model's chat template
+# api_token = "change-me"       # require "Authorization: Bearer ..." on POST /infer
+
 [logging]
 level = "info"

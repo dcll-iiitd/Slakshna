@@ -37,52 +37,59 @@ pub struct SelectionContext<'a> {
     pub base_model: &'a str,
 }
 
-/// Pick the adapter to serve a query with. Falls back to this node's own
-/// adapter when the strategy finds nothing; `None` means "use the base model".
+/// Candidates in the order a query should try them, best first. The caller walks the
+/// list, so one unreachable or corrupt adapter falls through to the next best one
+/// instead of straight to the base model. Falls back to this node's own adapter
+/// (always in the list unless `SelfOnly` has none). Empty means "use the base model".
+///
+/// Ties are broken towards this node's own adapter (when nothing separates two
+/// adapters, the personalised one is the safe choice), then by node id so the order
+/// is deterministic rather than depending on hash-map iteration.
+pub fn rank<'a>(
+    candidates: &[&'a AdapterMeta],
+    strategy: Strategy,
+    ctx: &SelectionContext,
+) -> Vec<&'a AdapterMeta> {
+    use std::cmp::Ordering;
+
+    let trust_of = |m: &AdapterMeta| ctx.local_trust.get(&m.node_id).copied().unwrap_or(0.0);
+    let is_own = |m: &AdapterMeta| m.node_id == ctx.own_node_id;
+    let mut usable: Vec<&'a AdapterMeta> = candidates
+        .iter()
+        .copied()
+        .filter(|m| ctx.base_model.is_empty() || m.base_model == ctx.base_model)
+        // A node's own adapter is always acceptable; peers must clear min_trust.
+        .filter(|m| is_own(m) || trust_of(m) >= ctx.min_trust)
+        .collect();
+
+    let by_trust = |a: &AdapterMeta, b: &AdapterMeta| {
+        trust_of(b).partial_cmp(&trust_of(a)).unwrap_or(Ordering::Equal)
+    };
+    // Descending in everything that is "better", then own first, then node id.
+    let tail = |a: &AdapterMeta, b: &AdapterMeta| is_own(b).cmp(&is_own(a)).then_with(|| a.node_id.cmp(&b.node_id));
+
+    match strategy {
+        Strategy::SelfOnly => {
+            usable.retain(|m| is_own(m));
+            usable.sort_by(|a, b| b.round.cmp(&a.round));
+        }
+        Strategy::Trust => usable.sort_by(|a, b| {
+            by_trust(a, b).then(b.round.cmp(&a.round)).then_with(|| tail(a, b))
+        }),
+        Strategy::Latest => usable.sort_by(|a, b| {
+            b.round.cmp(&a.round).then_with(|| by_trust(a, b)).then_with(|| tail(a, b))
+        }),
+    }
+    usable
+}
+
+/// The single best candidate, see [`rank`].
 pub fn select<'a>(
     candidates: &[&'a AdapterMeta],
     strategy: Strategy,
     ctx: &SelectionContext,
 ) -> Option<&'a AdapterMeta> {
-    let trust_of = |m: &AdapterMeta| ctx.local_trust.get(&m.node_id).copied().unwrap_or(0.0);
-    let usable: Vec<&'a AdapterMeta> = candidates
-        .iter()
-        .copied()
-        .filter(|m| ctx.base_model.is_empty() || m.base_model == ctx.base_model)
-        // A node's own adapter is always acceptable; peers must clear min_trust.
-        .filter(|m| m.node_id == ctx.own_node_id || trust_of(*m) >= ctx.min_trust)
-        .collect();
-
-    let newest_own = || {
-        usable
-            .iter()
-            .filter(|m| m.node_id == ctx.own_node_id)
-            .max_by_key(|m| m.round)
-            .copied()
-    };
-
-    let preferred = match strategy {
-        Strategy::SelfOnly => newest_own(),
-        Strategy::Trust => usable.iter().copied().max_by(|a, b| {
-            trust_of(*a)
-                .partial_cmp(&trust_of(*b))
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then(a.round.cmp(&b.round))
-                .then_with(|| b.node_id.cmp(&a.node_id))
-        }),
-        Strategy::Latest => usable.iter().copied().max_by(|a, b| {
-            a.round
-                .cmp(&b.round)
-                .then(
-                    trust_of(*a)
-                        .partial_cmp(&trust_of(*b))
-                        .unwrap_or(std::cmp::Ordering::Equal),
-                )
-                .then_with(|| b.node_id.cmp(&a.node_id))
-        }),
-    };
-
-    preferred.or_else(newest_own)
+    rank(candidates, strategy, ctx).into_iter().next()
 }
 
 #[cfg(test)]
@@ -149,6 +156,38 @@ mod tests {
         let trust = HashMap::new();
         let got = select(&[&a, &b], Strategy::Latest, &ctx(&trust, 0.0)).unwrap();
         assert_eq!(got.node_id, "b");
+    }
+
+    #[test]
+    fn ties_go_to_the_own_adapter_not_to_whoever_sorts_first() {
+        // No trust information at all (e.g. a freshly restarted serve-only node), same round.
+        let (me, a) = (meta("zzz-me", 3, "base"), meta("aaa", 3, "base"));
+        let trust = HashMap::new();
+        let c = SelectionContext { own_node_id: "zzz-me", local_trust: &trust, min_trust: 0.0, base_model: "base" };
+        assert_eq!(select(&[&a, &me], Strategy::Trust, &c).unwrap().node_id, "zzz-me");
+        assert_eq!(select(&[&a, &me], Strategy::Latest, &c).unwrap().node_id, "zzz-me");
+    }
+
+    #[test]
+    fn rank_is_a_full_fallback_order() {
+        let (me, a, b) = (meta("me", 1, "base"), meta("a", 2, "base"), meta("b", 2, "base"));
+        let trust = HashMap::from([("a".to_string(), 0.3), ("b".to_string(), 0.6), ("me".to_string(), 0.1)]);
+        let order: Vec<&str> = rank(&[&me, &a, &b], Strategy::Trust, &ctx(&trust, 0.0))
+            .iter()
+            .map(|m| m.node_id.as_str())
+            .collect();
+        assert_eq!(order, vec!["b", "a", "me"]);
+    }
+
+    #[test]
+    fn rank_self_only_has_just_own_adapters_newest_first() {
+        let (old, new, a) = (meta("me", 1, "base"), meta("me", 4, "base"), meta("a", 9, "base"));
+        let trust = HashMap::from([("a".to_string(), 9.0)]);
+        let order: Vec<u64> = rank(&[&old, &a, &new], Strategy::SelfOnly, &ctx(&trust, 0.0))
+            .iter()
+            .map(|m| m.round)
+            .collect();
+        assert_eq!(order, vec![4, 1]);
     }
 
     #[test]

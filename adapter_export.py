@@ -56,8 +56,15 @@ def export_adapter(
 ) -> dict[str, Any]:
     """Write the adapter and return the fields ml_engine adds to its output."""
     cleaned, auto_rank, auto_targets = normalize_lora_keys(state_dict)
-    final_rank = rank if rank is not None else auto_rank
-    final_targets = target_modules if target_modules else auto_targets
+    # The tensors are the ground truth. The template's `lora.rank` is not even what
+    # Bhaskera reads (it reads `lora.r`, default 16), so a mismatching config would
+    # produce an adapter PEFT refuses to load. Only alpha cannot be read off the tensors.
+    if rank is not None and rank != auto_rank:
+        print(f"[adapter_export] config rank {rank} != rank {auto_rank} found in the weights; using {auto_rank}", file=sys.stderr)
+    if target_modules and sorted(target_modules) != sorted(auto_targets):
+        print(f"[adapter_export] config target_modules {target_modules} != {auto_targets} found in the weights; using the latter", file=sys.stderr)
+    final_rank = auto_rank
+    final_targets = auto_targets
     final_alpha = alpha if alpha is not None else 4 * final_rank
     target_dtype = _DTYPES.get(dtype.lower(), torch.bfloat16)
 

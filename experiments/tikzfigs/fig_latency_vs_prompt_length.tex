@@ -1,0 +1,70 @@
+% TikZ Figure: TTFT & MFU vs Prompt Length
+% Usage: \input{tikzfigs/fig_latency_vs_prompt_length.tex}
+% Self-contained color definitions
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+\providecolor{vllmred}{RGB}{209,73,91}
+\providecolor{basegray}{RGB}{154,164,174}
+\providecolor{traingreen}{RGB}{89,161,79}
+\begin{tikzpicture}
+% Left Subplot: TTFT
+\begin{axis}[
+    name=ax1,
+    width=0.48\textwidth,
+    height=4.8cm,
+    xmode=log,
+    log basis x={2},
+    xlabel={Prompt Length (tokens)},
+    ylabel={TTFT (ms, median)},
+    xtick={128, 256, 512, 1024, 2048, 4096},
+    xticklabels={128, 256, 512, 1k, 2k, 4k},
+    ymin=0, ymax=260,
+    yticklabel style={font=\scriptsize},
+    xticklabel style={font=\scriptsize},
+    label style={font=\small},
+    title style={font=\small\bfseries},
+    title={Prefill Latency (TTFT)},
+    grid=major,
+    grid style={dashed, gray!25},
+    legend style={font=\scriptsize, at={(0.03,0.97)}, anchor=north west, draw=gray!40, fill=white}
+]
+\addplot[color=oursblue, mark=*, thick] coordinates {
+    (128, 54.2) (256, 54.8) (512, 58.2) (1024, 74.4) (2048, 122.9) (4096, 228.4)
+};
+\addplot[color=vllmred, mark=square*, thick] coordinates {
+    (128, 28.1) (256, 28.5) (512, 37.9) (1024, 80.6) (2048, 104.1) (4096, 203.2)
+};
+\legend{Slakshna (Ours), Central vLLM}
+\end{axis}
+
+% Right Subplot: MFU (%)
+\begin{axis}[
+    name=ax2,
+    at={($(ax1.east)+(1.2cm,0)$)},
+    width=0.48\textwidth,
+    height=4.8cm,
+    xmode=log,
+    log basis x={2},
+    xlabel={Prompt Length (tokens)},
+    ylabel={Hardware MFU (\% Peak)},
+    xtick={128, 256, 512, 1024, 2048, 4096},
+    xticklabels={128, 256, 512, 1k, 2k, 4k},
+    ymin=0, ymax=50,
+    yticklabel style={font=\scriptsize},
+    xticklabel style={font=\scriptsize},
+    label style={font=\small},
+    title style={font=\small\bfseries},
+    title={GPU Compute Efficiency},
+    grid=major,
+    grid style={dashed, gray!25},
+    legend style={font=\scriptsize, at={(0.03,0.97)}, anchor=north west, draw=gray!40, fill=white}
+]
+\addplot[color=oursblue, mark=*, thick] coordinates {
+    (128, 5.2) (256, 10.5) (512, 20.7) (1024, 32.6) (2048, 38.5) (4096, 41.9)
+};
+\addplot[color=vllmred, mark=square*, thick] coordinates {
+    (128, 8.0) (256, 15.2) (512, 23.2) (1024, 22.1) (2048, 35.4) (4096, 38.7)
+};
+\legend{Slakshna (Ours), Central vLLM}
+\end{axis}
+\end{tikzpicture}

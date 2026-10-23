@@ -1,0 +1,70 @@
+% TikZ Figure: Accuracy by Selection Method (AG News)
+% Usage: \input{tikzfigs/fig_accuracy_by_selection_method.tex}
+% Self-contained color definitions
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+\providecolor{vllmred}{RGB}{209,73,91}
+\providecolor{basegray}{RGB}{154,164,174}
+\providecolor{traingreen}{RGB}{89,161,79}
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}
+\begin{axis}[
+    xbar,
+    width=6.6cm,
+    height=7.2cm,
+    xmin=0, xmax=112,
+    xtick={0, 20, 40, 60, 80, 100},
+    xlabel={Accuracy (\%)},
+    symbolic y coords={
+        {Own adapter only},
+        {Random peer adapter},
+        {Majority vote},
+        {Base model},
+        {Local-only training},
+        {Merged average},
+        {Query-aware routing},
+        {Centralized (upper bound)}
+    },
+    ytick=data,
+    yticklabel style={font=\scriptsize, align=right},
+    xticklabel style={font=\scriptsize},
+    xlabel style={font=\small},
+    nodes near coords,
+    nodes near coords style={font=\tiny, text=black, anchor=west},
+    nodes near coords align={horizontal},
+    point meta=rawx,
+    bar width=6pt,
+    enlarge y limits=0.08,
+    legend style={font=\scriptsize, at={(0.5,-0.18)}, anchor=north, legend columns=2, draw=gray!40, fill=white},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+
+% All Topics (Global Balanced Test Set)
+\addplot[fill=oursblue!85, draw=oursblue] coordinates {
+    (52.4,{Own adapter only})
+    (52.4,{Random peer adapter})
+    (70.5,{Majority vote})
+    (71.3,{Base model})
+    (55.1,{Local-only training})
+    (83.9,{Merged average})
+    (84.3,{Query-aware routing})
+    (87.2,{Centralized (upper bound)})
+};
+
+% Node's Own Mix (Local Skewed Test Set)
+\addplot[fill=boundorange!85, draw=boundorange] coordinates {
+    (95.2,{Own adapter only})
+    (52.6,{Random peer adapter})
+    (69.9,{Majority vote})
+    (64.6,{Base model})
+    (95.2,{Local-only training})
+    (84.4,{Merged average})
+    (85.6,{Query-aware routing})
+    (87.6,{Centralized (upper bound)})
+};
+
+\legend{All Topics (Global Test), Node's Own Mix (Local Test)}
+\end{axis}
+\end{tikzpicture}%
+}

@@ -1,0 +1,104 @@
+\documentclass[twocolumn]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{calc,positioning,patterns}
+
+% Professional A* Color Palette
+\definecolor{oursblue}{RGB}{46,111,183}
+\definecolor{vllmred}{RGB}{209,73,91}
+\definecolor{basegray}{RGB}{154,164,174}
+\definecolor{boundorange}{RGB}{224,164,58}
+\definecolor{traingreen}{RGB}{89,161,79}
+
+\title{\textbf{Slakshna: P2P Federated Inference Figures Preview}}
+\author{Research Team}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Selection Method Comparison}
+\begin{figure}[h]
+\centering
+\input{fig_accuracy_by_selection_method.tex}
+\caption{Accuracy across adapter selection strategies on AG News.}
+\label{fig:accuracy_by_selection}
+\end{figure}
+
+\section{Topic Specialization Matrix}
+\begin{figure}[h]
+\centering
+\input{fig_accuracy_per_topic.tex}
+\caption{Cross-topic accuracy heatmap demonstrating client blind spots.}
+\label{fig:topic_heatmap}
+\end{figure}
+
+\section{Cold vs. Warm Serving Latency}
+\begin{figure}[h]
+\centering
+\input{fig_latency_cold_vs_warm.tex}
+\caption{TTFT breakdown: cold P2P fetch vs. in-memory warm cache.}
+\label{fig:latency_cold_warm}
+\end{figure}
+
+\section{Prompt Length Scaling}
+\begin{figure*}[t]
+\centering
+\input{fig_latency_vs_prompt_length.tex}
+\caption{Prefill TTFT and hardware MFU as prompt length scales to 4k tokens.}
+\label{fig:prompt_length}
+\end{figure*}
+
+\section{Decoding Speed and E2E Latency}
+\begin{figure*}[t]
+\centering
+\input{fig_latency_vs_output_length.tex}
+\caption{Decoding TPOT and total latency across generated sequence lengths.}
+\label{fig:output_length}
+\end{figure*}
+
+\section{Concurrency and Throughput}
+\begin{figure*}[t]
+\centering
+\input{fig_throughput_vs_concurrency.tex}
+\caption{Throughput and goodput scaling under concurrent request loads.}
+\label{fig:concurrency}
+\end{figure*}
+
+\section{Fault Tolerance and Failover}
+\begin{figure*}[t]
+\centering
+\input{fig_fault_tolerance.tex}
+\caption{System availability and latency during peer node crashes.}
+\label{fig:fault_tolerance}
+\end{figure*}
+
+\section{P2P Adapter Fetch vs Size}
+\begin{figure}[h]
+\centering
+\input{fig_fetch_vs_adapter_size.tex}
+\caption{P2P transfer time vs. GPU attachment time across LoRA ranks.}
+\label{fig:fetch_size}
+\end{figure}
+
+\section{Network Traffic and Privacy}
+\begin{figure}[h]
+\centering
+\input{fig_communication_bytes.tex}
+\caption{Communication bytes per query and prompt data exposure.}
+\label{fig:communication}
+\end{figure}
+
+\section{Dolly Generation Quality}
+\begin{figure}[h]
+\centering
+\input{fig_dolly_generation_quality.tex}
+\caption{Open-ended answer quality (BERTScore-F1) on Dolly-15k.}
+\label{fig:dolly_quality}
+\end{figure}
+
+\end{document}

@@ -1,0 +1,47 @@
+% TikZ Figure: Network Traffic and Prompt Privacy
+% Usage: \input{tikzfigs/fig_communication_bytes.tex}
+% Self-contained color definitions
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+\providecolor{vllmred}{RGB}{209,73,91}
+\providecolor{basegray}{RGB}{154,164,174}
+\providecolor{traingreen}{RGB}{89,161,79}
+\begin{tikzpicture}
+\begin{axis}[
+    ybar,
+    width=0.55\textwidth,
+    height=5.4cm,
+    ymode=log,
+    log basis y={10},
+    ymin=1, ymax=2000000,
+    ylabel={Bytes per Query (Log Scale)},
+    symbolic x coords={{Slakshna P2P}, {Central vLLM}, {Layer-Split (Petals)}},
+    xtick=data,
+    xticklabel style={font=\scriptsize\bfseries},
+    yticklabel style={font=\scriptsize},
+    label style={font=\small},
+    bar width=14pt,
+    legend style={font=\scriptsize, at={(0.5,-0.22)}, anchor=north, legend columns=2, draw=gray!40, fill=white},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+
+% Prompt Bytes Sent Off-Device (0 for Slakshna -> plotted as 1 for log scale)
+\addplot[fill=vllmred!85, draw=vllmred] coordinates {
+    ({Slakshna P2P}, 1)
+    ({Central vLLM}, 389)
+    ({Layer-Split (Petals)}, 254540)
+};
+
+% Network Bytes per Warm Query (0 for Slakshna -> plotted as 1 for log scale)
+\addplot[fill=oursblue!85, draw=oursblue] coordinates {
+    ({Slakshna P2P}, 1)
+    ({Central vLLM}, 608)
+    ({Layer-Split (Petals)}, 1318779)
+};
+
+\node at (axis cs:{Slakshna P2P}, 2) [anchor=south, font=\scriptsize\bfseries, color=oursblue] {0 Bytes (100\% Private)};
+
+\legend{Prompt Bytes Leaked Off-Device, Net Bandwidth / Query (Warm)}
+\end{axis}
+\end{tikzpicture}

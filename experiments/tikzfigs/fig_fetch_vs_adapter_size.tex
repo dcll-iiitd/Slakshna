@@ -1,0 +1,40 @@
+% TikZ Figure: Adapter Fetch & Attach vs File Size
+% Usage: \input{tikzfigs/fig_fetch_vs_adapter_size.tex}
+% Self-contained color definitions
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+\providecolor{vllmred}{RGB}{209,73,91}
+\providecolor{basegray}{RGB}{154,164,174}
+\providecolor{traingreen}{RGB}{89,161,79}
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.55\textwidth,
+    height=5.2cm,
+    xlabel={LoRA Adapter File Size (MB)},
+    ylabel={Latency (ms)},
+    ymin=0, ymax=720,
+    xmin=0, xmax=36,
+    xticklabel style={font=\scriptsize},
+    yticklabel style={font=\scriptsize},
+    label style={font=\small},
+    grid=major,
+    grid style={dashed, gray!25},
+    legend style={font=\scriptsize, at={(0.03,0.97)}, anchor=north west, draw=gray!40, fill=white}
+]
+% Fetch + verify
+\addplot[color=oursblue, mark=*, thick] coordinates {
+    (2.09, 39.0) (4.17, 59.2) (16.64, 198.3) (33.26, 343.5)
+};
+% Attach
+\addplot[color=boundorange, mark=square*, thick] coordinates {
+    (2.09, 268.5) (4.17, 279.3) (16.64, 451.9) (33.26, 643.8)
+};
+
+\node at (axis cs:2.09,39.0) [anchor=south west, font=\tiny] {$r=8$ (39 ms)};
+\node at (axis cs:4.17,59.2) [anchor=south west, font=\tiny\bfseries] {$r=16$ (59 ms)};
+\node at (axis cs:16.64,198.3) [anchor=south west, font=\tiny] {$r=64$ (198 ms)};
+\node at (axis cs:33.26,343.5) [anchor=south west, font=\tiny] {$r=128$ (344 ms)};
+
+\legend{P2P Network Fetch \& Verify, GPU LoRA Weight Attach}
+\end{axis}
+\end{tikzpicture}

@@ -1,0 +1,70 @@
+% TikZ Figure: Throughput & Goodput vs Concurrency
+% Usage: \input{tikzfigs/fig_throughput_vs_concurrency.tex}
+% Self-contained color definitions
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+\providecolor{vllmred}{RGB}{209,73,91}
+\providecolor{basegray}{RGB}{154,164,174}
+\providecolor{traingreen}{RGB}{89,161,79}
+\begin{tikzpicture}
+% Left: Throughput (tokens/s)
+\begin{axis}[
+    name=ax1,
+    width=0.48\textwidth,
+    height=4.8cm,
+    xmode=log,
+    log basis x={2},
+    xlabel={Concurrent Requests},
+    ylabel={Throughput (tokens/s)},
+    xtick={1, 2, 4, 8, 16},
+    xticklabels={1, 2, 4, 8, 16},
+    ymin=0, ymax=1850,
+    yticklabel style={font=\scriptsize},
+    xticklabel style={font=\scriptsize},
+    label style={font=\small},
+    title style={font=\small\bfseries},
+    title={Aggregate Throughput},
+    grid=major,
+    grid style={dashed, gray!25},
+    legend style={font=\scriptsize, at={(0.03,0.97)}, anchor=north west, draw=gray!40, fill=white}
+]
+\addplot[color=vllmred, mark=square*, thick] coordinates {
+    (1, 132.5) (2, 265.9) (4, 504.8) (8, 953.3) (16, 1692.0)
+};
+\addplot[color=oursblue, mark=*, thick] coordinates {
+    (1, 32.5) (2, 32.8) (4, 32.5) (8, 32.6) (16, 32.6)
+};
+\legend{Central vLLM (Batched), Slakshna Edge (Queued)}
+\end{axis}
+
+% Right: Goodput (req/s meeting SLO)
+\begin{axis}[
+    name=ax2,
+    at={($(ax1.east)+(1.2cm,0)$)},
+    width=0.48\textwidth,
+    height=4.8cm,
+    xmode=log,
+    log basis x={2},
+    xlabel={Concurrent Requests},
+    ylabel={Goodput (req/s, SLO met)},
+    xtick={1, 2, 4, 8, 16},
+    xticklabels={1, 2, 4, 8, 16},
+    ymin=0, ymax=15,
+    yticklabel style={font=\scriptsize},
+    xticklabel style={font=\scriptsize},
+    label style={font=\small},
+    title style={font=\small\bfseries},
+    title={SLO-Compliant Goodput},
+    grid=major,
+    grid style={dashed, gray!25},
+    legend style={font=\scriptsize, at={(0.03,0.97)}, anchor=north west, draw=gray!40, fill=white}
+]
+\addplot[color=vllmred, mark=square*, thick] coordinates {
+    (1, 1.04) (2, 2.08) (4, 3.94) (8, 7.45) (16, 13.22)
+};
+\addplot[color=oursblue, mark=*, thick] coordinates {
+    (1, 0.25) (2, 0.032) (4, 0.016) (8, 0.008) (16, 0.004)
+};
+\legend{Central vLLM, Slakshna Edge}
+\end{axis}
+\end{tikzpicture}

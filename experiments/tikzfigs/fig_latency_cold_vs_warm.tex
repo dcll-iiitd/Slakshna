@@ -1,0 +1,41 @@
+% TikZ Figure: Cold vs Warm TTFT Breakdown
+% Usage: \input{tikzfigs/fig_latency_cold_vs_warm.tex}
+% Self-contained color definitions
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+\providecolor{vllmred}{RGB}{209,73,91}
+\providecolor{basegray}{RGB}{154,164,174}
+\providecolor{traingreen}{RGB}{89,161,79}
+\begin{tikzpicture}
+\begin{axis}[
+    xbar stacked,
+    width=0.48\textwidth,
+    height=4.0cm,
+    xmin=0, xmax=620,
+    xlabel={Time to First Token (ms)},
+    symbolic y coords={{Warm (Cached)}, {Cold (P2P Fetch)}},
+    ytick=data,
+    yticklabel style={font=\footnotesize},
+    xticklabel style={font=\footnotesize},
+    xlabel style={font=\small},
+    bar width=14pt,
+    legend style={font=\scriptsize, at={(0.5,-0.38)}, anchor=north, legend columns=2, draw=gray!40, fill=white},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+
+% 1. Selection / Rank (<0.1ms)
+\addplot[fill=cyan!75!blue, draw=none] coordinates {(0.05,{Warm (Cached)}) (0.03,{Cold (P2P Fetch)})};
+% 2. P2P Download + Verify
+\addplot[fill=vllmred!80, draw=none] coordinates {(0.08,{Warm (Cached)}) (55.92,{Cold (P2P Fetch)})};
+% 3. LoRA Attach
+\addplot[fill=boundorange!90, draw=none] coordinates {(5.54,{Warm (Cached)}) (180.80,{Cold (P2P Fetch)})};
+% 4. Model Prefill (First Token)
+\addplot[fill=traingreen!80, draw=none] coordinates {(108.23,{Warm (Cached)}) (313.61,{Cold (P2P Fetch)})};
+
+\node at (axis cs:135,{Warm (Cached)}) [anchor=west, font=\scriptsize\bfseries] {113.9 ms};
+\node at (axis cs:565,{Cold (P2P Fetch)}) [anchor=west, font=\scriptsize\bfseries] {550.4 ms};
+
+\legend{Registry Select, P2P Fetch \& Verify, GPU LoRA Attach, Model First Token}
+\end{axis}
+\end{tikzpicture}

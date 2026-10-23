@@ -1,0 +1,70 @@
+% TikZ Figure: TPOT & End-to-End Latency vs Output Length
+% Usage: \input{tikzfigs/fig_latency_vs_output_length.tex}
+% Self-contained color definitions
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+\providecolor{vllmred}{RGB}{209,73,91}
+\providecolor{basegray}{RGB}{154,164,174}
+\providecolor{traingreen}{RGB}{89,161,79}
+\begin{tikzpicture}
+% Left Subplot: TPOT (ms/token)
+\begin{axis}[
+    name=ax1,
+    width=0.48\textwidth,
+    height=4.8cm,
+    xmode=log,
+    log basis x={2},
+    xlabel={Output Length (tokens)},
+    ylabel={Time per Token (ms/tok)},
+    xtick={16, 64, 128, 256, 512},
+    xticklabels={16, 64, 128, 256, 512},
+    ymin=0, ymax=40,
+    yticklabel style={font=\scriptsize},
+    xticklabel style={font=\scriptsize},
+    label style={font=\small},
+    title style={font=\small\bfseries},
+    title={Decoding Speed (TPOT)},
+    grid=major,
+    grid style={dashed, gray!25},
+    legend style={font=\scriptsize, at={(0.97,0.50)}, anchor=east, draw=gray!40, fill=white}
+]
+\addplot[color=oursblue, mark=*, thick] coordinates {
+    (16, 30.55) (64, 30.64) (128, 30.61) (256, 30.32) (512, 30.54)
+};
+\addplot[color=vllmred, mark=square*, thick] coordinates {
+    (16, 7.15) (64, 7.25) (128, 7.27) (256, 7.28) (512, 7.29)
+};
+\legend{Slakshna (30.5 ms/tok), vLLM (7.3 ms/tok)}
+\end{axis}
+
+% Right Subplot: Total End-to-End Latency (s)
+\begin{axis}[
+    name=ax2,
+    at={($(ax1.east)+(1.2cm,0)$)},
+    width=0.48\textwidth,
+    height=4.8cm,
+    xmode=log,
+    log basis x={2},
+    xlabel={Output Length (tokens)},
+    ylabel={End-to-End Latency (s)},
+    xtick={16, 64, 128, 256, 512},
+    xticklabels={16, 64, 128, 256, 512},
+    ymin=0, ymax=18,
+    yticklabel style={font=\scriptsize},
+    xticklabel style={font=\scriptsize},
+    label style={font=\small},
+    title style={font=\small\bfseries},
+    title={Total Request Time},
+    grid=major,
+    grid style={dashed, gray!25},
+    legend style={font=\scriptsize, at={(0.03,0.97)}, anchor=north west, draw=gray!40, fill=white}
+]
+\addplot[color=oursblue, mark=*, thick] coordinates {
+    (16, 0.51) (64, 1.99) (128, 3.94) (256, 7.79) (512, 15.67)
+};
+\addplot[color=vllmred, mark=square*, thick] coordinates {
+    (16, 0.14) (64, 0.49) (128, 0.95) (256, 1.89) (512, 3.76)
+};
+\legend{Slakshna (Ours), Central vLLM}
+\end{axis}
+\end{tikzpicture}

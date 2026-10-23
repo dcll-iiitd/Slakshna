@@ -1,0 +1,60 @@
+% TikZ Figure: Dolly Open-Ended Generation Quality
+% Usage: \input{tikzfigs/fig_dolly_generation_quality.tex}
+% Self-contained color definitions
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+\providecolor{vllmred}{RGB}{209,73,91}
+\providecolor{basegray}{RGB}{154,164,174}
+\providecolor{traingreen}{RGB}{89,161,79}
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}
+\begin{axis}[
+    xbar,
+    width=6.6cm,
+    height=5.2cm,
+    xmin=0, xmax=0.42,
+    xlabel={BERTScore-F1 (rescaled; higher is better)},
+    symbolic y coords={
+        {Base model},
+        {Own adapter only},
+        {Random peer adapter},
+        {Merged average},
+        {Query-aware routing}
+    },
+    ytick=data,
+    yticklabel style={font=\scriptsize, align=right},
+    xticklabel style={font=\scriptsize},
+    xlabel style={font=\small},
+    nodes near coords,
+    nodes near coords style={font=\tiny, text=black, anchor=west},
+    nodes near coords align={horizontal},
+    point meta=rawx,
+    bar width=7pt,
+    enlarge y limits=0.15,
+    legend style={font=\scriptsize, at={(0.5,-0.25)}, anchor=north, legend columns=2, draw=gray!40, fill=white},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+
+% All Tasks (Global Balanced Set)
+\addplot[fill=oursblue!85, draw=oursblue] coordinates {
+    (0.204,{Base model})
+    (0.294,{Own adapter only})
+    (0.294,{Random peer adapter})
+    (0.316,{Merged average})
+    (0.316,{Query-aware routing})
+};
+
+% Node's Own Mix (Local Task Skew)
+\addplot[fill=boundorange!85, draw=boundorange] coordinates {
+    (0.224,{Base model})
+    (0.335,{Own adapter only})
+    (0.325,{Random peer adapter})
+    (0.334,{Merged average})
+    (0.360,{Query-aware routing})
+};
+
+\legend{All Tasks (Global Benchmark), Node's Own Task Mix}
+\end{axis}
+\end{tikzpicture}%
+}

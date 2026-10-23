@@ -1,0 +1,58 @@
+% TikZ Figure: Fault Tolerance Under Peer Crashes
+% Usage: \input{tikzfigs/fig_fault_tolerance.tex}
+% Self-contained color definitions
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+\providecolor{vllmred}{RGB}{209,73,91}
+\providecolor{basegray}{RGB}{154,164,174}
+\providecolor{traingreen}{RGB}{89,161,79}
+\begin{tikzpicture}
+% Left: Availability (%)
+\begin{axis}[
+    name=ax1,
+    width=0.48\textwidth,
+    height=4.6cm,
+    xlabel={Number of Peer Nodes Offline},
+    ylabel={Queries Completed (\%)},
+    xtick={0, 1, 2},
+    xticklabels={0 (Healthy), 1 Peer Down, 2 Peers Down},
+    ymin=0, ymax=115,
+    yticklabel style={font=\scriptsize},
+    xticklabel style={font=\scriptsize},
+    label style={font=\small},
+    title style={font=\small\bfseries},
+    title={Service Availability},
+    grid=major,
+    grid style={dashed, gray!25},
+    legend style={font=\scriptsize, at={(0.03,0.30)}, anchor=south west, draw=gray!40, fill=white}
+]
+\addplot[color=oursblue, mark=*, thick] coordinates {(0, 100) (1, 100) (2, 100)};
+\addplot[color=vllmred, mark=x, thick, dashed, mark size=3.5pt] coordinates {(0, 100) (1, 0) (2, 0)};
+\legend{Slakshna P2P (100\%), Central Server (0\%)}
+\end{axis}
+
+% Right: Latency (s)
+\begin{axis}[
+    name=ax2,
+    at={($(ax1.east)+(1.2cm,0)$)},
+    width=0.48\textwidth,
+    height=4.6cm,
+    xlabel={Number of Peer Nodes Offline},
+    ylabel={Mean Latency (s)},
+    xtick={0, 1, 2},
+    xticklabels={0 (Healthy), 1 Peer Down, 2 Peers Down},
+    ymin=0, ymax=1.4,
+    yticklabel style={font=\scriptsize},
+    xticklabel style={font=\scriptsize},
+    label style={font=\small},
+    title style={font=\small\bfseries},
+    title={Failover Overhead},
+    grid=major,
+    grid style={dashed, gray!25},
+    legend style={font=\scriptsize, at={(0.03,0.97)}, anchor=north west, draw=gray!40, fill=white}
+]
+\addplot[color=oursblue, mark=*, thick] coordinates {(0, 0.124) (1, 0.122) (2, 0.122)};
+\addplot[color=boundorange, mark=triangle*, thick] coordinates {(0, 0.190) (1, 1.161) (2, 1.160)};
+\legend{Local Fallback (\texttt{self}), Dynamic Failover (\texttt{trust})}
+\end{axis}
+\end{tikzpicture}

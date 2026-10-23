@@ -5,23 +5,16 @@ Model Qwen2.5-1.5B-Instruct; adapters trained on the decision prompt; the node s
 ## Accuracy of each way of deciding
 ![decision_accuracy_by_method](figures/decision_accuracy_by_method.png)
 
-**How to read it.** Each bar is one way to make the decision: base model, the node's own adapter, the federated System One mix of all nodes' adapters (dark blue = as deployed: equal weights, prob_mean, all cyclic orderings) and other mixing variants, training baselines (green), upper bounds (orange). Top: all classes; bottom: the node's own class mix.
+**How to read it.** One row per way of deciding, grouped into baselines, single adapters and federated mixes (bold = plain average). All rows use the real probabilities of the trained adapters; plain average and log average are mixing rules the node supports (/decide 'combine' = prob_mean / logit_mean); confidence-weighted and question-aware were applied offline to the same adapter outputs to measure what they would give. Blue bar: questions on all topics; orange bar: questions with the node's own topic mix. * centralised training needs all data in one place (not private), shown as a reference.
 
-**What this run shows.** All classes: base 0.872, own adapter 0.758, federated mix 0.887, centralised 0.894, oracle member 0.977. Own mix: own adapter 0.942, federated mix 0.874.
+**What this run shows.** All topics: own adapter 0.758, base 0.872, federated mix (plain average) 0.887, query-aware mix 0.884, centralised 0.894. Own topic mix: own adapter 0.942, federated mix (plain average) 0.874, query-aware mix 0.887.
 
 ## How good are the probabilities?
 ![decision_calibration_metrics](figures/decision_calibration_metrics.png)
 
-**How to read it.** ECE: gap between confidence and accuracy (15 equal-width bins). Brier and NLL: proper scores of the full distribution. AURC: area under the risk-coverage curve (how well confidence ranks right above wrong answers).
+**How to read it.** Four standard scores of the probabilities, all 'lower is better'. Honesty (ECE): when a method says '80% sure', is it right 80% of the time? Overall probability error (Brier): squared distance between the predicted probabilities and the true answer. Penalty for confident mistakes (NLL): punishes being sure and wrong much more than being unsure and wrong. Ranking (AURC): are the right answers the confident ones?
 
-**What this run shows.** Federated mix: ECE 0.138, Brier 0.215, AURC 0.040; own adapter: ECE 0.152, AURC 0.125; base: ECE 0.086.
-
-## Does the deployed prompt format match how adapters were trained?
-![decision_prompt_format](figures/decision_prompt_format.png)
-
-**How to read it.** The node scores the raw System One prompt (next token after 'Answer:' is ' A'); the adapters were trained with the same prompt inside a chat turn (next token 'A').
-
-**What this run shows.** Mean absolute accuracy difference raw vs chat over methods: 0.008.
+**What this run shows.** Federated mix (plain average): ECE 0.138, Brier 0.215, NLL 0.417, AURC 0.040; question-aware mix: ECE 0.033; log-average mix: ECE 0.030; own adapter: ECE 0.152, NLL 0.893, AURC 0.125; base: ECE 0.086, NLL 0.724.
 
 ## Reliability diagrams
 ![decision_reliability](figures/decision_reliability.png)
@@ -44,12 +37,12 @@ Model Qwen2.5-1.5B-Instruct; adapters trained on the decision prompt; the node s
 
 **What this run shows.** Federated mix accuracy: 0.887 on all, 0.935 on the most confident 80%, 0.972 on the most confident 50%.
 
-## Reordering the options: bias and the cost of removing it
-![decision_position_bias](figures/decision_position_bias.png)
+## Does the order of the options change the decision?
+![decision_option_order](figures/decision_option_order.png)
 
-**How to read it.** Every question is scored with its correct answer at every letter, so class difficulty cancels out. Left: accuracy by the letter the correct answer was shown at, scoring one ordering (dashed) vs averaging all cyclic orderings (solid; position-independent by construction). Right: spread of that accuracy across letters (Zheng et al., ICLR 2024) vs orderings scored = forward passes per adapter.
+**How to read it.** Language models favour some answer letters (e.g. 'D') regardless of content, so listing the same options in a different order can change the answer. The node therefore scores the options in every rotated order and averages, which makes the answer independent of the order. Red: how often the answer changes when only one order is scored; blue: every order scored and averaged (always 0%).
 
-**What this run shows.** With one ordering the chosen answer changes under reordering for 13.1% (base) and 21.5% (own adapter) of questions. Recall spread for the federated mix: 0.028 (1 ordering) -> 0.000 (all).
+**What this run shows.** With one order, the answer changes under reordering for 13.1% (base), 21.5% (own adapter) and 10.7% (federated mix) of questions; scoring all orders makes this 0%. Federated mix accuracy: 1 order 0.882, 2 orders 0.883, 4 orders 0.887; the cost is one model run per order, i.e. 4x the work for 4 options (see decision_latency_breakdown).
 
 ## How many adapters should a decision mix?
 ![decision_accuracy_vs_members](figures/decision_accuracy_vs_members.png)
@@ -104,13 +97,6 @@ Model Qwen2.5-1.5B-Instruct; adapters trained on the decision prompt; the node s
 **How to read it.** Median end-to-end latency of warm decisions, one at a time.
 
 **What this run shows.** Ours (adapters mixed (k)) - 1: 181 ms, 2: 343 ms, 3: 506 ms, 4: 676 ms.
-
-## Latency vs orderings
-![decision_latency_vs_permutations](figures/decision_latency_vs_permutations.png)
-
-**How to read it.** Median end-to-end latency of warm decisions, one at a time.
-
-**What this run shows.** Ours (orderings scored (0 = all)) - all: 676 ms, 1: 181 ms, 2: 344 ms.
 
 ## Latency vs number of options
 ![decision_latency_vs_options](figures/decision_latency_vs_options.png)

@@ -51,7 +51,7 @@ METHOD_NAMES = {
     "local_only": "Local-only training, no federation (baseline)",
     "centralised": "Centralised training on pooled data (upper bound, not private)",
     "merged_avg": "All adapters merged into one (average)",
-    "mix_uniform_prob": "Federated mix, equal weights, prob_mean (System One as deployed)",
+    "mix_uniform_prob": "Federated mix, plain average of the adapters' probabilities",
     "mix_uniform_logit": "Federated mix, equal weights, logit_mean",
     "mix_confidence_prob": "Federated mix, weighted by each member's confidence",
     "mix_query_aware_prob": "Federated mix, weighted by query-to-node similarity",
@@ -334,10 +334,14 @@ def main():
                                              "orderings": "one" if perms == 1 else "all cyclic",
                                              "gold_position": st.get("base", fmt, "global")["labels"][g],
                                              "recall": float(rec[g]), "n": int(len(gold))})
-            for name, mem in (("base", "base"), ("own", own["node1"])):
-                z = st.get(mem, fmt, "global")
+            for name, mem in (("base", "base"), ("own", own["node1"]), ("mix_uniform_prob", None)):
+                z = st.get(mem or own["node1"], fmt, "global")
                 # answer changes when the options are only reordered (each single ordering on its own)
-                preds = np.stack([member_probs(z["logits"], [s]).argmax(1) for s in range(n)])
+                if mem is None:  # the mix: every member scores the same single ordering, then they are mixed
+                    preds = np.stack([mix(np.stack([member_probs(st.get(own[x], fmt, "global")["logits"], [s]) for x in nodes]),
+                                          np.ones(len(nodes)), "prob_mean").argmax(1) for s in range(n)])
+                else:
+                    preds = np.stack([member_probs(z["logits"], [s]).argmax(1) for s in range(n)])
                 brow.append({"format": fmt, "method": name, "method_name": METHOD_NAMES[name], "orderings": "flip rate",
                              "gold_position": "-", "recall": float((preds != preds[0]).any(0).mean()), "n": int(preds.shape[1])})
         tables["decision_permutations"] = pd.DataFrame(prow)

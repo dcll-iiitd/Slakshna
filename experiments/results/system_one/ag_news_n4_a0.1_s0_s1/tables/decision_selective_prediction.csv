@@ -299,106 +299,106 @@ raw,centralised,"Centralised training on pooled data (upper bound, not private)"
 raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.971,0.09577754891864054
 raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.981,0.09989806320081551
 raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.991,0.10292633703329968
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.001,0.0
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.011,0.0
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.021,0.0
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.031,0.032258064516129004
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.041,0.024390243902439046
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.051,0.019607843137254943
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.061,0.016393442622950838
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.071,0.014084507042253502
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.081,0.012345679012345734
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.091,0.01098901098901095
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.101,0.00990099009900991
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.111,0.009009009009009028
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.121,0.008264462809917328
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.131,0.01526717557251911
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.141,0.014184397163120588
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.151,0.013245033112582738
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.161,0.012422360248447228
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.171,0.011695906432748537
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.181,0.011049723756906049
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.191,0.010471204188481686
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.201,0.00995024875621886
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.211,0.009478672985781977
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.221,0.013574660633484115
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.231,0.012987012987012991
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.241,0.012448132780082943
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.251,0.01195219123505975
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.261,0.011494252873563204
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.271,0.022140221402214055
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.281,0.02135231316725983
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.291,0.020618556701030966
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.301,0.019933554817275767
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.311,0.019292604501607746
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.321,0.01869158878504673
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.331,0.01812688821752262
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.341,0.02052785923753664
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.351,0.019943019943019946
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.361,0.01939058171745156
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.371,0.018867924528301883
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.381,0.023622047244094446
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.391,0.025575447570332477
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.401,0.02493765586034913
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.411,0.029197080291970767
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.421,0.028503562945368155
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.431,0.02784222737819031
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.441,0.02947845804988658
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.451,0.02882483370288247
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.461,0.02819956616052066
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.471,0.02972399150743099
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.481,0.029106029106029108
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.491,0.02851323828920571
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.501,0.029940119760479056
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.511,0.02935420743639927
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.521,0.028790786948176605
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.531,0.02824858757062143
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.541,0.027726432532347522
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.551,0.029038112522686066
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.561,0.033868092691622054
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.571,0.035026269702276736
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.581,0.03442340791738385
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.591,0.035532994923857864
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.601,0.038269550748752046
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.611,0.03764320785597386
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.621,0.040257648953301084
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.631,0.0427892234548336
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.641,0.04524180967238689
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.651,0.05069124423963134
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.661,0.05143721633888043
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.671,0.05216095380029806
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.681,0.05580029368575623
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.691,0.05499276410998555
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.701,0.05563480741797433
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.711,0.057665260196905765
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.721,0.05963938973647709
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.731,0.061559507523939794
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.741,0.06072874493927127
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.751,0.06125166444740349
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.761,0.06176084099868595
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.771,0.06095979247730221
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.781,0.06145966709346995
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.791,0.06321112515802785
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.801,0.06616729088639206
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.811,0.06535141800246613
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.821,0.06577344701583432
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.831,0.06618531889290014
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.841,0.06658739595719376
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.851,0.06698002350176269
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.861,0.06852497096399535
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.871,0.07462686567164178
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.881,0.07604994324631098
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.891,0.0785634118967452
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.901,0.08324084350721417
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.911,0.08562019758507133
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.921,0.08686210640608039
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.931,0.08915145005370573
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.941,0.09245483528161536
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.951,0.09463722397476337
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.961,0.09885535900104059
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.971,0.101956745623069
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.981,0.10499490316004079
-raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.991,0.10797174571140267
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.001,0.0
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.011,0.0
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.021,0.0
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.031,0.032258064516129004
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.041,0.024390243902439046
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.051,0.019607843137254943
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.061,0.016393442622950838
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.071,0.014084507042253502
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.081,0.012345679012345734
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.091,0.01098901098901095
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.101,0.00990099009900991
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.111,0.009009009009009028
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.121,0.008264462809917328
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.131,0.01526717557251911
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.141,0.014184397163120588
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.151,0.013245033112582738
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.161,0.012422360248447228
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.171,0.011695906432748537
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.181,0.011049723756906049
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.191,0.010471204188481686
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.201,0.00995024875621886
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.211,0.009478672985781977
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.221,0.013574660633484115
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.231,0.012987012987012991
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.241,0.012448132780082943
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.251,0.01195219123505975
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.261,0.011494252873563204
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.271,0.022140221402214055
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.281,0.02135231316725983
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.291,0.020618556701030966
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.301,0.019933554817275767
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.311,0.019292604501607746
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.321,0.01869158878504673
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.331,0.01812688821752262
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.341,0.02052785923753664
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.351,0.019943019943019946
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.361,0.01939058171745156
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.371,0.018867924528301883
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.381,0.023622047244094446
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.391,0.025575447570332477
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.401,0.02493765586034913
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.411,0.029197080291970767
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.421,0.028503562945368155
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.431,0.02784222737819031
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.441,0.02947845804988658
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.451,0.02882483370288247
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.461,0.02819956616052066
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.471,0.02972399150743099
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.481,0.029106029106029108
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.491,0.02851323828920571
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.501,0.029940119760479056
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.511,0.02935420743639927
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.521,0.028790786948176605
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.531,0.02824858757062143
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.541,0.027726432532347522
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.551,0.029038112522686066
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.561,0.033868092691622054
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.571,0.035026269702276736
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.581,0.03442340791738385
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.591,0.035532994923857864
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.601,0.038269550748752046
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.611,0.03764320785597386
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.621,0.040257648953301084
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.631,0.0427892234548336
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.641,0.04524180967238689
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.651,0.05069124423963134
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.661,0.05143721633888043
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.671,0.05216095380029806
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.681,0.05580029368575623
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.691,0.05499276410998555
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.701,0.05563480741797433
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.711,0.057665260196905765
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.721,0.05963938973647709
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.731,0.061559507523939794
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.741,0.06072874493927127
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.751,0.06125166444740349
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.761,0.06176084099868595
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.771,0.06095979247730221
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.781,0.06145966709346995
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.791,0.06321112515802785
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.801,0.06616729088639206
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.811,0.06535141800246613
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.821,0.06577344701583432
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.831,0.06618531889290014
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.841,0.06658739595719376
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.851,0.06698002350176269
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.861,0.06852497096399535
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.871,0.07462686567164178
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.881,0.07604994324631098
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.891,0.0785634118967452
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.901,0.08324084350721417
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.911,0.08562019758507133
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.921,0.08686210640608039
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.931,0.08915145005370573
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.941,0.09245483528161536
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.951,0.09463722397476337
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.961,0.09885535900104059
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.971,0.101956745623069
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.981,0.10499490316004079
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.991,0.10797174571140267
 chat,base,Base model (no adapter),0.001,0.0
 chat,base,Base model (no adapter),0.011,0.18181818181818177
 chat,base,Base model (no adapter),0.021,0.1428571428571429
@@ -699,103 +699,103 @@ chat,centralised,"Centralised training on pooled data (upper bound, not private)
 chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.971,0.09886714727085477
 chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.981,0.1029561671763507
 chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.991,0.10696266397578202
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.001,0.0
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.011,0.0
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.021,0.0
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.031,0.0
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.041,0.0
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.051,0.0
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.061,0.0
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.071,0.0
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.081,0.012345679012345734
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.091,0.01098901098901095
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.101,0.00990099009900991
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.111,0.009009009009009028
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.121,0.008264462809917328
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.131,0.007633587786259555
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.141,0.007092198581560294
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.151,0.0066225165562914245
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.161,0.006211180124223614
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.171,0.005847953216374324
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.181,0.011049723756906049
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.191,0.010471204188481686
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.201,0.00995024875621886
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.211,0.014218009478673022
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.221,0.013574660633484115
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.231,0.012987012987012991
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.241,0.016597510373444035
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.251,0.019920318725099584
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.261,0.019157088122605415
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.271,0.01845018450184499
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.281,0.017793594306049876
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.291,0.020618556701030966
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.301,0.019933554817275767
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.311,0.019292604501607746
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.321,0.01869158878504673
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.331,0.01812688821752262
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.341,0.017595307917888547
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.351,0.019943019943019946
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.361,0.01939058171745156
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.371,0.018867924528301883
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.381,0.018372703412073532
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.391,0.020460358056266004
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.401,0.02244389027431426
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.411,0.021897810218978075
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.421,0.02137767220902609
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.431,0.023201856148491906
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.441,0.024943310657596363
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.451,0.024390243902439046
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.461,0.02386117136659438
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.471,0.023354564755838636
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.481,0.02494802494802495
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.491,0.024439918533604943
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.501,0.0239520958083832
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.511,0.0273972602739726
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.521,0.026871401151631447
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.531,0.02824858757062143
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.541,0.02957486136783738
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.551,0.03448275862068961
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.561,0.03743315508021394
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.571,0.038528896672504365
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.581,0.03958691910499135
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.591,0.04230118443316411
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.601,0.04492512479201327
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.611,0.04909983633387893
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.621,0.048309178743961345
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.631,0.05071315372424723
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.641,0.05304212168486744
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.651,0.05222734254992323
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.661,0.055975794251134636
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.671,0.05663189269746649
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.681,0.05726872246696035
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.691,0.05788712011577424
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.701,0.059914407988587715
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.711,0.06469760900140642
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.721,0.06518723994452147
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.731,0.06566347469220246
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.741,0.06882591093117407
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.751,0.06924101198402133
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.761,0.06833114323258871
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.771,0.06874189364461736
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.781,0.06914212548015364
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.791,0.06826801517067005
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.801,0.06991260923845188
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.811,0.07274969173859436
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.821,0.07308160779537154
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.831,0.07340553549939832
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.841,0.07372175980975026
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.851,0.07520564042303168
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.861,0.07781649245063882
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.871,0.07921928817451207
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.881,0.08059023836549373
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.891,0.08417508417508412
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.901,0.0843507214206437
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.911,0.08452250274423712
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.921,0.08794788273615639
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.931,0.09237379162191195
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.941,0.09564293304994687
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.951,0.10094637223974767
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.961,0.10718002081165456
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.971,0.11122554067971169
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.981,0.11620795107033643
-chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.991,0.1170534813319879
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.001,0.0
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.011,0.0
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.021,0.0
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.031,0.0
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.041,0.0
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.051,0.0
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.061,0.0
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.071,0.0
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.081,0.012345679012345734
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.091,0.01098901098901095
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.101,0.00990099009900991
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.111,0.009009009009009028
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.121,0.008264462809917328
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.131,0.007633587786259555
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.141,0.007092198581560294
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.151,0.0066225165562914245
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.161,0.006211180124223614
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.171,0.005847953216374324
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.181,0.011049723756906049
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.191,0.010471204188481686
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.201,0.00995024875621886
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.211,0.014218009478673022
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.221,0.013574660633484115
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.231,0.012987012987012991
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.241,0.016597510373444035
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.251,0.019920318725099584
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.261,0.019157088122605415
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.271,0.01845018450184499
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.281,0.017793594306049876
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.291,0.020618556701030966
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.301,0.019933554817275767
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.311,0.019292604501607746
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.321,0.01869158878504673
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.331,0.01812688821752262
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.341,0.017595307917888547
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.351,0.019943019943019946
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.361,0.01939058171745156
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.371,0.018867924528301883
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.381,0.018372703412073532
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.391,0.020460358056266004
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.401,0.02244389027431426
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.411,0.021897810218978075
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.421,0.02137767220902609
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.431,0.023201856148491906
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.441,0.024943310657596363
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.451,0.024390243902439046
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.461,0.02386117136659438
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.471,0.023354564755838636
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.481,0.02494802494802495
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.491,0.024439918533604943
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.501,0.0239520958083832
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.511,0.0273972602739726
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.521,0.026871401151631447
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.531,0.02824858757062143
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.541,0.02957486136783738
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.551,0.03448275862068961
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.561,0.03743315508021394
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.571,0.038528896672504365
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.581,0.03958691910499135
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.591,0.04230118443316411
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.601,0.04492512479201327
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.611,0.04909983633387893
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.621,0.048309178743961345
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.631,0.05071315372424723
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.641,0.05304212168486744
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.651,0.05222734254992323
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.661,0.055975794251134636
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.671,0.05663189269746649
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.681,0.05726872246696035
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.691,0.05788712011577424
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.701,0.059914407988587715
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.711,0.06469760900140642
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.721,0.06518723994452147
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.731,0.06566347469220246
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.741,0.06882591093117407
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.751,0.06924101198402133
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.761,0.06833114323258871
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.771,0.06874189364461736
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.781,0.06914212548015364
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.791,0.06826801517067005
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.801,0.06991260923845188
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.811,0.07274969173859436
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.821,0.07308160779537154
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.831,0.07340553549939832
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.841,0.07372175980975026
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.851,0.07520564042303168
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.861,0.07781649245063882
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.871,0.07921928817451207
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.881,0.08059023836549373
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.891,0.08417508417508412
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.901,0.0843507214206437
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.911,0.08452250274423712
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.921,0.08794788273615639
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.931,0.09237379162191195
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.941,0.09564293304994687
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.951,0.10094637223974767
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.961,0.10718002081165456
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.971,0.11122554067971169
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.981,0.11620795107033643
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",0.991,0.1170534813319879

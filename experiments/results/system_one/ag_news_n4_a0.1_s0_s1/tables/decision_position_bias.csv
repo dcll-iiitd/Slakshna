@@ -17,6 +17,7 @@ raw,own,Own adapter only,all cyclic,C,0.597,1000
 raw,own,Own adapter only,all cyclic,D,0.597,1000
 raw,base,Base model (no adapter),flip rate,-,0.131,1000
 raw,own,Own adapter only,flip rate,-,0.215,1000
+raw,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",flip rate,-,0.107,1000
 chat,base,Base model (no adapter),one,A,0.843,1000
 chat,base,Base model (no adapter),one,B,0.867,1000
 chat,base,Base model (no adapter),one,C,0.831,1000
@@ -35,3 +36,4 @@ chat,own,Own adapter only,all cyclic,C,0.578,1000
 chat,own,Own adapter only,all cyclic,D,0.578,1000
 chat,base,Base model (no adapter),flip rate,-,0.097,1000
 chat,own,Own adapter only,flip rate,-,0.206,1000
+chat,mix_uniform_prob,"Federated mix, plain average of the adapters' probabilities",flip rate,-,0.078,1000

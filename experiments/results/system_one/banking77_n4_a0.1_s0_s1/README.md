@@ -37,13 +37,6 @@ Model Qwen2.5-1.5B-Instruct; adapters trained on the decision prompt; the node s
 
 **What this run shows.** Ours (adapters mixed (k)) - 1: 791 ms, 2: 1570 ms, 3: 2349 ms, 4: 3123 ms.
 
-## Latency vs orderings
-![decision_latency_vs_permutations](figures/decision_latency_vs_permutations.png)
-
-**How to read it.** Median end-to-end latency of warm decisions, one at a time.
-
-**What this run shows.** Ours (orderings scored (0 = all)) - all: 3119 ms, 1: 535 ms, 2: 1048 ms.
-
 ## Latency vs number of options
 ![decision_latency_vs_options](figures/decision_latency_vs_options.png)
 

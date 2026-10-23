@@ -21,6 +21,14 @@ fn adapter_key(node_id: &str, round: u64) -> Vec<u8> {
     key
 }
 
+const REVIEW_PREFIX: &[u8] = b"review:";
+
+fn review_key(reviewer: &str, target: &str, round: u64) -> Vec<u8> {
+    let mut key = REVIEW_PREFIX.to_vec();
+    key.extend_from_slice(format!("{}:{}:{:020}", reviewer, target, round).as_bytes());
+    key
+}
+
 pub struct State {
     db: DB,
     keypair: Option<Keypair>,
@@ -141,6 +149,29 @@ impl State {
         for item in iter {
             let Ok((key, value)) = item else { continue };
             if !key.starts_with(ADAPTER_PREFIX) {
+                break;
+            }
+            if let Ok(s) = String::from_utf8(value.to_vec()) {
+                out.push(s);
+            }
+        }
+        out
+    }
+
+    /// Persist one peer review (a signed history record, as JSON) under
+    /// `review:<reviewer>:<target>:<round>` so trust survives restarts.
+    pub fn save_review(&mut self, reviewer: &str, target: &str, round: u64, json: &str) -> Result<(), BoxError> {
+        self.db.put(review_key(reviewer, target, round), json.as_bytes())?;
+        Ok(())
+    }
+
+    /// Every persisted peer review, as raw JSON strings.
+    pub fn load_reviews(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        let iter = self.db.iterator(IteratorMode::From(REVIEW_PREFIX, Direction::Forward));
+        for item in iter {
+            let Ok((key, value)) = item else { continue };
+            if !key.starts_with(REVIEW_PREFIX) {
                 break;
             }
             if let Ok(s) = String::from_utf8(value.to_vec()) {

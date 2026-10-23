@@ -29,6 +29,18 @@ GROUP = {"base": BASE, "own": OURS, "own_aggregated": OURS, "merged_avg": OURS, 
 SYS = {"slakshna": ("Ours: /decide on the node", "#2E6FB7"), "vllm": ("Central vLLM server", "#D1495B")}
 FMT = "raw"  # the format the node actually uses
 
+SHORT = {"base": "Base model (no adapter)", "local_only": "Local-only training", "centralised": "Centralised training*",
+         "own": "Own adapter", "own_aggregated": "Own adapter after training-time averaging", "merged_avg": "All adapters merged into one",
+         "mix_uniform_prob": "Federated mix: plain average", "mix_uniform_logit": "Federated mix: log average",
+         "mix_confidence_prob": "Federated mix: confidence-weighted", "mix_query_aware_prob": "Federated mix: question-aware"}
+ORDER = ["base", "local_only", "centralised", "own", "own_aggregated", "merged_avg",
+         "mix_uniform_prob", "mix_uniform_logit", "mix_confidence_prob", "mix_query_aware_prob"]
+SECTIONS = [("own", "single adapter"), ("mix_uniform_prob", "federated mix")]
+
+
+def nm(m):
+    return SHORT.get(m, m)
+
 
 def hbars(ax, df, col, xlabel, fmt="{:.3f}"):
     df = df.sort_values(col)
@@ -44,61 +56,72 @@ def quality(F, meta):
     sub = f"{meta['dataset']} ({len(meta['labels'])} options), {meta['n_nodes']} nodes, label skew α={meta['alpha']:g}"
     t = F.table("decision_accuracy_by_method")
     if t is not None and len(t):
-        g = t[t["format"] == FMT]
-        fig, axes = plt.subplots(2, 1, figsize=(9, 0.75 * g["method"].nunique() + 3), sharex=True)
-        res = {}
-        for ax, which in zip(axes, ["all classes (balanced test)", "node's own mix (local test)"]):
-            x = g[g["evaluated_on"] == which].groupby(["method", "method_name"], as_index=False)["accuracy"].mean()
-            hbars(ax, x, "accuracy", "accuracy (mean over the query nodes)")
-            ax.set_xlim(0, 1.1)
-            ax.set_title("Questions on " + which, fontsize=10)
-            ax.tick_params(labelbottom=True)
-            res[which] = x.set_index("method")["accuracy"]
-        fig.suptitle("Accuracy of each way of deciding (System One prompt as the node scores it)\n" + sub, fontsize=11)
-        r, l = res["all classes (balanced test)"], res["node's own mix (local test)"]
+        g = t[(t["format"] == FMT) & (t["method"].isin(ORDER))]
+        a = g.groupby(["method", "evaluated_on"])["accuracy"].mean().unstack()
+        methods = [m for m in ORDER if m in a.index]
+        fig, ax = plt.subplots(figsize=(8.5, 0.55 * len(methods) + 1.4))
+        y = np.arange(len(methods))[::-1]
+        cols = [("all classes (balanced test)", "questions on all topics", "#2E6FB7"),
+                ("node's own mix (local test)", "questions like the node's own data", "#F2A541")]
+        for j, (c, lab, col) in enumerate(cols):
+            v = a.loc[methods, c].values
+            ax.barh(y + (0.2 if j == 0 else -0.2), v, 0.38, color=col, label=lab)
+            for yy, vv in zip(y, v):
+                ax.text(vv + 0.005, yy + (0.2 if j == 0 else -0.2), f"{vv:.2f}", va="center", fontsize=8)
+        ax.set_yticks(y, [nm(m) for m in methods])
+        for lab in ax.get_yticklabels():
+            if lab.get_text() == nm("mix_uniform_prob"):
+                lab.set_fontweight("bold")
+        for gi, (start, name) in enumerate(SECTIONS):
+            if start in methods:
+                yy = y[methods.index(start)] + 0.5
+                ax.axhline(yy, color="#ccc", lw=0.8)
+        ax.set_xlim(0.5, 1.02)
+        ax.set_xlabel("accuracy (share of questions answered correctly)")
+        ax.legend(fontsize=8, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, frameon=False)
+        ax.set_title("Accuracy of each way of deciding", fontsize=11, pad=24)
+        r, l = a["all classes (balanced test)"], a["node's own mix (local test)"]
         F.save(fig, "decision_accuracy_by_method", "Accuracy of each way of deciding",
-               "Each bar is one way to make the decision: base model, the node's own adapter, the federated System One "
-               "mix of all nodes' adapters (dark blue = as deployed: equal weights, prob_mean, all cyclic orderings) and "
-               "other mixing variants, training baselines (green), upper bounds (orange). Top: all classes; bottom: the "
-               "node's own class mix.",
-               f"All classes: base {r.get('base', np.nan):.3f}, own adapter {r.get('own', np.nan):.3f}, federated mix "
-               f"{r.get('mix_uniform_prob', np.nan):.3f}, centralised {r.get('centralised', np.nan):.3f}, oracle member "
-               f"{r.get('oracle_member', np.nan):.3f}. Own mix: own adapter {l.get('own', np.nan):.3f}, federated mix "
-               f"{l.get('mix_uniform_prob', np.nan):.3f}.")
-        # calibration summary
-        x = g[g["test_set"] == "global"].groupby(["method", "method_name"], as_index=False)[["ece", "brier", "nll", "aurc"]].mean()
-        fig, axes = plt.subplots(1, 4, figsize=(17, 0.42 * len(x) + 1.6), sharey=True)
-        x = x.sort_values("ece", ascending=False)
-        for ax, (col, lab) in zip(axes, [("ece", "ECE (15 bins) ↓"), ("brier", "Brier ↓"), ("nll", "NLL ↓"), ("aurc", "AURC ↓")]):
-            ax.barh(np.arange(len(x)), x[col], color=[GROUP.get(m, OURS) for m in x["method"]])
-            for i, v in enumerate(x[col]):
-                ax.text(v, i, f" {v:.3f}", va="center", fontsize=7)
-            ax.set_title(lab, fontsize=10)
-        axes[0].set_yticks(np.arange(len(x)), x["method_name"])
-        fig.suptitle("Are the decision probabilities trustworthy? (all classes, lower is better)\n" + sub, fontsize=11)
-        xx = x.set_index("method")
+               "One row per way of deciding, grouped into baselines, single adapters and federated mixes (bold = plain "
+               "average). All rows use the real probabilities of the trained adapters; plain average and log average are mixing "
+               "rules the node supports (/decide 'combine' = prob_mean / logit_mean); confidence-weighted and question-aware "
+               "were applied offline to the same adapter outputs to measure what they would give. Blue bar: questions on all topics; orange bar: questions with the node's own topic mix. "
+               "* centralised training needs all data in one place (not private), shown as a reference.",
+               f"All topics: own adapter {r.get('own', np.nan):.3f}, base {r.get('base', np.nan):.3f}, federated mix (plain average) "
+               f"{r.get('mix_uniform_prob', np.nan):.3f}, query-aware mix {r.get('mix_query_aware_prob', np.nan):.3f}, centralised "
+               f"{r.get('centralised', np.nan):.3f}. Own topic mix: own adapter {l.get('own', np.nan):.3f}, federated mix (plain average) "
+               f"{l.get('mix_uniform_prob', np.nan):.3f}, query-aware mix {l.get('mix_query_aware_prob', np.nan):.3f}.")
+
+        # probability quality: four standard scores, plain titles
+        x = g[g["test_set"] == "global"].groupby("method")[["ece", "brier", "nll", "aurc"]].mean()
+        methods = [m for m in ORDER if m in x.index]
+        fig, axes = plt.subplots(1, 4, figsize=(17, 0.5 * len(methods) + 1.8), sharey=True)
+        y = np.arange(len(methods))[::-1]
+        for ax, (col, title, xl) in zip(axes, [
+                ("ece", "Honesty of the probabilities", "ECE: gap between 'how sure' and 'how often right'"),
+                ("brier", "Overall probability error", "Brier score"),
+                ("nll", "Penalty for confident mistakes", "NLL (log loss)"),
+                ("aurc", "Does confidence rank right above wrong?", "AURC")]):
+            v = x.loc[methods, col].values
+            ax.barh(y, v, color=[GROUP.get(m, OURS) for m in methods])
+            for yy, vv in zip(y, v):
+                ax.text(vv, yy, f" {vv:.3f}", va="center", fontsize=8)
+            ax.set_title(title, fontsize=10)
+            ax.set_xlabel(xl, fontsize=8)
+        axes[0].set_yticks(y, [nm(m) for m in methods])
+        fig.suptitle("Quality of the decision probabilities (questions on all topics; shorter bars are better)", fontsize=11)
+        xx = x
         F.save(fig, "decision_calibration_metrics", "How good are the probabilities?",
-               "ECE: gap between confidence and accuracy (15 equal-width bins). Brier and NLL: proper scores of the full "
-               "distribution. AURC: area under the risk-coverage curve (how well confidence ranks right above wrong answers).",
-               f"Federated mix: ECE {xx.loc['mix_uniform_prob', 'ece']:.3f}, Brier {xx.loc['mix_uniform_prob', 'brier']:.3f}, "
-               f"AURC {xx.loc['mix_uniform_prob', 'aurc']:.3f}; own adapter: ECE {xx.loc['own', 'ece']:.3f}, AURC "
-               f"{xx.loc['own', 'aurc']:.3f}; base: ECE {xx.loc['base', 'ece']:.3f}." if {"mix_uniform_prob", "own", "base"} <= set(xx.index) else "")
-        # raw vs chat
-        if t["format"].nunique() > 1:
-            x = t[t["test_set"] == "global"].groupby(["method", "method_name", "format"], as_index=False)["accuracy"].mean()
-            p = x.pivot(index="method_name", columns="format", values="accuracy").sort_values("raw")
-            fig, ax = plt.subplots(figsize=(8, 0.4 * len(p) + 1.5))
-            yy = np.arange(len(p))
-            ax.barh(yy - 0.2, p["raw"], 0.4, label="raw prompt (how the node scores)")
-            ax.barh(yy + 0.2, p["chat"], 0.4, label="chat-turn prompt (how adapters were trained)")
-            ax.set_yticks(yy, p.index)
-            ax.set_xlabel("accuracy, all classes")
-            ax.legend(fontsize=8, loc="lower center", bbox_to_anchor=(0.5, -0.3), ncol=2)
-            ax.set_title("Prompt format: raw (deployed) vs chat turn (training)\n" + sub, fontsize=10)
-            F.save(fig, "decision_prompt_format", "Does the deployed prompt format match how adapters were trained?",
-                   "The node scores the raw System One prompt (next token after 'Answer:' is ' A'); the adapters were trained "
-                   "with the same prompt inside a chat turn (next token 'A').",
-                   f"Mean absolute accuracy difference raw vs chat over methods: {np.nanmean(np.abs(p['raw'] - p['chat'])):.3f}.")
+               "Four standard scores of the probabilities, all 'lower is better'. Honesty (ECE): when a method says '80% sure', "
+               "is it right 80% of the time? Overall probability error (Brier): squared distance between the predicted "
+               "probabilities and the true answer. Penalty for confident mistakes (NLL): punishes being sure and wrong much "
+               "more than being unsure and wrong. Ranking (AURC): are the right answers the confident ones?",
+               (f"Federated mix (plain average): ECE {xx.loc['mix_uniform_prob', 'ece']:.3f}, Brier "
+                f"{xx.loc['mix_uniform_prob', 'brier']:.3f}, NLL {xx.loc['mix_uniform_prob', 'nll']:.3f}, AURC {xx.loc['mix_uniform_prob', 'aurc']:.3f}; "
+                f"question-aware mix: ECE {xx.loc['mix_query_aware_prob', 'ece']:.3f}; log-average mix: ECE {xx.loc['mix_uniform_logit', 'ece']:.3f}; "
+                f"own adapter: ECE {xx.loc['own', 'ece']:.3f}, NLL {xx.loc['own', 'nll']:.3f}, AURC {xx.loc['own', 'aurc']:.3f}; "
+                f"base: ECE {xx.loc['base', 'ece']:.3f}, NLL {xx.loc['base', 'nll']:.3f}." if {"mix_uniform_prob", "own", "base"} <= set(xx.index) else ""))
+        # (raw vs chat prompt comparison removed from the figures: numbers stay in decision_accuracy_by_method.csv)
 
     rb = F.table("decision_reliability_bins")
     if rb is not None and len(rb):
@@ -112,7 +135,7 @@ def quality(F, meta):
                 ax.plot(g["mean_confidence"], g["accuracy"], marker="o", label=f"temperature {temp}")
             ax.plot([0, 1], [0, 1], ls="--", color="#888")
             short = {"base": "Base model", "own": "Own adapter only", "centralised": "Centralised training",
-                     "mix_uniform_prob": "Federated mix (as deployed)"}
+                     "mix_uniform_prob": "Federated mix (plain average)"}
             ax.set_title(short.get(m, m), fontsize=9)
             ax.set_xlabel("confidence of the chosen option")
             ax.legend(fontsize=7)
@@ -125,6 +148,7 @@ def quality(F, meta):
 
     ct = F.table("decision_calibration_temperature")
     if ct is not None and len(ct):
+        ct = ct[ct["method"] != "oracle_member"]
         x = ct[(ct["format"] == FMT) & (ct["test_set"] == "global")].groupby(["method", "method_name"], as_index=False)[
             ["fitted_temperature", "ece_before", "ece_after", "nll_before", "nll_after", "accuracy_before", "accuracy_after"]].mean()
         fig, ax = plt.subplots(figsize=(8, 0.4 * len(x) + 1.5))
@@ -132,7 +156,7 @@ def quality(F, meta):
         yy = np.arange(len(x))
         ax.barh(yy - 0.2, x["ece_before"], 0.4, label="temperature 1 (default)")
         ax.barh(yy + 0.2, x["ece_after"], 0.4, label="temperature fitted on validation")
-        ax.set_yticks(yy, x["method_name"])
+        ax.set_yticks(yy, [nm(m) for m in x["method"]])
         ax.set_xlabel("ECE (lower is better)")
         ax.legend(fontsize=8)
         ax.set_title("Calibration temperature (the node's calibration_temperature setting)")
@@ -148,8 +172,8 @@ def quality(F, meta):
     sp = F.table("decision_selective_prediction")
     if sp is not None and len(sp):
         fig, ax = plt.subplots(figsize=(6, 4))
-        for (m, name), g in sp[sp["format"] == FMT].groupby(["method", "method_name"]):
-            ax.plot(g["coverage"], g["risk"], label=name, color=GROUP.get(m))
+        for (m, name), g in sp[(sp["format"] == FMT) & (sp["method"] != "oracle_member")].groupby(["method", "method_name"]):
+            ax.plot(g["coverage"], g["risk"], label=nm(m), color=GROUP.get(m))
         ax.set_xlabel("coverage (share of questions answered, most confident first)")
         ax.set_ylabel("error rate on the answered questions")
         ax.legend(fontsize=7)
@@ -167,35 +191,33 @@ def quality(F, meta):
     pb = F.table("decision_position_bias")
     pm = F.table("decision_permutations")
     if pb is not None and len(pb) and pm is not None:
-        fig, axes = plt.subplots(1, 2, figsize=(12, 3.8))
-        x = pb[(pb["format"] == FMT) & (pb["orderings"] != "flip rate")]
-        for (m, o), g in x.groupby(["method", "orderings"]):
-            axes[0].plot(g["gold_position"], g["recall"], marker="o", ls="-" if o == "all cyclic" else "--",
-                         label=f"{g['method_name'].iloc[0]}, {o} ordering{'s' if o != 'one' else ''}")
-        axes[0].set_xlabel("letter at which the correct answer was shown (every question at every letter)")
-        axes[0].set_ylabel("recall")
-        axes[0].legend(fontsize=7)
-        axes[0].set_title("Position / letter bias")
-        y = pm[pm["format"] == FMT].groupby(["method", "method_name", "orderings_scored"], as_index=False)[["accuracy", "recall_std_over_gold_positions"]].mean()
-        for (m, name), g in y.groupby(["method", "method_name"]):
-            axes[1].plot(g["orderings_scored"], g["recall_std_over_gold_positions"], marker="o", label=name, color=GROUP.get(m))
-        axes[1].set_xlabel("orderings scored per member (= forward passes per member)")
-        axes[1].set_ylabel("std of recall across answer positions ↓")
-        axes[1].set_xticks(sorted(y["orderings_scored"].unique()))
-        axes[1].legend(fontsize=7)
-        axes[1].set_title("Debiasing by cyclic permutations")
         flips = pb[(pb["format"] == FMT) & (pb["orderings"] == "flip rate")].set_index("method")["recall"]
-        yy = y.set_index(["method", "orderings_scored"])
-        F.save(fig, "decision_position_bias", "Reordering the options: bias and the cost of removing it",
-               "Every question is scored with its correct answer at every letter, so class difficulty cancels out. Left: "
-               "accuracy by the letter the correct answer was shown at, scoring one ordering (dashed) vs averaging all cyclic "
-               "orderings (solid; position-independent by construction). Right: spread of that accuracy across letters "
-               "(Zheng et al., ICLR 2024) vs orderings scored = forward passes per adapter.",
-               f"With one ordering the chosen answer changes under reordering for {flips.get('base', np.nan):.1%} (base) and "
-               f"{flips.get('own', np.nan):.1%} (own adapter) of questions. " +
-               (f"Recall spread for the federated mix: {yy.loc[('mix_uniform_prob', 1), 'recall_std_over_gold_positions']:.3f} "
-                f"(1 ordering) -> {yy.loc[('mix_uniform_prob', y['orderings_scored'].max()), 'recall_std_over_gold_positions']:.3f} (all)."
-                if ("mix_uniform_prob", 1) in yy.index else ""))
+        fig, ax0 = plt.subplots(figsize=(7, 4))
+        ms = [m for m in ("base", "own", "mix_uniform_prob") if m in flips.index]
+        xx = np.arange(len(ms))
+        ax0.bar(xx - 0.2, [100 * flips[m] for m in ms], 0.38, color="#D1495B", label="options scored in one order only")
+        ax0.bar(xx + 0.2, [0] * len(ms), 0.38, color="#2E6FB7", label="options scored in every order and averaged")
+        for i, m in enumerate(ms):
+            ax0.text(i - 0.2, 100 * flips[m] + 0.5, f"{100 * flips[m]:.1f}%", ha="center", fontsize=8)
+            ax0.text(i + 0.2, 0.5, "0%", ha="center", fontsize=8)
+        ax0.set_xticks(xx, ["Base model", "Own adapter", "Federated mix\n(plain average)"][:len(ms)] if ms == ["base", "own", "mix_uniform_prob"] else [nm(m) for m in ms], fontsize=8)
+        ax0.set_ylabel("% of questions whose answer changes\nwhen the same options are listed in another order")
+        ax0.set_ylim(0, max(100 * flips[m] for m in ms) * 1.45)
+        ax0.legend(fontsize=7, loc="upper left")
+        ax0.set_title("Does the order of the options change the decision?", fontsize=10)
+        y = pm[(pm["format"] == FMT) & (pm["method"] == "mix_uniform_prob")].groupby("orderings_scored")["accuracy"].mean()
+        lat = None
+        F.save(fig, "decision_option_order", "Does the order of the options change the decision?",
+               "Language models favour some answer letters (e.g. 'D') regardless of content, so listing the same options in a "
+               "different order can change the answer. The node therefore scores the options in every rotated order and "
+               "averages, which makes the answer independent of the order. Red: how often the answer changes when only one "
+               "order is scored; blue: every order scored and averaged (always 0%).",
+               f"With one order, the answer changes under reordering for {flips.get('base', np.nan):.1%} (base), "
+               f"{flips.get('own', np.nan):.1%} (own adapter) and {flips.get('mix_uniform_prob', np.nan):.1%} (federated mix) of "
+               f"questions; scoring all orders makes this 0%. Federated mix accuracy: " +
+               ", ".join(f"{int(k)} order{'s' if k > 1 else ''} {v:.3f}" for k, v in y.items()) +
+               "; the cost is one model run per order, i.e. 4x the work for 4 options (see decision_latency_breakdown).")
+
 
     km = F.table("decision_accuracy_vs_members")
     if km is not None and len(km):
@@ -326,7 +348,7 @@ def quality(F, meta):
             if (m.startswith("node") and "-local-" in m) or m.startswith("own_node"):
                 return "Own adapter (mean over the 4 nodes)"
             if m == "mix_all_prob_mean":
-                return "Federated mix, prob_mean (as deployed)"
+                return "Federated mix, plain average"
             if m.startswith("centralised~") and "-local-" in m:
                 return "Centralised training (upper bound)"
             return None
@@ -389,7 +411,6 @@ def system(F, meta):
 
     for sweep, xcol, xl, name, title in [
             ("members", "k", "adapters mixed (k)", "decision_latency_vs_members", "Latency vs adapters mixed"),
-            ("permutations", "permutations", "orderings scored (0 = all)", "decision_latency_vs_permutations", "Latency vs orderings"),
             ("options", "n_options", "options in the decision", "decision_latency_vs_options", "Latency vs number of options")]:
         x = d[d["sweep"] == sweep]
         if not len(x):

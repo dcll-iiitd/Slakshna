@@ -212,11 +212,34 @@ impl UpdateHistory {
         state: Arc<RwLock<State>>,
         node_identity: NodeId
     ) -> Result<Self, BoxError> {
+        // Peer reviews are the input of trust; reload them so trust survives a restart.
+        // Every record is re-checked exactly like a freshly gossiped one.
+        let require_signed = config.network.require_signed_records;
+        let mut peer_updates: std::collections::HashMap<String, Vec<UpdateRecord>> = std::collections::HashMap::new();
+        let mut restored = 0usize;
+        for json in state.read().await.load_reviews() {
+            match serde_json::from_str::<UpdateRecord>(&json) {
+                Ok(record) if check_record(&record, require_signed).is_ok() => {
+                    peer_updates.entry(record.node_id.clone()).or_default().push(record);
+                    restored += 1;
+                }
+                _ => tracing::debug!("Dropping unreadable persisted peer review"),
+            }
+        }
+        for log in peer_updates.values_mut() {
+            log.sort_by_key(|r| match &r.kind {
+                RecordKind::PeerReview { round, .. } => *round,
+                _ => 0,
+            });
+        }
+        if restored > 0 {
+            tracing::info!("🤝 Restored {} peer reviews from disk (trust survives restarts)", restored);
+        }
         Ok(UpdateHistory {
             config,
             state,
             node_identity,
-            peer_updates: std::collections::HashMap::new(),
+            peer_updates,
         })
     }
 
@@ -225,16 +248,38 @@ impl UpdateHistory {
     // ========================================================================
 
 
-    pub fn record_update(&mut self, record: UpdateRecord) {
+    /// Append a verified record; returns false if it was rejected.
+    pub fn record_update(&mut self, record: UpdateRecord) -> bool {
         if let Err(why) = check_record(&record, self.config.network.require_signed_records) {
             tracing::warn!("Rejected update record from {}: {}", record.node_id, why);
-            return;
+            return false;
         }
 
         let log = self.peer_updates.entry(record.node_id.clone()).or_insert_with(Vec::new);
 
         // Simple append for now
         log.push(record);
+        true
+    }
+
+    /// `record_update`, plus: accepted peer reviews are written to RocksDB so the
+    /// trust they produce is still there after a restart. Model updates are not
+    /// persisted (they are large and only matter for the round they belong to).
+    pub async fn record_and_persist(&mut self, record: UpdateRecord) {
+        let review = match &record.kind {
+            RecordKind::PeerReview { target_node, round, .. } => Some((target_node.clone(), *round)),
+            _ => None,
+        };
+        let json = review.as_ref().and_then(|_| serde_json::to_string(&record).ok());
+        let reviewer = record.node_id.clone();
+        if !self.record_update(record) {
+            return;
+        }
+        if let (Some((target, round)), Some(json)) = (review, json) {
+            if let Err(e) = self.state.write().await.save_review(&reviewer, &target, round, &json) {
+                tracing::debug!("Could not persist peer review: {}", e);
+            }
+        }
     }
 
     pub fn top_trusted_peers(&self, k: usize) -> Vec<String> {
@@ -284,6 +329,30 @@ mod tests {
             m.entry(r.node_id.clone()).or_default().push(r);
         }
         m
+    }
+
+    /// Trust is computed from peer reviews; they must still be there after the node restarts.
+    #[tokio::test]
+    async fn peer_reviews_survive_a_restart() {
+        let dir = std::env::temp_dir().join(format!("slakshna-trust-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let config = crate::config::Config::load("node1.toml").expect("test config");
+        let me = Keypair::generate();
+        let peer = Keypair::generate();
+        {
+            let state = std::sync::Arc::new(tokio::sync::RwLock::new(crate::state::State::new(dir.to_str().unwrap()).unwrap()));
+            let mut h = UpdateHistory::new(config.clone(), state, me.node_id()).await.unwrap();
+            h.record_and_persist(review(&peer, &me.node_id().0, 1, 0.9)).await;
+            h.record_and_persist(review(&me, &peer.node_id().0, 1, 0.2)).await;
+            assert_eq!(h.trust_rankings(10).len(), 2);
+        } // node stops: RocksDB closed
+        let state = std::sync::Arc::new(tokio::sync::RwLock::new(crate::state::State::new(dir.to_str().unwrap()).unwrap()));
+        let h = UpdateHistory::new(config, state, me.node_id()).await.unwrap();
+        let trust: HashMap<String, f64> = h.trust_rankings(10).into_iter().collect();
+        assert_eq!(trust.len(), 2, "trust must be restored after a restart");
+        assert!((trust[&me.node_id().0] - 0.9).abs() < 1e-9);
+        assert!((trust[&peer.node_id().0] - 0.2).abs() < 1e-9);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

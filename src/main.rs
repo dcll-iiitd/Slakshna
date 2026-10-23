@@ -393,7 +393,7 @@ async fn main() -> Result<(), BoxError> {
                 let mut history = hist_loop.write().await;
                 history.record_update(my_update.clone());
                 for review in &reviews {
-                    history.record_update(review.clone());
+                    history.record_and_persist(review.clone()).await;
                 }
             }
 

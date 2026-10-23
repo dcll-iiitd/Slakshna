@@ -1,0 +1,97 @@
+query_node,query_node_name,test_set,evaluated_on,method,method_name,n_questions,accuracy,macro_f1
+node1,"Node 1 (Sports, Business)",global,all topics (balanced test),base,Base model (no adapter),1000,0.713,0.6809500079433504
+node1,"Node 1 (Sports, Business)",global,all topics (balanced test),own_local,Own adapter only,1000,0.496,0.36660819420673585
+node1,"Node 1 (Sports, Business)",global,all topics (balanced test),own_aggregated,Own aggregated adapter,1000,0.554,0.4700942601554668
+node1,"Node 1 (Sports, Business)",global,all topics (balanced test),merged_avg,All adapters merged (average),1000,0.839,0.8407758922509195
+node1,"Node 1 (Sports, Business)",global,all topics (balanced test),merged_ties,All adapters merged (TIES),1000,0.739,0.743233936658876
+node1,"Node 1 (Sports, Business)",global,all topics (balanced test),fedavg,"Federated average, 50% of each update shared (training baseline)",1000,0.495,0.3648100616016427
+node1,"Node 1 (Sports, Business)",global,all topics (balanced test),local_only,"Local-only training, no federation (baseline)",1000,0.496,0.3642087539425942
+node1,"Node 1 (Sports, Business)",global,all topics (balanced test),centralised,"Centralised training on pooled data (upper bound, not private)",1000,0.872,0.869824101605207
+node1,"Node 1 (Sports, Business)",global,all topics (balanced test),random_adapter,Random peer adapter,1000,0.52425,
+node1,"Node 1 (Sports, Business)",global,all topics (balanced test),query_aware,Query-aware adapter choice,1000,0.843,0.8406153580477278
+node1,"Node 1 (Sports, Business)",global,all topics (balanced test),majority_vote,Majority vote of all adapters,1000,0.705,0.7008824254093011
+node1,"Node 1 (Sports, Business)",global,all topics (balanced test),oracle,Best adapter per question (oracle),1000,0.987,
+node2,Node 2 (Sci/Tech),global,all topics (balanced test),base,Base model (no adapter),1000,0.713,0.6809500079433504
+node2,Node 2 (Sci/Tech),global,all topics (balanced test),own_local,Own adapter only,1000,0.4,0.2976971130733762
+node2,Node 2 (Sci/Tech),global,all topics (balanced test),own_aggregated,Own aggregated adapter,1000,0.255,0.11026765404624427
+node2,Node 2 (Sci/Tech),global,all topics (balanced test),merged_avg,All adapters merged (average),1000,0.839,0.8407758922509195
+node2,Node 2 (Sci/Tech),global,all topics (balanced test),merged_ties,All adapters merged (TIES),1000,0.739,0.743233936658876
+node2,Node 2 (Sci/Tech),global,all topics (balanced test),fedavg,"Federated average, 50% of each update shared (training baseline)",1000,0.36,0.2638583893193108
+node2,Node 2 (Sci/Tech),global,all topics (balanced test),local_only,"Local-only training, no federation (baseline)",1000,0.482,0.39009256853993024
+node2,Node 2 (Sci/Tech),global,all topics (balanced test),centralised,"Centralised training on pooled data (upper bound, not private)",1000,0.872,0.869824101605207
+node2,Node 2 (Sci/Tech),global,all topics (balanced test),random_adapter,Random peer adapter,1000,0.52425,
+node2,Node 2 (Sci/Tech),global,all topics (balanced test),query_aware,Query-aware adapter choice,1000,0.843,0.8406153580477278
+node2,Node 2 (Sci/Tech),global,all topics (balanced test),majority_vote,Majority vote of all adapters,1000,0.705,0.7008824254093011
+node2,Node 2 (Sci/Tech),global,all topics (balanced test),oracle,Best adapter per question (oracle),1000,0.987,
+node3,"Node 3 (World, Business)",global,all topics (balanced test),base,Base model (no adapter),1000,0.713,0.6809500079433504
+node3,"Node 3 (World, Business)",global,all topics (balanced test),own_local,Own adapter only,1000,0.519,0.4160002630341652
+node3,"Node 3 (World, Business)",global,all topics (balanced test),own_aggregated,Own aggregated adapter,1000,0.517,0.4518783641026438
+node3,"Node 3 (World, Business)",global,all topics (balanced test),merged_avg,All adapters merged (average),1000,0.839,0.8407758922509195
+node3,"Node 3 (World, Business)",global,all topics (balanced test),merged_ties,All adapters merged (TIES),1000,0.739,0.743233936658876
+node3,"Node 3 (World, Business)",global,all topics (balanced test),fedavg,"Federated average, 50% of each update shared (training baseline)",1000,0.509,0.4499512949418992
+node3,"Node 3 (World, Business)",global,all topics (balanced test),local_only,"Local-only training, no federation (baseline)",1000,0.515,0.4117775329861181
+node3,"Node 3 (World, Business)",global,all topics (balanced test),centralised,"Centralised training on pooled data (upper bound, not private)",1000,0.872,0.869824101605207
+node3,"Node 3 (World, Business)",global,all topics (balanced test),random_adapter,Random peer adapter,1000,0.52425,
+node3,"Node 3 (World, Business)",global,all topics (balanced test),query_aware,Query-aware adapter choice,1000,0.843,0.8406153580477278
+node3,"Node 3 (World, Business)",global,all topics (balanced test),majority_vote,Majority vote of all adapters,1000,0.705,0.7008824254093011
+node3,"Node 3 (World, Business)",global,all topics (balanced test),oracle,Best adapter per question (oracle),1000,0.987,
+node4,"Node 4 (Sports, Sci/Tech)",global,all topics (balanced test),base,Base model (no adapter),1000,0.713,0.6809500079433504
+node4,"Node 4 (Sports, Sci/Tech)",global,all topics (balanced test),own_local,Own adapter only,1000,0.682,0.6652077780296415
+node4,"Node 4 (Sports, Sci/Tech)",global,all topics (balanced test),own_aggregated,Own aggregated adapter,1000,0.345,0.2469704387740749
+node4,"Node 4 (Sports, Sci/Tech)",global,all topics (balanced test),merged_avg,All adapters merged (average),1000,0.839,0.8407758922509195
+node4,"Node 4 (Sports, Sci/Tech)",global,all topics (balanced test),merged_ties,All adapters merged (TIES),1000,0.739,0.743233936658876
+node4,"Node 4 (Sports, Sci/Tech)",global,all topics (balanced test),fedavg,"Federated average, 50% of each update shared (training baseline)",1000,0.498,0.4132085997953005
+node4,"Node 4 (Sports, Sci/Tech)",global,all topics (balanced test),local_only,"Local-only training, no federation (baseline)",1000,0.712,0.7083633010148289
+node4,"Node 4 (Sports, Sci/Tech)",global,all topics (balanced test),centralised,"Centralised training on pooled data (upper bound, not private)",1000,0.872,0.869824101605207
+node4,"Node 4 (Sports, Sci/Tech)",global,all topics (balanced test),random_adapter,Random peer adapter,1000,0.52425,
+node4,"Node 4 (Sports, Sci/Tech)",global,all topics (balanced test),query_aware,Query-aware adapter choice,1000,0.843,0.8406153580477278
+node4,"Node 4 (Sports, Sci/Tech)",global,all topics (balanced test),majority_vote,Majority vote of all adapters,1000,0.705,0.7008824254093011
+node4,"Node 4 (Sports, Sci/Tech)",global,all topics (balanced test),oracle,Best adapter per question (oracle),1000,0.987,
+node1,"Node 1 (Sports, Business)",local1,node's own mix (local test),base,Base model (no adapter),500,0.96,0.48665090866819083
+node1,"Node 1 (Sports, Business)",local1,node's own mix (local test),own_local,Own adapter only,500,0.996,0.4979166666666667
+node1,"Node 1 (Sports, Business)",local1,node's own mix (local test),own_aggregated,Own aggregated adapter,500,0.99,0.4952105522147808
+node1,"Node 1 (Sports, Business)",local1,node's own mix (local test),merged_avg,All adapters merged (average),500,0.846,0.445646805036138
+node1,"Node 1 (Sports, Business)",local1,node's own mix (local test),merged_ties,All adapters merged (TIES),500,0.656,0.3636443467287653
+node1,"Node 1 (Sports, Business)",local1,node's own mix (local test),fedavg,"Federated average, 50% of each update shared (training baseline)",500,0.994,0.4968723806187682
+node1,"Node 1 (Sports, Business)",local1,node's own mix (local test),local_only,"Local-only training, no federation (baseline)",500,0.996,0.4979166666666667
+node1,"Node 1 (Sports, Business)",local1,node's own mix (local test),centralised,"Centralised training on pooled data (upper bound, not private)",500,0.844,0.4443027210884354
+node1,"Node 1 (Sports, Business)",local1,node's own mix (local test),random_adapter,Random peer adapter,500,0.5415,
+node1,"Node 1 (Sports, Business)",local1,node's own mix (local test),query_aware,Query-aware adapter choice,500,0.844,0.4434820500275213
+node1,"Node 1 (Sports, Business)",local1,node's own mix (local test),majority_vote,Majority vote of all adapters,500,0.938,0.48346968483555963
+node1,"Node 1 (Sports, Business)",local1,node's own mix (local test),oracle,Best adapter per question (oracle),500,0.998,
+node2,Node 2 (Sci/Tech),local2,node's own mix (local test),base,Base model (no adapter),500,0.166,0.18701360810399548
+node2,Node 2 (Sci/Tech),local2,node's own mix (local test),own_local,Own adapter only,500,0.986,0.42820512820512824
+node2,Node 2 (Sci/Tech),local2,node's own mix (local test),own_aggregated,Own aggregated adapter,500,0.974,0.24670719351570417
+node2,Node 2 (Sci/Tech),local2,node's own mix (local test),merged_avg,All adapters merged (average),500,0.862,0.40398695041917987
+node2,Node 2 (Sci/Tech),local2,node's own mix (local test),merged_ties,All adapters merged (TIES),500,0.954,0.42917682572854987
+node2,Node 2 (Sci/Tech),local2,node's own mix (local test),fedavg,"Federated average, 50% of each update shared (training baseline)",500,0.986,0.4148791283622744
+node2,Node 2 (Sci/Tech),local2,node's own mix (local test),local_only,"Local-only training, no federation (baseline)",500,0.986,0.4446263057231131
+node2,Node 2 (Sci/Tech),local2,node's own mix (local test),centralised,"Centralised training on pooled data (upper bound, not private)",500,0.924,0.38621353164491135
+node2,Node 2 (Sci/Tech),local2,node's own mix (local test),random_adapter,Random peer adapter,500,0.5475,
+node2,Node 2 (Sci/Tech),local2,node's own mix (local test),query_aware,Query-aware adapter choice,500,0.902,0.34392818616119586
+node2,Node 2 (Sci/Tech),local2,node's own mix (local test),majority_vote,Majority vote of all adapters,500,0.442,0.32407407407407407
+node2,Node 2 (Sci/Tech),local2,node's own mix (local test),oracle,Best adapter per question (oracle),500,0.998,
+node3,"Node 3 (World, Business)",local3,node's own mix (local test),base,Base model (no adapter),500,0.806,0.4610045045949691
+node3,"Node 3 (World, Business)",local3,node's own mix (local test),own_local,Own adapter only,500,0.908,0.5615233365382627
+node3,"Node 3 (World, Business)",local3,node's own mix (local test),own_aggregated,Own aggregated adapter,500,0.604,0.36739539834602475
+node3,"Node 3 (World, Business)",local3,node's own mix (local test),merged_avg,All adapters merged (average),500,0.756,0.48621511279295415
+node3,"Node 3 (World, Business)",local3,node's own mix (local test),merged_ties,All adapters merged (TIES),500,0.616,0.3898909311046599
+node3,"Node 3 (World, Business)",local3,node's own mix (local test),fedavg,"Federated average, 50% of each update shared (training baseline)",500,0.858,0.5614393031845862
+node3,"Node 3 (World, Business)",local3,node's own mix (local test),local_only,"Local-only training, no federation (baseline)",500,0.908,0.5611121231074773
+node3,"Node 3 (World, Business)",local3,node's own mix (local test),centralised,"Centralised training on pooled data (upper bound, not private)",500,0.814,0.5055404490068396
+node3,"Node 3 (World, Business)",local3,node's own mix (local test),random_adapter,Random peer adapter,500,0.4845,
+node3,"Node 3 (World, Business)",local3,node's own mix (local test),query_aware,Query-aware adapter choice,500,0.802,0.4974178089749228
+node3,"Node 3 (World, Business)",local3,node's own mix (local test),majority_vote,Majority vote of all adapters,500,0.676,0.4331712668043603
+node3,"Node 3 (World, Business)",local3,node's own mix (local test),oracle,Best adapter per question (oracle),500,0.958,
+node4,"Node 4 (Sports, Sci/Tech)",local4,node's own mix (local test),base,Base model (no adapter),500,0.65,0.42256585697014076
+node4,"Node 4 (Sports, Sci/Tech)",local4,node's own mix (local test),own_local,Own adapter only,500,0.916,0.6114335180725222
+node4,"Node 4 (Sports, Sci/Tech)",local4,node's own mix (local test),own_aggregated,Own aggregated adapter,500,0.61,0.3255994152046784
+node4,"Node 4 (Sports, Sci/Tech)",local4,node's own mix (local test),merged_avg,All adapters merged (average),500,0.91,0.6304380614725442
+node4,"Node 4 (Sports, Sci/Tech)",local4,node's own mix (local test),merged_ties,All adapters merged (TIES),500,0.878,0.592330634862741
+node4,"Node 4 (Sports, Sci/Tech)",local4,node's own mix (local test),fedavg,"Federated average, 50% of each update shared (training baseline)",500,0.868,0.46843222706447646
+node4,"Node 4 (Sports, Sci/Tech)",local4,node's own mix (local test),local_only,"Local-only training, no federation (baseline)",500,0.912,0.6234190368047909
+node4,"Node 4 (Sports, Sci/Tech)",local4,node's own mix (local test),centralised,"Centralised training on pooled data (upper bound, not private)",500,0.922,0.6471100717346874
+node4,"Node 4 (Sports, Sci/Tech)",local4,node's own mix (local test),random_adapter,Random peer adapter,500,0.529,
+node4,"Node 4 (Sports, Sci/Tech)",local4,node's own mix (local test),query_aware,Query-aware adapter choice,500,0.876,0.6017651379516136
+node4,"Node 4 (Sports, Sci/Tech)",local4,node's own mix (local test),majority_vote,Majority vote of all adapters,500,0.73,0.5030158470898889
+node4,"Node 4 (Sports, Sci/Tech)",local4,node's own mix (local test),oracle,Best adapter per question (oracle),500,1.0,

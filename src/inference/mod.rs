@@ -78,6 +78,9 @@ pub struct InferRequest {
     /// Send the prompt as-is, without the chat template.
     #[serde(default)]
     pub raw: bool,
+    /// Generate at least this many tokens (benchmarks: fixed output length).
+    #[serde(default)]
+    pub min_tokens: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -88,9 +91,25 @@ pub struct AdapterInfo {
     pub cache_hit: bool,
 }
 
+/// Where the time of one query went (all milliseconds). `ttft_ms` is what the user feels:
+/// ranking + any adapter download + attaching it + the model's first token.
+#[derive(Debug, Serialize, Default, Clone)]
+pub struct Timing {
+    pub select_ms: f64,
+    pub fetch_ms: f64,
+    pub attach_ms: f64,
+    pub model_ttft_ms: f64,
+    pub tpot_ms: f64,
+    pub n_tokens: u64,
+    pub n_prompt_tokens: u64,
+    pub ttft_ms: f64,
+    pub total_ms: f64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct InferResponse {
     pub text: String,
+    pub timing: Timing,
     /// `None` when the base model answered.
     pub adapter: Option<AdapterInfo>,
     pub note: Option<String>,
@@ -105,11 +124,24 @@ struct SidecarRequest<'a> {
     adapter_dir: Option<&'a str>,
     chat: bool,
     system: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    min_new_tokens: Option<u32>,
+}
+
+#[derive(Deserialize, Default)]
+struct SidecarTiming {
+    #[serde(default)] ttft_ms: f64,
+    #[serde(default)] tpot_ms: f64,
+    #[serde(default)] n_tokens: u64,
+    #[serde(default)] n_prompt_tokens: u64,
+    #[serde(default)] attach_ms: f64,
 }
 
 #[derive(Deserialize)]
 struct SidecarResponse {
     text: String,
+    #[serde(default)]
+    timing: SidecarTiming,
 }
 
 pub struct InferenceService {
@@ -133,6 +165,7 @@ impl InferenceService {
         state: Arc<RwLock<State>>,
         network: Arc<RwLock<MeshNetwork>>,
     ) -> Self {
+        let request_timeout = std::time::Duration::from_secs(config.inference.request_timeout_secs);
         InferenceService {
             config,
             own_node_id,
@@ -141,7 +174,7 @@ impl InferenceService {
             network,
             // A stuck sidecar must not hang the request forever.
             http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(config.inference.request_timeout_secs))
+                .timeout(request_timeout)
                 .build()
                 .unwrap_or_default(),
             fetch_locks: Mutex::new(HashMap::new()),
@@ -192,6 +225,9 @@ impl InferenceService {
     /// (e.g. after a restart, or if an earlier publish failed). No-op if none.
     pub async fn publish_latest_existing(&self) {
         let Ok(rd) = std::fs::read_dir(self.adapters_dir()) else { return };
+        // Each round may leave two adapters on disk (aggregated and the node's own "local" one);
+        // re-publish the kind this node publishes (SLAKSHNA_EXPORT_KIND, default aggregated).
+        let wanted = std::env::var("SLAKSHNA_EXPORT_KIND").unwrap_or_else(|_| "aggregated".to_string());
         let mut best: Option<(u64, AdapterOutput)> = None;
         for e in rd.flatten() {
             let dir = e.path();
@@ -199,6 +235,7 @@ impl InferenceService {
             let (Some(meta), Some(cfg)) = (read("adapter_meta.json"), read(CONFIG_FILE)) else { continue };
             let Ok(m) = serde_json::from_str::<serde_json::Value>(&meta) else { continue };
             if m["node_id"].as_str() != Some(self.own_node_id.as_str()) { continue }
+            if m["kind"].as_str().unwrap_or("aggregated") != wanted { continue }
             let round = m["round"].as_u64().unwrap_or(0);
             if best.as_ref().map_or(false, |(r, _)| *r >= round) { continue }
             let Some(hash) = m["adapter_model_safetensors_sha256"].as_str() else { continue };
@@ -292,6 +329,7 @@ impl InferenceService {
             return Err(bad("temperature must be between 0 and 2"));
         }
         let mut notes: Vec<String> = Vec::new();
+        let t_start = std::time::Instant::now();
         let asked = req.max_tokens.unwrap_or(256).max(1);
         let max_tokens = asked.min(inf.max_new_tokens_limit);
         if max_tokens < asked {
@@ -343,6 +381,8 @@ impl InferenceService {
 
         // 4-5. Fetch (if needed) and verify, walking down the ranking: one dead or
         // corrupt adapter falls through to the next best before the base model.
+        let select_ms = t_start.elapsed().as_secs_f64() * 1000.0;
+        let t_fetch = std::time::Instant::now();
         const MAX_ATTEMPTS: usize = 3;
         let deadline = std::time::Duration::from_secs(inf.fetch_timeout_secs);
         let mut used: Option<(AdapterMeta, PathBuf, bool)> = None;
@@ -370,6 +410,8 @@ impl InferenceService {
             });
         }
 
+        let fetch_ms = t_fetch.elapsed().as_secs_f64() * 1000.0;
+
         // 6. Local forward pass.
         let adapter_id = used.as_ref().map(|(m, _, _)| m.sha256.clone());
         let adapter_dir = used.as_ref().map(|(_, d, _)| d.to_string_lossy().to_string());
@@ -381,6 +423,7 @@ impl InferenceService {
             adapter_dir: adapter_dir.as_deref(),
             chat: inf.chat_template && !req.raw,
             system: req.system.as_deref(),
+            min_new_tokens: req.min_tokens.map(|m| m.min(max_tokens)),
         };
         let resp = self
             .http
@@ -396,8 +439,21 @@ impl InferenceService {
         }
         let parsed: SidecarResponse = resp.json().await.map_err(|e| format!("bad sidecar reply: {e}"))?;
 
+        let st = parsed.timing;
+        let timing = Timing {
+            select_ms,
+            fetch_ms,
+            attach_ms: st.attach_ms,
+            model_ttft_ms: st.ttft_ms,
+            tpot_ms: st.tpot_ms,
+            n_tokens: st.n_tokens,
+            n_prompt_tokens: st.n_prompt_tokens,
+            ttft_ms: select_ms + fetch_ms + st.attach_ms + st.ttft_ms,
+            total_ms: t_start.elapsed().as_secs_f64() * 1000.0,
+        };
         Ok(InferResponse {
             text: parsed.text,
+            timing,
             adapter: used.map(|(m, _, hit)| AdapterInfo {
                 node_id: m.node_id,
                 round: m.round,

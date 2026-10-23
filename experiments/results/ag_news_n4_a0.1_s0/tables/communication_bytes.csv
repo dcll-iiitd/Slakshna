@@ -1,0 +1,5 @@
+system,user_prompt_bytes_sent_off_device,network_bytes_per_query_warm,network_bytes_one_time_per_adapter,network_bytes_per_query_amortised,metadata_bytes_per_adapter_per_peer,round_trips_per_generated_token,source
+Ours: federated inference,0.0,0.0,4373040.0,43730.4,958.0,0,measured
+Central multi-LoRA server (vLLM),389.468,608.226,4373040.0,608.226,0.0,0,measured request sizes
+Layer-split decentralised (Petals-style),254539.776,1318778.8800000001,0.0,1318778.8800000001,0.0,5,"analytical: hidden=1536, bf16, 5 transfers per token"
+Cloud API,389.468,608.226,4373040.0,608.226,0.0,0,analytical

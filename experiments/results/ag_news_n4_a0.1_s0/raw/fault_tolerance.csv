@@ -1,0 +1,181 @@
+phase,peers_down,method,qid,ok,correct,adapter_node,cache_hit,fell_back,total_ms,note
+healthy,0,trust,global-316,1,0,node2,False,0,1154.4513702392578,
+healthy,0,trust,global-974,1,0,node2,True,0,182.01279640197754,
+healthy,0,trust,global-262,1,1,node2,True,0,124.57942962646484,
+healthy,0,trust,global-342,1,1,node2,True,0,123.56734275817871,
+healthy,0,trust,global-905,1,0,node2,True,0,153.8984775543213,
+healthy,0,trust,global-932,1,0,node2,True,0,154.2348861694336,
+healthy,0,trust,global-567,1,0,node2,True,0,149.84369277954102,
+healthy,0,trust,global-511,1,0,node2,True,0,153.4113883972168,
+healthy,0,trust,global-872,1,0,node2,True,0,154.52885627746582,
+healthy,0,trust,global-143,1,0,node2,True,0,182.84893035888672,
+healthy,0,trust,global-176,1,1,node2,True,0,93.42312812805176,
+healthy,0,trust,global-955,1,0,node2,True,0,153.94163131713867,
+healthy,0,trust,global-573,1,0,node2,True,0,154.35433387756348,
+healthy,0,trust,global-290,1,0,node2,True,0,153.69558334350586,
+healthy,0,trust,global-928,1,0,node2,True,0,153.2418727874756,
+healthy,0,trust,global-989,1,0,node2,True,0,201.554536819458,
+healthy,0,trust,global-841,1,0,node2,True,0,231.63795471191406,
+healthy,0,trust,global-185,1,0,node2,True,0,151.47733688354492,
+healthy,0,trust,global-370,1,0,node2,True,0,153.56993675231934,
+healthy,0,trust,global-721,1,1,node2,True,0,151.95798873901367,
+healthy,0,trust,global-156,1,0,node2,True,0,153.1081199645996,
+healthy,0,trust,global-346,1,0,node2,True,0,165.16685485839844,
+healthy,0,trust,global-388,1,0,node2,True,0,154.75773811340332,
+healthy,0,trust,global-313,1,0,node2,True,0,152.8797149658203,
+healthy,0,trust,global-617,1,0,node2,True,0,151.8099308013916,
+healthy,0,trust,global-148,1,1,node2,True,0,150.49386024475098,
+healthy,0,trust,global-892,1,0,node2,True,0,155.134916305542,
+healthy,0,trust,global-371,1,0,node2,True,0,182.56235122680664,
+healthy,0,trust,global-938,1,0,node2,True,0,156.2652587890625,
+healthy,0,trust,global-596,1,1,node2,True,0,154.4959545135498,
+healthy,0,self,global-316,1,0,node1,True,0,1020.9732055664062,
+healthy,0,self,global-974,1,1,node1,True,0,88.3636474609375,
+healthy,0,self,global-262,1,0,node1,True,0,92.44108200073242,
+healthy,0,self,global-342,1,0,node1,True,0,87.7997875213623,
+healthy,0,self,global-905,1,0,node1,True,0,87.44454383850098,
+healthy,0,self,global-932,1,1,node1,True,0,91.78566932678223,
+healthy,0,self,global-567,1,1,node1,True,0,107.8028678894043,
+healthy,0,self,global-511,1,0,node1,True,0,112.66684532165527,
+healthy,0,self,global-872,1,1,node1,True,0,92.74435043334961,
+healthy,0,self,global-143,1,1,node1,True,0,89.19024467468262,
+healthy,0,self,global-176,1,0,node1,True,0,88.83905410766602,
+healthy,0,self,global-955,1,1,node1,True,0,92.49687194824219,
+healthy,0,self,global-573,1,1,node1,True,0,83.34541320800781,
+healthy,0,self,global-290,1,1,node1,True,0,87.48865127563477,
+healthy,0,self,global-928,1,1,node1,True,0,88.33122253417969,
+healthy,0,self,global-989,1,1,node1,True,0,119.4462776184082,
+healthy,0,self,global-841,1,0,node1,True,0,93.95575523376465,
+healthy,0,self,global-185,1,1,node1,True,0,99.6851921081543,
+healthy,0,self,global-370,1,1,node1,True,0,90.96193313598633,
+healthy,0,self,global-721,1,0,node1,True,0,88.67669105529785,
+healthy,0,self,global-156,1,1,node1,True,0,93.69277954101562,
+healthy,0,self,global-346,1,0,node1,True,0,83.55402946472168,
+healthy,0,self,global-388,1,0,node1,True,0,88.88864517211914,
+healthy,0,self,global-313,1,1,node1,True,0,85.95585823059082,
+healthy,0,self,global-617,1,1,node1,True,0,91.89677238464355,
+healthy,0,self,global-148,1,0,node1,True,0,95.40510177612305,
+healthy,0,self,global-892,1,0,node1,True,0,90.36111831665039,
+healthy,0,self,global-371,1,0,node1,True,0,86.39740943908691,
+healthy,0,self,global-938,1,0,node1,True,0,102.55265235900879,
+healthy,0,self,global-596,1,0,node1,True,0,86.89308166503906,
+1 peer down,1,trust,global-316,1,0,node4,False,1,2198.8227367401123,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-974,1,1,node4,True,1,1109.4191074371338,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-262,1,0,node4,True,1,1106.1382293701172,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-342,1,1,node4,True,1,1094.4738388061523,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-905,1,0,node4,True,1,1177.3483753204346,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-932,1,0,node4,True,1,1155.9937000274658,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-567,1,0,node4,True,1,1228.1532287597656,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-511,1,0,node4,True,1,1157.914638519287,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-872,1,1,node4,True,1,1087.1288776397705,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-143,1,1,node4,True,1,1092.785120010376,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-176,1,1,node4,True,1,1091.9759273529053,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-955,1,1,node4,True,1,1091.2463665008545,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-573,1,1,node4,True,1,1090.3568267822266,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-290,1,1,node4,True,1,1091.6352272033691,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-928,1,1,node4,True,1,1092.3998355865479,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-989,1,1,node4,True,1,1105.4668426513672,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-841,1,0,node4,True,1,1096.414566040039,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-185,1,0,node4,True,1,1173.9857196807861,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-370,1,1,node4,True,1,1095.954418182373,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-721,1,1,node4,True,1,1173.9840507507324,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-156,1,1,node4,True,1,1092.0839309692383,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-346,1,0,node4,True,1,1162.3022556304932,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-388,1,0,node4,True,1,1159.9111557006836,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-313,1,1,node4,True,1,1093.071699142456,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-617,1,1,node4,True,1,1095.5100059509277,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-148,1,1,node4,True,1,1152.001142501831,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-892,1,0,node4,True,1,1090.1694297790527,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-371,1,0,node4,True,1,1164.1311645507812,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-938,1,0,node4,True,1,1160.9728336334229,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,trust,global-596,1,1,node4,True,1,1156.862735748291,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+1 peer down,1,self,global-316,1,0,node1,True,0,1034.0771675109863,
+1 peer down,1,self,global-974,1,1,node1,True,0,84.43260192871094,
+1 peer down,1,self,global-262,1,0,node1,True,0,86.62009239196777,
+1 peer down,1,self,global-342,1,0,node1,True,0,86.35425567626953,
+1 peer down,1,self,global-905,1,0,node1,True,0,101.83262825012207,
+1 peer down,1,self,global-932,1,1,node1,True,0,82.21650123596191,
+1 peer down,1,self,global-567,1,1,node1,True,0,87.48030662536621,
+1 peer down,1,self,global-511,1,0,node1,True,0,90.35682678222656,
+1 peer down,1,self,global-872,1,1,node1,True,0,86.75909042358398,
+1 peer down,1,self,global-143,1,1,node1,True,0,85.16192436218262,
+1 peer down,1,self,global-176,1,0,node1,True,0,89.70260620117188,
+1 peer down,1,self,global-955,1,1,node1,True,0,91.07708930969238,
+1 peer down,1,self,global-573,1,1,node1,True,0,85.10613441467285,
+1 peer down,1,self,global-290,1,1,node1,True,0,89.34998512268066,
+1 peer down,1,self,global-928,1,1,node1,True,0,97.8846549987793,
+1 peer down,1,self,global-989,1,1,node1,True,0,103.14273834228516,
+1 peer down,1,self,global-841,1,0,node1,True,0,92.36526489257812,
+1 peer down,1,self,global-185,1,1,node1,True,0,95.29638290405273,
+1 peer down,1,self,global-370,1,1,node1,True,0,90.87228775024414,
+1 peer down,1,self,global-721,1,0,node1,True,0,87.44454383850098,
+1 peer down,1,self,global-156,1,1,node1,True,0,86.32516860961914,
+1 peer down,1,self,global-346,1,0,node1,True,0,89.92528915405273,
+1 peer down,1,self,global-388,1,0,node1,True,0,89.65253829956055,
+1 peer down,1,self,global-313,1,1,node1,True,0,88.32621574401855,
+1 peer down,1,self,global-617,1,1,node1,True,0,97.51367568969727,
+1 peer down,1,self,global-148,1,0,node1,True,0,110.9769344329834,
+1 peer down,1,self,global-892,1,0,node1,True,0,89.28251266479492,
+1 peer down,1,self,global-371,1,0,node1,True,0,81.94375038146973,
+1 peer down,1,self,global-938,1,0,node1,True,0,84.30981636047363,
+1 peer down,1,self,global-596,1,0,node1,True,0,88.72580528259277,
+2 peers down,2,trust,global-316,1,0,node4,False,1,2198.715925216675,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-974,1,1,node4,True,1,1093.9090251922607,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-262,1,0,node4,True,1,1093.8291549682617,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-342,1,1,node4,True,1,1091.4511680603027,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-905,1,0,node4,True,1,1157.8187942504883,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-932,1,0,node4,True,1,1159.4157218933105,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-567,1,0,node4,True,1,1158.8640213012695,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-511,1,0,node4,True,1,1159.0969562530518,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-872,1,1,node4,True,1,1091.8183326721191,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-143,1,1,node4,True,1,1123.0578422546387,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-176,1,1,node4,True,1,1100.2438068389893,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-955,1,1,node4,True,1,1097.4986553192139,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-573,1,1,node4,True,1,1097.4221229553223,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-290,1,1,node4,True,1,1105.6361198425293,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-928,1,1,node4,True,1,1099.6174812316895,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-989,1,1,node4,True,1,1114.164113998413,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-841,1,0,node4,True,1,1093.3125019073486,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-185,1,0,node4,True,1,1158.7262153625488,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-370,1,1,node4,True,1,1091.0108089447021,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-721,1,1,node4,True,1,1178.8442134857178,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-156,1,1,node4,True,1,1104.5148372650146,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-346,1,0,node4,True,1,1160.1836681365967,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-388,1,0,node4,True,1,1160.3171825408936,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-313,1,1,node4,True,1,1095.0946807861328,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-617,1,1,node4,True,1,1096.70090675354,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-148,1,1,node4,True,1,1156.217098236084,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-892,1,0,node4,True,1,1093.137502670288,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-371,1,0,node4,True,1,1158.3452224731445,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-938,1,0,node4,True,1,1157.7894687652588,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,trust,global-596,1,1,node4,True,1,1165.8499240875244,adapter 2e8b75c12d48 unavailable (download from d645e6fa38: Unable to download 1bb442ca9ea27ed366efa
+2 peers down,2,self,global-316,1,0,node1,True,0,1021.399736404419,
+2 peers down,2,self,global-974,1,1,node1,True,0,89.54310417175293,
+2 peers down,2,self,global-262,1,0,node1,True,0,81.76493644714355,
+2 peers down,2,self,global-342,1,0,node1,True,0,85.18528938293457,
+2 peers down,2,self,global-905,1,0,node1,True,0,86.82417869567871,
+2 peers down,2,self,global-932,1,1,node1,True,0,87.42117881774902,
+2 peers down,2,self,global-567,1,1,node1,True,0,86.82918548583984,
+2 peers down,2,self,global-511,1,0,node1,True,0,84.1829776763916,
+2 peers down,2,self,global-872,1,1,node1,True,0,82.58461952209473,
+2 peers down,2,self,global-143,1,1,node1,True,0,84.0916633605957,
+2 peers down,2,self,global-176,1,0,node1,True,0,83.75096321105957,
+2 peers down,2,self,global-955,1,1,node1,True,0,89.39814567565918,
+2 peers down,2,self,global-573,1,1,node1,True,0,92.75460243225098,
+2 peers down,2,self,global-290,1,1,node1,True,0,88.6223316192627,
+2 peers down,2,self,global-928,1,1,node1,True,0,86.25459671020508,
+2 peers down,2,self,global-989,1,1,node1,True,0,105.95512390136719,
+2 peers down,2,self,global-841,1,0,node1,True,0,91.78519248962402,
+2 peers down,2,self,global-185,1,1,node1,True,0,88.20414543151855,
+2 peers down,2,self,global-370,1,1,node1,True,0,84.40113067626953,
+2 peers down,2,self,global-721,1,0,node1,True,0,89.87665176391602,
+2 peers down,2,self,global-156,1,1,node1,True,0,88.82689476013184,
+2 peers down,2,self,global-346,1,0,node1,True,0,87.7847671508789,
+2 peers down,2,self,global-388,1,0,node1,True,0,85.25800704956055,
+2 peers down,2,self,global-313,1,1,node1,True,0,84.31863784790039,
+2 peers down,2,self,global-617,1,1,node1,True,0,86.13920211791992,
+2 peers down,2,self,global-148,1,0,node1,True,0,89.34736251831055,
+2 peers down,2,self,global-892,1,0,node1,True,0,106.57668113708496,
+2 peers down,2,self,global-371,1,0,node1,True,0,120.80979347229004,
+2 peers down,2,self,global-938,1,0,node1,True,0,122.67255783081055,
+2 peers down,2,self,global-596,1,0,node1,True,0,82.72337913513184,

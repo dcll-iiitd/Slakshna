@@ -1,0 +1,45 @@
+adapter,adapter_name,topic,accuracy
+base,Base model,Business,1.0
+base,Base model,Sci/Tech,0.14285714285714285
+base,Base model,Sports,1.0
+base,Base model,World,0.8823529411764706
+merged_avg,All adapters merged (average),Business,0.7272727272727273
+merged_avg,All adapters merged (average),Sci/Tech,0.8571428571428571
+merged_avg,All adapters merged (average),Sports,0.9444444444444444
+merged_avg,All adapters merged (average),World,0.9411764705882353
+merged_ties,All adapters merged (TIES),Business,0.6363636363636364
+merged_ties,All adapters merged (TIES),Sci/Tech,0.9285714285714286
+merged_ties,All adapters merged (TIES),Sports,0.8333333333333334
+merged_ties,All adapters merged (TIES),World,0.9411764705882353
+node1:aggregated:r3,"Node 1 (Sports, Business) [aggregated], round 3",Business,1.0
+node1:aggregated:r3,"Node 1 (Sports, Business) [aggregated], round 3",Sci/Tech,0.42857142857142855
+node1:aggregated:r3,"Node 1 (Sports, Business) [aggregated], round 3",Sports,1.0
+node1:aggregated:r3,"Node 1 (Sports, Business) [aggregated], round 3",World,0.0
+node1:local:r3,"Node 1 (Sports, Business), round 3",Business,1.0
+node1:local:r3,"Node 1 (Sports, Business), round 3",Sci/Tech,0.0
+node1:local:r3,"Node 1 (Sports, Business), round 3",Sports,1.0
+node1:local:r3,"Node 1 (Sports, Business), round 3",World,0.0
+node2:aggregated:r3,"Node 2 (Sci/Tech) [aggregated], round 3",Business,0.0
+node2:aggregated:r3,"Node 2 (Sci/Tech) [aggregated], round 3",Sci/Tech,1.0
+node2:aggregated:r3,"Node 2 (Sci/Tech) [aggregated], round 3",Sports,0.05555555555555555
+node2:aggregated:r3,"Node 2 (Sci/Tech) [aggregated], round 3",World,0.0
+node2:local:r3,"Node 2 (Sci/Tech), round 3",Business,0.0
+node2:local:r3,"Node 2 (Sci/Tech), round 3",Sci/Tech,1.0
+node2:local:r3,"Node 2 (Sci/Tech), round 3",Sports,0.05555555555555555
+node2:local:r3,"Node 2 (Sci/Tech), round 3",World,0.7058823529411765
+node3:aggregated:r3,"Node 3 (World, Business) [aggregated], round 3",Business,0.18181818181818182
+node3:aggregated:r3,"Node 3 (World, Business) [aggregated], round 3",Sci/Tech,0.9285714285714286
+node3:aggregated:r3,"Node 3 (World, Business) [aggregated], round 3",Sports,0.05555555555555555
+node3:aggregated:r3,"Node 3 (World, Business) [aggregated], round 3",World,0.9411764705882353
+node3:local:r3,"Node 3 (World, Business), round 3",Business,0.9090909090909091
+node3:local:r3,"Node 3 (World, Business), round 3",Sci/Tech,0.2857142857142857
+node3:local:r3,"Node 3 (World, Business), round 3",Sports,0.0
+node3:local:r3,"Node 3 (World, Business), round 3",World,1.0
+node4:aggregated:r3,"Node 4 (Sports, Sci/Tech) [aggregated], round 3",Business,0.0
+node4:aggregated:r3,"Node 4 (Sports, Sci/Tech) [aggregated], round 3",Sci/Tech,1.0
+node4:aggregated:r3,"Node 4 (Sports, Sci/Tech) [aggregated], round 3",Sports,0.3333333333333333
+node4:aggregated:r3,"Node 4 (Sports, Sci/Tech) [aggregated], round 3",World,0.0
+node4:local:r3,"Node 4 (Sports, Sci/Tech), round 3",Business,0.5454545454545454
+node4:local:r3,"Node 4 (Sports, Sci/Tech), round 3",Sci/Tech,0.9285714285714286
+node4:local:r3,"Node 4 (Sports, Sci/Tech), round 3",Sports,0.9444444444444444
+node4:local:r3,"Node 4 (Sports, Sci/Tech), round 3",World,0.23529411764705882

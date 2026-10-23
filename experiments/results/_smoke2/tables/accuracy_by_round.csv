@@ -1,0 +1,26 @@
+adapter_name,adapter_node,kind,round,accuracy
+Base model,,base model,0,0.7666666666666667
+"Node 1 (Sports, Business)",node1,aggregated,1,0.65
+"Node 1 (Sports, Business)",node1,aggregated,2,0.5
+"Node 1 (Sports, Business)",node1,aggregated,3,0.5833333333333334
+"Node 1 (Sports, Business)",node1,local,1,0.48333333333333334
+"Node 1 (Sports, Business)",node1,local,2,0.48333333333333334
+"Node 1 (Sports, Business)",node1,local,3,0.48333333333333334
+Node 2 (Sci/Tech),node2,aggregated,1,0.8166666666666667
+Node 2 (Sci/Tech),node2,aggregated,2,0.5666666666666667
+Node 2 (Sci/Tech),node2,aggregated,3,0.25
+Node 2 (Sci/Tech),node2,local,1,0.36666666666666664
+Node 2 (Sci/Tech),node2,local,2,0.2833333333333333
+Node 2 (Sci/Tech),node2,local,3,0.45
+"Node 3 (World, Business)",node3,aggregated,1,0.8
+"Node 3 (World, Business)",node3,aggregated,2,0.7833333333333333
+"Node 3 (World, Business)",node3,aggregated,3,0.5333333333333333
+"Node 3 (World, Business)",node3,local,1,0.5
+"Node 3 (World, Business)",node3,local,2,0.5
+"Node 3 (World, Business)",node3,local,3,0.5166666666666667
+"Node 4 (Sports, Sci/Tech)",node4,aggregated,1,0.8
+"Node 4 (Sports, Sci/Tech)",node4,aggregated,2,0.7833333333333333
+"Node 4 (Sports, Sci/Tech)",node4,aggregated,3,0.3333333333333333
+"Node 4 (Sports, Sci/Tech)",node4,local,1,0.7666666666666667
+"Node 4 (Sports, Sci/Tech)",node4,local,2,0.6666666666666666
+"Node 4 (Sports, Sci/Tech)",node4,local,3,0.6666666666666666

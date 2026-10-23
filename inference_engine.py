@@ -32,6 +32,7 @@ import os
 import sys
 import tempfile
 import threading
+import time
 from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -116,7 +117,7 @@ class AdapterModel:
 
     def generate(self, prompt: str, max_new_tokens: int, temperature: float,
                  adapter_id: str | None, adapter_dir: str | None,
-                 chat: bool = True, system: str | None = None) -> str:
+                 chat: bool = True, system: str | None = None, min_new_tokens: int = 0):
         if not 0.0 <= temperature <= 2.0:
             raise ValueError("temperature must be between 0 and 2")
         max_new_tokens = max(1, min(max_new_tokens, MAX_NEW_TOKENS))
@@ -128,15 +129,74 @@ class AdapterModel:
             if n_prompt + max_new_tokens > limit:
                 raise ValueError(f"prompt ({n_prompt} tokens) plus max_new_tokens ({max_new_tokens}) exceeds the model limit of {limit}")
         params = self._GenerationParams(max_new_tokens=max_new_tokens, temperature=temperature)
+
+        min_new_tokens = max(0, min(int(min_new_tokens or 0), max_new_tokens))
+
+        async def fixed_length_stream():
+            # Same streaming as the engine, plus min_new_tokens so benchmarks can force an exact
+            # output length (TPOT and throughput need long, equal-length generations).
+            import torch
+            from transformers import TextIteratorStreamer
+
+            mtok = self._engine._tokenizer
+            inputs = mtok(prompt, return_tensors="pt").to(self._engine._device)
+            streamer = TextIteratorStreamer(mtok, skip_prompt=True, skip_special_tokens=True, timeout=None)
+            kw = dict(**inputs, streamer=streamer, max_new_tokens=max_new_tokens, min_new_tokens=min_new_tokens,
+                      do_sample=temperature > 0.0, temperature=max(temperature, 1e-6),
+                      pad_token_id=mtok.pad_token_id, eos_token_id=mtok.eos_token_id)
+            threading.Thread(target=lambda: torch.inference_mode()(self._engine._model.generate)(**kw), daemon=True).start()
+            done = object()
+
+            def nxt():
+                try:
+                    return next(streamer)
+                except StopIteration:
+                    return done
+
+            while True:
+                chunk = await asyncio.to_thread(nxt)
+                if chunk is done:
+                    break
+                if chunk:
+                    yield chunk
+
+        async def timed():
+            # Streams the answer so time-to-first-token and time-per-output-token can be measured.
+            t0 = time.perf_counter()
+            first = None
+            parts: list[str] = []
+            stream = fixed_length_stream() if min_new_tokens > 0 else self._engine.generate(prompt, params)
+            async for chunk in stream:
+                if chunk and first is None:
+                    first = time.perf_counter()
+                parts.append(chunk)
+            t1 = time.perf_counter()
+            text = "".join(parts)
+            n = len(tok(text, add_special_tokens=False)["input_ids"]) if text else 0
+            first = first if first is not None else t1
+            return text, {
+                "ttft_ms": (first - t0) * 1000.0,
+                "tpot_ms": ((t1 - first) * 1000.0 / (n - 1)) if n > 1 else 0.0,
+                "gen_ms": (t1 - t0) * 1000.0,
+                "n_tokens": n,
+                "n_prompt_tokens": len(tok(prompt)["input_ids"]),
+            }
+
         with self._lock:
+            attach_ms = 0.0
             if adapter_id and adapter_dir:
+                t = time.perf_counter()
                 self._attach(adapter_id, adapter_dir)
                 self._peft.set_adapter(adapter_id)
-                return asyncio.run(self._engine.generate_full(prompt, params))
-            if self._peft is not None:
+                attach_ms = (time.perf_counter() - t) * 1000.0
+                text, timing = asyncio.run(timed())
+            elif self._peft is not None:
                 with self._peft.disable_adapter():
-                    return asyncio.run(self._engine.generate_full(prompt, params))
-            return asyncio.run(self._engine.generate_full(prompt, params))
+                    text, timing = asyncio.run(timed())
+            else:
+                text, timing = asyncio.run(timed())
+        timing["attach_ms"] = attach_ms
+        return text, timing
 
 
 def make_handler(model: AdapterModel):
@@ -155,6 +215,16 @@ def make_handler(model: AdapterModel):
         def do_GET(self):
             if self.path == "/health":
                 self._send(200, {"status": "ok"})
+            elif self.path in ("/stats", "/stats/reset"):
+                # GPU memory of this process (for the memory benchmark); /stats/reset also resets the peak.
+                import torch
+                st = {"allocated_mb": torch.cuda.memory_allocated() / 2**20,
+                      "peak_allocated_mb": torch.cuda.max_memory_allocated() / 2**20,
+                      "reserved_mb": torch.cuda.memory_reserved() / 2**20,
+                      "adapters_loaded": len(model._loaded)}
+                if self.path == "/stats/reset":
+                    torch.cuda.reset_peak_memory_stats()
+                self._send(200, st)
             else:
                 self._send(404, {"error": "not found"})
 
@@ -172,7 +242,7 @@ def make_handler(model: AdapterModel):
                     d = Path(adapter_dir)
                     if not (d / "adapter_model.safetensors").is_file() or not (d / "adapter_config.json").is_file():
                         return self._send(400, {"error": "adapter_dir is not a PEFT adapter directory"})
-                text = model.generate(
+                text, timing = model.generate(
                     str(req["prompt"]),
                     int(req.get("max_new_tokens", 256)),
                     float(req.get("temperature", 0.7)),
@@ -180,8 +250,9 @@ def make_handler(model: AdapterModel):
                     adapter_dir,
                     bool(req.get("chat", True)),
                     req.get("system"),
+                    int(req.get("min_new_tokens") or 0),
                 )
-                self._send(200, {"text": text, "adapter_id": adapter_id})
+                self._send(200, {"text": text, "adapter_id": adapter_id, "timing": timing})
             except ValueError as e:  # bad temperature, prompt too long, ...
                 self._send(400, {"error": str(e)})
             except KeyError as e:

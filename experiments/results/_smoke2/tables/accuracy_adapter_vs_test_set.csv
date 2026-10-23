@@ -1,0 +1,67 @@
+adapter,adapter_name,test_set,n_questions,accuracy,macro_f1,unparseable_answer_rate
+base,Base model,global,60,0.7666666666666667,0.7037508333760706,0.03333333333333333
+base,Base model,local1,20,1.0,0.5,0.0
+base,Base model,local2,20,0.15,0.06521739130434782,0.1
+base,Base model,local3,20,0.85,0.44345238095238093,0.05
+base,Base model,local4,20,0.6,0.25,0.0
+base,Base model,val,400,0.68,0.6753649347963164,0.0525
+merged_avg,All adapters merged (average),global,60,0.8833333333333333,0.8686274509803922,0.0
+merged_avg,All adapters merged (average),local1,20,0.85,0.4288793103448276,0.0
+merged_avg,All adapters merged (average),local2,20,0.9,0.23684210526315788,0.0
+merged_avg,All adapters merged (average),local3,20,0.7,0.41666666666666663,0.0
+merged_avg,All adapters merged (average),local4,20,0.9,0.4642857142857143,0.0
+merged_avg,All adapters merged (average),val,400,0.84,0.8408509398498225,0.0
+merged_ties,All adapters merged (TIES),global,60,0.85,0.8379538418238108,0.0
+merged_ties,All adapters merged (TIES),local1,20,0.6,0.2948717948717949,0.0
+merged_ties,All adapters merged (TIES),local2,20,0.95,0.24358974358974358,0.0
+merged_ties,All adapters merged (TIES),local3,20,0.65,0.3561507936507936,0.0
+merged_ties,All adapters merged (TIES),local4,20,0.85,0.4331550802139037,0.0
+merged_ties,All adapters merged (TIES),val,400,0.75,0.7458267025452581,0.0
+node1:aggregated:r3,"Node 1 (Sports, Business) [aggregated], round 3",global,60,0.5833333333333334,0.5170212765957447,0.0
+node1:aggregated:r3,"Node 1 (Sports, Business) [aggregated], round 3",local1,20,1.0,0.5,0.0
+node1:aggregated:r3,"Node 1 (Sports, Business) [aggregated], round 3",local2,20,0.4,0.14285714285714285,0.0
+node1:aggregated:r3,"Node 1 (Sports, Business) [aggregated], round 3",local3,20,0.3,0.11538461538461539,0.0
+node1:aggregated:r3,"Node 1 (Sports, Business) [aggregated], round 3",local4,20,0.6,0.25,0.0
+node1:aggregated:r3,"Node 1 (Sports, Business) [aggregated], round 3",val,400,0.5675,0.4856180103225698,0.0
+node1:local:r3,"Node 1 (Sports, Business), round 3",global,60,0.48333333333333334,0.34901247401247404,0.0
+node1:local:r3,"Node 1 (Sports, Business), round 3",local1,20,1.0,0.5,0.0
+node1:local:r3,"Node 1 (Sports, Business), round 3",local2,20,0.0,0.0,0.05
+node1:local:r3,"Node 1 (Sports, Business), round 3",local3,20,0.3,0.11538461538461539,0.0
+node1:local:r3,"Node 1 (Sports, Business), round 3",local4,20,0.6,0.25,0.0
+node1:local:r3,"Node 1 (Sports, Business), round 3",val,400,0.485,0.36151402127365656,0.0125
+node2:aggregated:r3,"Node 2 (Sci/Tech) [aggregated], round 3",global,60,0.25,0.12220620043258831,0.0
+node2:aggregated:r3,"Node 2 (Sci/Tech) [aggregated], round 3",local1,20,0.0,0.0,0.0
+node2:aggregated:r3,"Node 2 (Sci/Tech) [aggregated], round 3",local2,20,1.0,0.25,0.0
+node2:aggregated:r3,"Node 2 (Sci/Tech) [aggregated], round 3",local3,20,0.05,0.023809523809523808,0.0
+node2:aggregated:r3,"Node 2 (Sci/Tech) [aggregated], round 3",local4,20,0.4,0.14285714285714285,0.0
+node2:aggregated:r3,"Node 2 (Sci/Tech) [aggregated], round 3",val,400,0.2975,0.11929158032082278,0.0
+node2:local:r3,"Node 2 (Sci/Tech), round 3",global,60,0.45,0.3479664395584779,0.0
+node2:local:r3,"Node 2 (Sci/Tech), round 3",local1,20,0.0,0.0,0.0
+node2:local:r3,"Node 2 (Sci/Tech), round 3",local2,20,1.0,0.25,0.0
+node2:local:r3,"Node 2 (Sci/Tech), round 3",local3,20,0.45,0.22893772893772893,0.0
+node2:local:r3,"Node 2 (Sci/Tech), round 3",local4,20,0.4,0.14285714285714285,0.0
+node2:local:r3,"Node 2 (Sci/Tech), round 3",val,400,0.42,0.3030272749956191,0.0
+node3:aggregated:r3,"Node 3 (World, Business) [aggregated], round 3",global,60,0.5333333333333333,0.4436910729203962,0.0
+node3:aggregated:r3,"Node 3 (World, Business) [aggregated], round 3",local1,20,0.05,0.0625,0.0
+node3:aggregated:r3,"Node 3 (World, Business) [aggregated], round 3",local2,20,1.0,0.25,0.0
+node3:aggregated:r3,"Node 3 (World, Business) [aggregated], round 3",local3,20,0.65,0.3561507936507936,0.0
+node3:aggregated:r3,"Node 3 (World, Business) [aggregated], round 3",local4,20,0.35,0.1590909090909091,0.0
+node3:aggregated:r3,"Node 3 (World, Business) [aggregated], round 3",val,400,0.5025,0.4226480084551251,0.0
+node3:local:r3,"Node 3 (World, Business), round 3",global,60,0.5166666666666667,0.44146825396825395,0.0
+node3:local:r3,"Node 3 (World, Business), round 3",local1,20,0.25,0.20833333333333334,0.0
+node3:local:r3,"Node 3 (World, Business), round 3",local2,20,0.2,0.08333333333333333,0.0
+node3:local:r3,"Node 3 (World, Business), round 3",local3,20,0.85,0.42307692307692313,0.0
+node3:local:r3,"Node 3 (World, Business), round 3",local4,20,0.0,0.0,0.0
+node3:local:r3,"Node 3 (World, Business), round 3",val,400,0.5,0.4157626120526075,0.0
+node4:aggregated:r3,"Node 4 (Sports, Sci/Tech) [aggregated], round 3",global,60,0.3333333333333333,0.22794117647058823,0.0
+node4:aggregated:r3,"Node 4 (Sports, Sci/Tech) [aggregated], round 3",local1,20,0.3,0.14285714285714285,0.0
+node4:aggregated:r3,"Node 4 (Sports, Sci/Tech) [aggregated], round 3",local2,20,1.0,0.25,0.0
+node4:aggregated:r3,"Node 4 (Sports, Sci/Tech) [aggregated], round 3",local3,20,0.05,0.023809523809523808,0.0
+node4:aggregated:r3,"Node 4 (Sports, Sci/Tech) [aggregated], round 3",local4,20,0.6,0.29166666666666663,0.0
+node4:aggregated:r3,"Node 4 (Sports, Sci/Tech) [aggregated], round 3",val,400,0.405,0.27672413793103445,0.0
+node4:local:r3,"Node 4 (Sports, Sci/Tech), round 3",global,60,0.6666666666666666,0.6404344193817878,0.0
+node4:local:r3,"Node 4 (Sports, Sci/Tech), round 3",local1,20,0.9,0.4375,0.0
+node4:local:r3,"Node 4 (Sports, Sci/Tech), round 3",local2,20,0.95,0.24358974358974358,0.0
+node4:local:r3,"Node 4 (Sports, Sci/Tech), round 3",local3,20,0.35,0.27836134453781514,0.05
+node4:local:r3,"Node 4 (Sports, Sci/Tech), round 3",local4,20,0.9,0.4642857142857143,0.0
+node4:local:r3,"Node 4 (Sports, Sci/Tech), round 3",val,400,0.675,0.6341731141255356,0.0125

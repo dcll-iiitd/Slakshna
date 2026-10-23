@@ -18,7 +18,9 @@ os.environ["XDG_CACHE_HOME"] = os.path.join(BASE_DIR, "cache")
 if len(sys.argv) > 1 and sys.argv[1] != "--help":
     my_id_arg = sys.argv[1]
     short_id = my_id_arg[-6:] if len(my_id_arg) > 6 else my_id_arg
-    node_tmp = f"/tmp/sl_t_{short_id}"
+    # With SLAKSHNA_TMP_BASE set, drop the "sl_t_" prefix: Ray's unix-socket paths cap at 107 bytes.
+    node_tmp = os.path.join(os.environ.get("SLAKSHNA_TMP_BASE", "/tmp"),
+                            short_id if os.environ.get("SLAKSHNA_TMP_BASE") else f"sl_t_{short_id}")
     os.makedirs(node_tmp, exist_ok=True)
     os.environ["RAY_TMPDIR"] = node_tmp
     os.environ["TMPDIR"] = node_tmp
@@ -31,9 +33,10 @@ if len(sys.argv) > 1 and sys.argv[1] != "--help":
     os.environ["RAY_NODE_MANAGER_PORT"] = str(13000 + port_offset)
     os.environ["RAY_OBJECT_MANAGER_PORT"] = str(14000 + port_offset)
 else:
-    os.makedirs("/tmp/sl_t_shared", exist_ok=True)
-    os.environ["RAY_TMPDIR"] = "/tmp/sl_t_shared"
-    os.environ["TMPDIR"] = "/tmp/sl_t_shared"
+    _shared_tmp = os.path.join(os.environ.get("SLAKSHNA_TMP_BASE", "/tmp"), "sl_t_shared")
+    os.makedirs(_shared_tmp, exist_ok=True)
+    os.environ["RAY_TMPDIR"] = _shared_tmp
+    os.environ["TMPDIR"] = _shared_tmp
 
 import torch
 import numpy as np
@@ -120,7 +123,19 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", sta
         config = yaml.safe_load(f)
 
     node_data_dir = os.path.join(DATA_DIR, f"data_{my_id}")
-    
+
+    # Experiments: each node trains on its own (non-IID) slice. SLAKSHNA_PARTITION_ROOT/<node>/ holds
+    # train.jsonl and tokenized/, where <node> is the basename of the node's data_dir minus "data-"
+    # (data-node1 -> node1). Unset = every node shares data.tokenized_path from node_template.yaml.
+    partition_root = os.environ.get("SLAKSHNA_PARTITION_ROOT")
+    if partition_root:
+        part = os.path.basename(os.environ.get("IIITD_DATA_DIR", "").rstrip("/")).replace("data-", "", 1)
+        part_dir = os.path.join(partition_root, part)
+        if not part or not os.path.isdir(part_dir):
+            raise SystemExit(f"SLAKSHNA_PARTITION_ROOT={partition_root} has no partition {part!r} for this node")
+        config.setdefault("data", {})["train_path"] = os.path.join(part_dir, "train.jsonl")
+        config["data"]["tokenized_path"] = os.path.join(part_dir, "tokenized")
+
     if config.get("data", {}).get("tokenized_path") and config["data"]["tokenized_path"] != "dummy":
         node_cache_dir = config["data"]["tokenized_path"]
     else:
@@ -890,7 +905,30 @@ def main():
                     alpha=lora_cfg.get("alpha"),
                     dropout=lora_cfg.get("dropout", 0.0),
                     target_modules=lora_cfg.get("target_modules"),
+                    kind="aggregated",
                 )
+                # Experiments: also export this node's own (pre-aggregation) fine-tuned adapter.
+                # SLAKSHNA_EXPORT_KIND=local publishes that one (a personalised adapter) instead of
+                # the aggregated one; both always stay on disk, addressed by hash.
+                if "delta_i" in dir() and delta_i and "dummy" not in delta_i:
+                    local_sd = {}
+                    for k, v in delta_i.items():
+                        base = old_sd[k].cpu() if k in old_sd else None
+                        local_sd[k] = (base + v.cpu()) if base is not None else v.cpu()
+                    local_info = export_adapter(
+                        local_sd,
+                        data_dir=rust_data_dir,
+                        node_id=my_id,
+                        round_num=state["round"],
+                        base_model=template_config.get("model", {}).get("name", ""),
+                        rank=lora_cfg.get("rank", lora_cfg.get("r")),
+                        alpha=lora_cfg.get("alpha"),
+                        dropout=lora_cfg.get("dropout", 0.0),
+                        target_modules=lora_cfg.get("target_modules"),
+                        kind="local",
+                    )
+                    if os.environ.get("SLAKSHNA_EXPORT_KIND", "aggregated") == "local":
+                        adapter_info = local_info
             except Exception as e:
                 print(f"[{my_id}] adapter export failed (training unaffected): {e}", file=sys.stderr)
     else:

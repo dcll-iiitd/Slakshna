@@ -1,0 +1,5 @@
+method,queries,accuracy,ttft_ms_mean,ttft_ms_p95,adapters_chosen,method_name
+latest,800,0.395,144.6615599454667,182.18270235326438,"{""node2"": 800}",Newest round (latest)
+random,800,0.53125,111.68663165264654,170.21126455849603,"{""node1"": 219, ""node4"": 206, ""node2"": 199, ""node3"": 176}",Random node
+self,800,0.52625,114.12790436372774,173.41375300756755,"{""node2"": 200, ""node4"": 200, ""node3"": 200, ""node1"": 200}",Own adapter (self)
+trust,800,0.395,145.29391065162935,183.28504890029097,"{""node2"": 800}",Highest trust (trust)

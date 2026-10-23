@@ -1,0 +1,65 @@
+query_node,query_node_name,test_set,evaluated_on,method,method_name,n_questions,mean_bertscore_f1
+node1,Node 1 (open_qa),global,all topics (balanced test),base,Base model (no adapter),200,0.20434582233428955
+node1,Node 1 (open_qa),global,all topics (balanced test),own_local,Own adapter only,200,0.26732197403907776
+node1,Node 1 (open_qa),global,all topics (balanced test),own_aggregated,Own aggregated adapter,200,0.26434195041656494
+node1,Node 1 (open_qa),global,all topics (balanced test),merged_avg,All adapters merged (average),200,0.31602203845977783
+node1,Node 1 (open_qa),global,all topics (balanced test),merged_ties,All adapters merged (TIES),200,0.31947243213653564
+node1,Node 1 (open_qa),global,all topics (balanced test),random_adapter,Random peer adapter,200,0.29419928789138794
+node1,Node 1 (open_qa),global,all topics (balanced test),query_aware,Query-aware adapter choice,200,0.3164091408252716
+node1,Node 1 (open_qa),global,all topics (balanced test),oracle,Best adapter per question (oracle),200,0.37646740674972534
+node2,Node 2 (classification),global,all topics (balanced test),base,Base model (no adapter),200,0.20434582233428955
+node2,Node 2 (classification),global,all topics (balanced test),own_local,Own adapter only,200,0.27506089210510254
+node2,Node 2 (classification),global,all topics (balanced test),own_aggregated,Own aggregated adapter,200,0.2791420817375183
+node2,Node 2 (classification),global,all topics (balanced test),merged_avg,All adapters merged (average),200,0.31602203845977783
+node2,Node 2 (classification),global,all topics (balanced test),merged_ties,All adapters merged (TIES),200,0.31947243213653564
+node2,Node 2 (classification),global,all topics (balanced test),random_adapter,Random peer adapter,200,0.29419928789138794
+node2,Node 2 (classification),global,all topics (balanced test),query_aware,Query-aware adapter choice,200,0.3164091408252716
+node2,Node 2 (classification),global,all topics (balanced test),oracle,Best adapter per question (oracle),200,0.37646740674972534
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",global,all topics (balanced test),base,Base model (no adapter),200,0.20434582233428955
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",global,all topics (balanced test),own_local,Own adapter only,200,0.31372207403182983
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",global,all topics (balanced test),own_aggregated,Own aggregated adapter,200,0.27792102098464966
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",global,all topics (balanced test),merged_avg,All adapters merged (average),200,0.31602203845977783
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",global,all topics (balanced test),merged_ties,All adapters merged (TIES),200,0.31947243213653564
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",global,all topics (balanced test),random_adapter,Random peer adapter,200,0.29419928789138794
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",global,all topics (balanced test),query_aware,Query-aware adapter choice,200,0.3164091408252716
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",global,all topics (balanced test),oracle,Best adapter per question (oracle),200,0.37646740674972534
+node4,"Node 4 (closed_qa, summarization)",global,all topics (balanced test),base,Base model (no adapter),200,0.20434582233428955
+node4,"Node 4 (closed_qa, summarization)",global,all topics (balanced test),own_local,Own adapter only,200,0.3206923305988312
+node4,"Node 4 (closed_qa, summarization)",global,all topics (balanced test),own_aggregated,Own aggregated adapter,200,0.2846597731113434
+node4,"Node 4 (closed_qa, summarization)",global,all topics (balanced test),merged_avg,All adapters merged (average),200,0.31602203845977783
+node4,"Node 4 (closed_qa, summarization)",global,all topics (balanced test),merged_ties,All adapters merged (TIES),200,0.31947243213653564
+node4,"Node 4 (closed_qa, summarization)",global,all topics (balanced test),random_adapter,Random peer adapter,200,0.29419928789138794
+node4,"Node 4 (closed_qa, summarization)",global,all topics (balanced test),query_aware,Query-aware adapter choice,200,0.3164091408252716
+node4,"Node 4 (closed_qa, summarization)",global,all topics (balanced test),oracle,Best adapter per question (oracle),200,0.37646740674972534
+node1,Node 1 (open_qa),local1,node's own mix (local test),base,Base model (no adapter),100,0.17890699207782745
+node1,Node 1 (open_qa),local1,node's own mix (local test),own_local,Own adapter only,100,0.3003329336643219
+node1,Node 1 (open_qa),local1,node's own mix (local test),own_aggregated,Own aggregated adapter,100,0.3230155110359192
+node1,Node 1 (open_qa),local1,node's own mix (local test),merged_avg,All adapters merged (average),100,0.3240455389022827
+node1,Node 1 (open_qa),local1,node's own mix (local test),merged_ties,All adapters merged (TIES),100,0.3373476266860962
+node1,Node 1 (open_qa),local1,node's own mix (local test),random_adapter,Random peer adapter,100,0.3158976435661316
+node1,Node 1 (open_qa),local1,node's own mix (local test),query_aware,Query-aware adapter choice,100,0.29995864629745483
+node1,Node 1 (open_qa),local1,node's own mix (local test),oracle,Best adapter per question (oracle),100,0.40012627840042114
+node2,Node 2 (classification),local2,node's own mix (local test),base,Base model (no adapter),100,0.2063627988100052
+node2,Node 2 (classification),local2,node's own mix (local test),own_local,Own adapter only,100,0.3556045889854431
+node2,Node 2 (classification),local2,node's own mix (local test),own_aggregated,Own aggregated adapter,100,0.36174723505973816
+node2,Node 2 (classification),local2,node's own mix (local test),merged_avg,All adapters merged (average),100,0.3568798005580902
+node2,Node 2 (classification),local2,node's own mix (local test),merged_ties,All adapters merged (TIES),100,0.3585056960582733
+node2,Node 2 (classification),local2,node's own mix (local test),random_adapter,Random peer adapter,100,0.3593998849391937
+node2,Node 2 (classification),local2,node's own mix (local test),query_aware,Query-aware adapter choice,100,0.36054089665412903
+node2,Node 2 (classification),local2,node's own mix (local test),oracle,Best adapter per question (oracle),100,0.43260425329208374
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",local3,node's own mix (local test),base,Base model (no adapter),100,0.1862558126449585
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",local3,node's own mix (local test),own_local,Own adapter only,100,0.2438713014125824
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",local3,node's own mix (local test),own_aggregated,Own aggregated adapter,100,0.22335940599441528
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",local3,node's own mix (local test),merged_avg,All adapters merged (average),100,0.2495557814836502
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",local3,node's own mix (local test),merged_ties,All adapters merged (TIES),100,0.24655397236347198
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",local3,node's own mix (local test),random_adapter,Random peer adapter,100,0.23346124589443207
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",local3,node's own mix (local test),query_aware,Query-aware adapter choice,100,0.24356360733509064
+node3,"Node 3 (general_qa, brainstorming, information_extraction)",local3,node's own mix (local test),oracle,Best adapter per question (oracle),100,0.30428826808929443
+node4,"Node 4 (closed_qa, summarization)",local4,node's own mix (local test),base,Base model (no adapter),100,0.3247494399547577
+node4,"Node 4 (closed_qa, summarization)",local4,node's own mix (local test),own_local,Own adapter only,100,0.44234463572502136
+node4,"Node 4 (closed_qa, summarization)",local4,node's own mix (local test),own_aggregated,Own aggregated adapter,100,0.3809683918952942
+node4,"Node 4 (closed_qa, summarization)",local4,node's own mix (local test),merged_avg,All adapters merged (average),100,0.4070829153060913
+node4,"Node 4 (closed_qa, summarization)",local4,node's own mix (local test),merged_ties,All adapters merged (TIES),100,0.4156111776828766
+node4,"Node 4 (closed_qa, summarization)",local4,node's own mix (local test),random_adapter,Random peer adapter,100,0.39138516783714294
+node4,"Node 4 (closed_qa, summarization)",local4,node's own mix (local test),query_aware,Query-aware adapter choice,100,0.4380549490451813
+node4,"Node 4 (closed_qa, summarization)",local4,node's own mix (local test),oracle,Best adapter per question (oracle),100,0.4935667812824249

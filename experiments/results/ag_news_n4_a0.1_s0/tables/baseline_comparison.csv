@@ -1,0 +1,4 @@
+system,ttft_ms_256_token_prompt,extra_ttft_ms_first_use_of_peer_adapter,tpot_ms,throughput_tokens_per_s_16_concurrent_one_machine,per_token_network_latency_ms,answered_percent_when_a_machine_fails,single_point_of_failure,needs_a_server,adapter_known_to_peers_after_ms,where_all_adapters_are_stored,note
+Ours: federated inference,54.7535449732095,436.45849892876294,30.612886320491594,32.6314453541616,0.0,100.0,no,no,14.454,nowhere central (own + cached peers),measured on this machine
+Central multi-LoRA server (vLLM),28.495495906099677,0.0,7.273868850146339,1692.0132460629984,0.0,0.0,yes (the server),yes,,the server,"measured on this machine, same model and adapters"
+Layer-split decentralised (Petals-style),,,,,200.0,,"no, if every layer range has a second server",no,,split across servers,"analytical, 5 network transfers per generated token at RTT 40 ms (not run)"

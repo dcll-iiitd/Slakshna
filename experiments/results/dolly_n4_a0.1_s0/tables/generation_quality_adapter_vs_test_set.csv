@@ -1,0 +1,56 @@
+adapter,adapter_name,test_set,n_questions,bertscore_f1,embedding_cosine,rouge_l
+base,Base model,global,200,0.20434582,0.7070776,0.25296331317875614
+base,Base model,local1,100,0.17890699,0.66813385,0.2032137353841611
+base,Base model,local2,100,0.2063628,0.73337036,0.24180618519187302
+base,Base model,local3,100,0.18625581,0.7121331,0.22321052901042626
+base,Base model,local4,100,0.32474944,0.7427587,0.31578273761882175
+merged_avg,All adapters merged (average),global,200,0.31602204,0.6998585,0.3152136650800915
+merged_avg,All adapters merged (average),local1,100,0.32404554,0.6963758,0.2834785762934554
+merged_avg,All adapters merged (average),local2,100,0.3568798,0.7637537,0.352787178366686
+merged_avg,All adapters merged (average),local3,100,0.24955578,0.70438707,0.2431606482031446
+merged_avg,All adapters merged (average),local4,100,0.40708295,0.7348262,0.3869454856137567
+merged_ties,All adapters merged (TIES),global,200,0.31947243,0.7000327,0.3141351180510433
+merged_ties,All adapters merged (TIES),local1,100,0.33734763,0.69389784,0.2897286536109899
+merged_ties,All adapters merged (TIES),local2,100,0.35850576,0.77520376,0.35067620818099404
+merged_ties,All adapters merged (TIES),local3,100,0.24655397,0.7006563,0.238024508397143
+merged_ties,All adapters merged (TIES),local4,100,0.41561118,0.7371299,0.39869195133289037
+node1:aggregated:r3,"Node 1 (open_qa) [aggregated], round 3",global,200,0.26434195,0.66125673,0.28145525396115134
+node1:aggregated:r3,"Node 1 (open_qa) [aggregated], round 3",local1,100,0.3230155,0.6799526,0.2801918731694731
+node1:aggregated:r3,"Node 1 (open_qa) [aggregated], round 3",local2,100,0.3375041,0.7488382,0.3587423669613981
+node1:aggregated:r3,"Node 1 (open_qa) [aggregated], round 3",local3,100,0.24180774,0.6895177,0.23589843608290423
+node1:aggregated:r3,"Node 1 (open_qa) [aggregated], round 3",local4,100,0.34376088,0.6877419,0.33767506612762316
+node1:local:r3,"Node 1 (open_qa), round 3",global,200,0.26732197,0.66011447,0.2738744267134514
+node1:local:r3,"Node 1 (open_qa), round 3",local1,100,0.30033293,0.66424215,0.2731656571463918
+node1:local:r3,"Node 1 (open_qa), round 3",local2,100,0.35081732,0.756083,0.32487501116244283
+node1:local:r3,"Node 1 (open_qa), round 3",local3,100,0.22901449,0.68115205,0.22359856980019546
+node1:local:r3,"Node 1 (open_qa), round 3",local4,100,0.34445342,0.6916212,0.34564925059811663
+node2:aggregated:r3,"Node 2 (classification) [aggregated], round 3",global,200,0.27914205,0.67428344,0.2886028213326529
+node2:aggregated:r3,"Node 2 (classification) [aggregated], round 3",local1,100,0.328627,0.7001095,0.29266898458686064
+node2:aggregated:r3,"Node 2 (classification) [aggregated], round 3",local2,100,0.3617473,0.76675767,0.3652505697135282
+node2:aggregated:r3,"Node 2 (classification) [aggregated], round 3",local3,100,0.23275137,0.69405276,0.23423683027738879
+node2:aggregated:r3,"Node 2 (classification) [aggregated], round 3",local4,100,0.35094443,0.6959978,0.3432537264591993
+node2:local:r3,"Node 2 (classification), round 3",global,200,0.2750609,0.6784748,0.2897916783363674
+node2:local:r3,"Node 2 (classification), round 3",local1,100,0.29007506,0.68454343,0.26699940512697895
+node2:local:r3,"Node 2 (classification), round 3",local2,100,0.3556046,0.7674544,0.3537547044722894
+node2:local:r3,"Node 2 (classification), round 3",local3,100,0.2228521,0.69188046,0.2365647655426381
+node2:local:r3,"Node 2 (classification), round 3",local4,100,0.3615036,0.7066919,0.3512834040455075
+node3:aggregated:r3,"Node 3 (general_qa, brainstorming, information_extraction) [aggregated], round 3",global,200,0.27792102,0.6703954,0.2832973316747134
+node3:aggregated:r3,"Node 3 (general_qa, brainstorming, information_extraction) [aggregated], round 3",local1,100,0.33134857,0.68686366,0.29512199285381197
+node3:aggregated:r3,"Node 3 (general_qa, brainstorming, information_extraction) [aggregated], round 3",local2,100,0.3294058,0.7455137,0.33339876174256183
+node3:aggregated:r3,"Node 3 (general_qa, brainstorming, information_extraction) [aggregated], round 3",local3,100,0.2233594,0.6820317,0.22473012759420052
+node3:aggregated:r3,"Node 3 (general_qa, brainstorming, information_extraction) [aggregated], round 3",local4,100,0.35972714,0.68340385,0.34873363271156665
+node3:local:r3,"Node 3 (general_qa, brainstorming, information_extraction), round 3",global,200,0.3137221,0.69812036,0.30451468696914114
+node3:local:r3,"Node 3 (general_qa, brainstorming, information_extraction), round 3",local1,100,0.3496983,0.7060365,0.2974522310119949
+node3:local:r3,"Node 3 (general_qa, brainstorming, information_extraction), round 3",local2,100,0.35920438,0.7738032,0.342845216168337
+node3:local:r3,"Node 3 (general_qa, brainstorming, information_extraction), round 3",local3,100,0.24387133,0.6982948,0.24204999381750564
+node3:local:r3,"Node 3 (general_qa, brainstorming, information_extraction), round 3",local4,100,0.4172389,0.7428031,0.3973655489293248
+node4:aggregated:r3,"Node 4 (closed_qa, summarization) [aggregated], round 3",global,200,0.28465977,0.6894065,0.2962179357543031
+node4:aggregated:r3,"Node 4 (closed_qa, summarization) [aggregated], round 3",local1,100,0.33429676,0.70614153,0.29874080175285217
+node4:aggregated:r3,"Node 4 (closed_qa, summarization) [aggregated], round 3",local2,100,0.3577642,0.76810104,0.3665522841298317
+node4:aggregated:r3,"Node 4 (closed_qa, summarization) [aggregated], round 3",local3,100,0.23252043,0.69366056,0.22955424907931882
+node4:aggregated:r3,"Node 4 (closed_qa, summarization) [aggregated], round 3",local4,100,0.3809684,0.7030636,0.3636855285336143
+node4:local:r3,"Node 4 (closed_qa, summarization), round 3",global,200,0.32069236,0.71880037,0.32521241896987085
+node4:local:r3,"Node 4 (closed_qa, summarization), round 3",local1,100,0.32348424,0.71550995,0.3015887945894001
+node4:local:r3,"Node 4 (closed_qa, summarization), round 3",local2,100,0.37197343,0.7768179,0.3532768495961037
+node4:local:r3,"Node 4 (closed_qa, summarization), round 3",local3,100,0.23810709,0.69620043,0.24340001919450352
+node4:local:r3,"Node 4 (closed_qa, summarization), round 3",local4,100,0.44234464,0.7701767,0.431844353004257

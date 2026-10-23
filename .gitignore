@@ -25,3 +25,6 @@ hf_cache
 /.claude
 /docs
 Claude.md
+
+experiments/runs/
+experiments/data/

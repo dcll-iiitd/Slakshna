@@ -177,9 +177,10 @@ def generation(F, meta):
            "BERTScore-F1 compares the meaning of the model's answer with the human reference answer "
            "(roberta-large, rescaled so 0 = unrelated text; higher is better). Colours as in accuracy_by_selection_method.",
            f"All task types: own adapter {r.get('own_local', np.nan):.3f}, base {r.get('base', np.nan):.3f}, "
-           f"query-aware {r.get('query_aware', np.nan):.3f}, merged {r.get('merged_avg', np.nan):.3f}, oracle {r.get('oracle', np.nan):.3f}.")
+           f"query-aware {r.get('query_aware', np.nan):.3f}, merged {r.get('merged_avg', np.nan):.3f}.")
     av = F.table("generation_quality_adapter_vs_test_set")
     if av is not None:
+        av = av[av["adapter"] != "merged_ties"]
         g = av[av["test_set"] == "global"].sort_values("bertscore_f1")
         fig, ax = plt.subplots(figsize=(7.5, 0.4 * len(g) + 1.5))
         y = np.arange(len(g))

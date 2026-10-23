@@ -32,6 +32,7 @@ import os
 import sys
 import tempfile
 import threading
+import time
 from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -119,8 +120,18 @@ class AdapterModel:
             model = self._peft if self._peft is not None else self._engine._model
             max_pos = getattr(getattr(model, "config", None), "max_position_embeddings", None)
 
+            stats = {"forward_passes": 0, "model_s": 0.0}
+
             def logits_fn_for(name):
                 def fn(prompt: str):
+                    t0 = time.perf_counter()
+                    try:
+                        return _fn(prompt)
+                    finally:
+                        stats["forward_passes"] += 1
+                        stats["model_s"] += time.perf_counter() - t0
+
+                def _fn(prompt: str):
                     ids = tok(prompt, return_tensors="pt")["input_ids"].to(device)
                     if max_pos and ids.shape[1] > max_pos:
                         raise ValueError(f"prompt is {ids.shape[1]} tokens, model limit is {max_pos}")
@@ -144,7 +155,10 @@ class AdapterModel:
                 mem, tok, state, question, options, rule=combine,
                 permutations=permutations, calibration_temperature=calibration_temperature,
             )
-        return decision.to_dict()
+        out = decision.to_dict()
+        out["forward_passes"] = stats["forward_passes"]
+        out["model_ms"] = stats["model_s"] * 1000.0
+        return out
 
     def generate(self, prompt: str, max_new_tokens: int, temperature: float,
                  adapter_id: str | None, adapter_dir: str | None) -> str:

@@ -138,6 +138,22 @@ pub struct Decision {
     pub finalists: Vec<usize>,
     pub min_format_mass: f64,
     pub members: Vec<DecisionMember>,
+    /// Forward passes the sidecar ran and the time they took (benchmarks).
+    #[serde(default)]
+    pub forward_passes: u64,
+    #[serde(default)]
+    pub model_ms: f64,
+}
+
+/// Where the time of one decision went (milliseconds).
+#[derive(Debug, Serialize, Default)]
+pub struct DecideTiming {
+    pub select_ms: f64,
+    pub fetch_ms: f64,
+    pub sidecar_ms: f64,
+    pub model_ms: f64,
+    pub forward_passes: u64,
+    pub total_ms: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -152,6 +168,7 @@ pub struct DecisionSource {
 #[derive(Debug, Serialize)]
 pub struct DecideResponse {
     pub decision: Decision,
+    pub timing: DecideTiming,
     /// Which node's adapter each member of `decision.members` came from (same order).
     pub sources: Vec<DecisionSource>,
     pub note: Option<String>,
@@ -255,6 +272,9 @@ impl InferenceService {
     /// (e.g. after a restart, or if an earlier publish failed). No-op if none.
     pub async fn publish_latest_existing(&self) {
         let Ok(rd) = std::fs::read_dir(self.adapters_dir()) else { return };
+        // Each round may leave two adapters on disk (aggregated and the node's own "local" one);
+        // re-publish the kind this node publishes (SLAKSHNA_EXPORT_KIND, default aggregated).
+        let wanted = std::env::var("SLAKSHNA_EXPORT_KIND").unwrap_or_else(|_| "aggregated".to_string());
         let mut best: Option<(u64, AdapterOutput)> = None;
         for e in rd.flatten() {
             let dir = e.path();
@@ -262,6 +282,7 @@ impl InferenceService {
             let (Some(meta), Some(cfg)) = (read("adapter_meta.json"), read(CONFIG_FILE)) else { continue };
             let Ok(m) = serde_json::from_str::<serde_json::Value>(&meta) else { continue };
             if m["node_id"].as_str() != Some(self.own_node_id.as_str()) { continue }
+            if m["kind"].as_str().unwrap_or("aggregated") != wanted { continue }
             let round = m["round"].as_u64().unwrap_or(0);
             if best.as_ref().map_or(false, |(r, _)| *r >= round) { continue }
             let Some(hash) = m["adapter_model_safetensors_sha256"].as_str() else { continue };
@@ -365,6 +386,7 @@ impl InferenceService {
     ///    (no generation) and the distributions are mixed with trust weights.
     /// The state, question and options never leave the node.
     pub async fn decide(&self, req: DecideRequest) -> Result<DecideResponse, BoxError> {
+        let t_start = std::time::Instant::now();
         let inf = &self.config.inference;
         if req.options.len() < 2 || req.options.len() > 255 {
             return Err("options must contain between 2 and 255 entries".into());
@@ -409,6 +431,8 @@ impl InferenceService {
         .map(|(m, w)| (m.clone(), w))
         .collect();
 
+        let select_ms = t_start.elapsed().as_secs_f64() * 1000.0;
+        let t_fetch = std::time::Instant::now();
         // 4-5. Fetch + verify concurrently; slow or failing adapters are dropped.
         let deadline = std::time::Duration::from_secs(inf.fetch_timeout_secs);
         let fetched = futures::future::join_all(picked.iter().map(|(m, _)| {
@@ -442,6 +466,7 @@ impl InferenceService {
             notes.push("no adapter available; decided with the base model".into());
         }
 
+        let fetch_ms = t_fetch.elapsed().as_secs_f64() * 1000.0;
         // 6. Local single-pass scoring.
         let dirs: Vec<String> = ready.iter().map(|(_, _, d, _)| d.to_string_lossy().to_string()).collect();
         let body = SidecarDecideRequest {
@@ -457,7 +482,9 @@ impl InferenceService {
             permutations,
             calibration_temperature,
         };
+        let t_side = std::time::Instant::now();
         let decision: Decision = self.post_sidecar("/decide", &body).await?;
+        let sidecar_ms = t_side.elapsed().as_secs_f64() * 1000.0;
         if decision.min_format_mass < 0.5 {
             notes.push(format!(
                 "a model put only {:.0}% of its probability on the answer labels; treat the probabilities with care",
@@ -465,8 +492,17 @@ impl InferenceService {
             ));
         }
 
+        let timing = DecideTiming {
+            select_ms,
+            fetch_ms,
+            sidecar_ms,
+            model_ms: decision.model_ms,
+            forward_passes: decision.forward_passes,
+            total_ms: t_start.elapsed().as_secs_f64() * 1000.0,
+        };
         Ok(DecideResponse {
             decision,
+            timing,
             sources: ready
                 .into_iter()
                 .map(|(m, w, _, hit)| DecisionSource {

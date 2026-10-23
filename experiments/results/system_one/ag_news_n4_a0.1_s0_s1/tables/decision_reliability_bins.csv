@@ -1,0 +1,241 @@
+format,method,method_name,temperature,bin_low,bin_high,n,mean_confidence,accuracy
+raw,base,Base model (no adapter),1.0,0.0,0.06666666666666667,0,,
+raw,base,Base model (no adapter),1.0,0.06666666666666667,0.13333333333333333,0,,
+raw,base,Base model (no adapter),1.0,0.13333333333333333,0.2,0,,
+raw,base,Base model (no adapter),1.0,0.2,0.26666666666666666,0,,
+raw,base,Base model (no adapter),1.0,0.26666666666666666,0.3333333333333333,0,,
+raw,base,Base model (no adapter),1.0,0.3333333333333333,0.4,0,,
+raw,base,Base model (no adapter),1.0,0.4,0.4666666666666667,1,0.40770697098923847,0.0
+raw,base,Base model (no adapter),1.0,0.4666666666666667,0.5333333333333333,10,0.5103808802785352,0.4
+raw,base,Base model (no adapter),1.0,0.5333333333333333,0.6,15,0.5639842697613252,0.3333333333333333
+raw,base,Base model (no adapter),1.0,0.6,0.6666666666666666,15,0.6386652630239648,0.6
+raw,base,Base model (no adapter),1.0,0.6666666666666666,0.7333333333333333,27,0.6955203084507957,0.7407407407407407
+raw,base,Base model (no adapter),1.0,0.7333333333333333,0.8,46,0.7620049600464762,0.6304347826086957
+raw,base,Base model (no adapter),1.0,0.8,0.8666666666666667,24,0.8287514288288852,0.875
+raw,base,Base model (no adapter),1.0,0.8666666666666667,0.9333333333333333,31,0.9018464549895255,0.7741935483870968
+raw,base,Base model (no adapter),1.0,0.9333333333333333,1.0,831,0.9969793292733019,0.914560770156438
+raw,base,Base model (no adapter),fitted (2.83),0.0,0.06666666666666667,0,,
+raw,base,Base model (no adapter),fitted (2.83),0.06666666666666667,0.13333333333333333,0,,
+raw,base,Base model (no adapter),fitted (2.83),0.13333333333333333,0.2,0,,
+raw,base,Base model (no adapter),fitted (2.83),0.2,0.26666666666666666,0,,
+raw,base,Base model (no adapter),fitted (2.83),0.26666666666666666,0.3333333333333333,1,0.3090924118046565,0.0
+raw,base,Base model (no adapter),fitted (2.83),0.3333333333333333,0.4,0,,
+raw,base,Base model (no adapter),fitted (2.83),0.4,0.4666666666666667,4,0.43050004847734125,0.75
+raw,base,Base model (no adapter),fitted (2.83),0.4666666666666667,0.5333333333333333,19,0.5082439597730886,0.3157894736842105
+raw,base,Base model (no adapter),fitted (2.83),0.5333333333333333,0.6,37,0.5679166721091037,0.6216216216216216
+raw,base,Base model (no adapter),fitted (2.83),0.6,0.6666666666666666,41,0.6362074212645839,0.6585365853658537
+raw,base,Base model (no adapter),fitted (2.83),0.6666666666666666,0.7333333333333333,40,0.6999698941532972,0.775
+raw,base,Base model (no adapter),fitted (2.83),0.7333333333333333,0.8,54,0.7706738952303702,0.7962962962962963
+raw,base,Base model (no adapter),fitted (2.83),0.8,0.8666666666666667,85,0.8351412822044241,0.8941176470588236
+raw,base,Base model (no adapter),fitted (2.83),0.8666666666666667,0.9333333333333333,486,0.9136174969614967,0.9074074074074074
+raw,base,Base model (no adapter),fitted (2.83),0.9333333333333333,1.0,233,0.9402651374669903,0.9527896995708155
+raw,own,Own adapter only,1.0,0.0,0.06666666666666667,0,,
+raw,own,Own adapter only,1.0,0.06666666666666667,0.13333333333333333,0,,
+raw,own,Own adapter only,1.0,0.13333333333333333,0.2,0,,
+raw,own,Own adapter only,1.0,0.2,0.26666666666666666,0,,
+raw,own,Own adapter only,1.0,0.26666666666666666,0.3333333333333333,0,,
+raw,own,Own adapter only,1.0,0.3333333333333333,0.4,6,0.3866907978663221,0.3333333333333333
+raw,own,Own adapter only,1.0,0.4,0.4666666666666667,18,0.44179707127235207,0.4444444444444444
+raw,own,Own adapter only,1.0,0.4666666666666667,0.5333333333333333,52,0.5028546609033723,0.2692307692307692
+raw,own,Own adapter only,1.0,0.5333333333333333,0.6,63,0.5722878152275428,0.2222222222222222
+raw,own,Own adapter only,1.0,0.6,0.6666666666666666,52,0.6315406843384083,0.19230769230769232
+raw,own,Own adapter only,1.0,0.6666666666666666,0.7333333333333333,29,0.6924074571097976,0.41379310344827586
+raw,own,Own adapter only,1.0,0.7333333333333333,0.8,18,0.7587940061671866,0.4444444444444444
+raw,own,Own adapter only,1.0,0.8,0.8666666666666667,23,0.8341813353092774,0.34782608695652173
+raw,own,Own adapter only,1.0,0.8666666666666667,0.9333333333333333,49,0.9011209585836956,0.42857142857142855
+raw,own,Own adapter only,1.0,0.9333333333333333,1.0,690,0.9924862138171127,0.7246376811594203
+raw,own,Own adapter only,fitted (3.36),0.0,0.06666666666666667,0,,
+raw,own,Own adapter only,fitted (3.36),0.06666666666666667,0.13333333333333333,0,,
+raw,own,Own adapter only,fitted (3.36),0.13333333333333333,0.2,0,,
+raw,own,Own adapter only,fitted (3.36),0.2,0.26666666666666666,0,,
+raw,own,Own adapter only,fitted (3.36),0.26666666666666666,0.3333333333333333,28,0.32423912531608706,0.39285714285714285
+raw,own,Own adapter only,fitted (3.36),0.3333333333333333,0.4,141,0.3668384928477027,0.2695035460992908
+raw,own,Own adapter only,fitted (3.36),0.4,0.4666666666666667,63,0.42744693930850797,0.36507936507936506
+raw,own,Own adapter only,fitted (3.36),0.4666666666666667,0.5333333333333333,55,0.5026676026819887,0.38181818181818183
+raw,own,Own adapter only,fitted (3.36),0.5333333333333333,0.6,58,0.5693913246534067,0.43103448275862066
+raw,own,Own adapter only,fitted (3.36),0.6,0.6666666666666666,87,0.6395192269612926,0.41379310344827586
+raw,own,Own adapter only,fitted (3.36),0.6666666666666666,0.7333333333333333,324,0.7099630795269569,0.7037037037037037
+raw,own,Own adapter only,fitted (3.36),0.7333333333333333,0.8,244,0.7467215362721717,0.9180327868852459
+raw,own,Own adapter only,fitted (3.36),0.8,0.8666666666666667,0,,
+raw,own,Own adapter only,fitted (3.36),0.8666666666666667,0.9333333333333333,0,,
+raw,own,Own adapter only,fitted (3.36),0.9333333333333333,1.0,0,,
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.0,0.06666666666666667,0,,
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.06666666666666667,0.13333333333333333,0,,
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.13333333333333333,0.2,0,,
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.2,0.26666666666666666,0,,
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.26666666666666666,0.3333333333333333,0,,
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.3333333333333333,0.4,6,0.3726771796743075,0.6666666666666666
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.4,0.4666666666666667,7,0.43862420320510864,0.42857142857142855
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.4666666666666667,0.5333333333333333,49,0.5021517853803781,0.6122448979591837
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.5333333333333333,0.6,51,0.5683109297179708,0.5686274509803921
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.6,0.6666666666666666,62,0.6311375368987361,0.7258064516129032
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.6666666666666666,0.7333333333333333,87,0.7031675763000017,0.8620689655172413
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.7333333333333333,0.8,102,0.7739364005186978,0.9509803921568627
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.8,0.8666666666666667,169,0.8354869651547551,0.9289940828402367
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.8666666666666667,0.9333333333333333,310,0.9031602653284226,0.964516129032258
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.9333333333333333,1.0,157,0.947042267223832,0.9872611464968153
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.0,0.06666666666666667,0,,
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.06666666666666667,0.13333333333333333,0,,
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.13333333333333333,0.2,0,,
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.2,0.26666666666666666,0,,
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.26666666666666666,0.3333333333333333,0,,
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.3333333333333333,0.4,3,0.3885283999345653,0.3333333333333333
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.4,0.4666666666666667,5,0.4447526961765072,0.8
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.4666666666666667,0.5333333333333333,21,0.5099954641195489,0.6190476190476191
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.5333333333333333,0.6,36,0.5605528524667227,0.5277777777777778
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.6,0.6666666666666666,37,0.6351891059568696,0.6216216216216216
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.6666666666666666,0.7333333333333333,49,0.7014928053999199,0.7142857142857143
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.7333333333333333,0.8,47,0.7720824375156554,0.7659574468085106
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.8,0.8666666666666667,70,0.834596480051918,0.8857142857142857
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.8666666666666667,0.9333333333333333,148,0.9048991656118286,0.9391891891891891
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.65),0.9333333333333333,1.0,584,0.9759414564460227,0.9623287671232876
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.0,0.06666666666666667,0,,
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.06666666666666667,0.13333333333333333,0,,
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.13333333333333333,0.2,0,,
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.2,0.26666666666666666,0,,
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.26666666666666666,0.3333333333333333,0,,
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.3333333333333333,0.4,2,0.38544373076326,0.0
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.4,0.4666666666666667,19,0.4429273801663423,0.5263157894736842
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.4666666666666667,0.5333333333333333,80,0.505921647095343,0.6375
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.5333333333333333,0.6,92,0.5672083927111182,0.782608695652174
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.6,0.6666666666666666,134,0.6347625195518388,0.8731343283582089
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.6666666666666666,0.7333333333333333,111,0.7017162879811558,0.8468468468468469
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.7333333333333333,0.8,136,0.7672431510149652,0.9485294117647058
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.8,0.8666666666666667,121,0.8370470219557118,0.9504132231404959
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.8666666666666667,0.9333333333333333,211,0.9023895403916363,0.976303317535545
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.9333333333333333,1.0,94,0.9518852585352834,0.9893617021276596
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.0,0.06666666666666667,0,,
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.06666666666666667,0.13333333333333333,0,,
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.13333333333333333,0.2,0,,
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.2,0.26666666666666666,0,,
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.26666666666666666,0.3333333333333333,0,,
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.3333333333333333,0.4,2,0.3920528917750352,0.0
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.4,0.4666666666666667,16,0.44137336679139316,0.5
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.4666666666666667,0.5333333333333333,90,0.509292704937077,0.6222222222222222
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.5333333333333333,0.6,64,0.5668491001993353,0.75
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.6,0.6666666666666666,95,0.6310121337557208,0.8631578947368421
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.6666666666666666,0.7333333333333333,117,0.7018836281236014,0.811965811965812
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.7333333333333333,0.8,154,0.7624994754301152,0.948051948051948
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.8,0.8666666666666667,85,0.8342912736240279,0.9529411764705882
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.8666666666666667,0.9333333333333333,162,0.9018602233849018,0.9506172839506173
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.46),0.9333333333333333,1.0,215,0.9698627336158498,0.986046511627907
+chat,base,Base model (no adapter),1.0,0.0,0.06666666666666667,0,,
+chat,base,Base model (no adapter),1.0,0.06666666666666667,0.13333333333333333,0,,
+chat,base,Base model (no adapter),1.0,0.13333333333333333,0.2,0,,
+chat,base,Base model (no adapter),1.0,0.2,0.26666666666666666,0,,
+chat,base,Base model (no adapter),1.0,0.26666666666666666,0.3333333333333333,1,0.328458730597049,0.0
+chat,base,Base model (no adapter),1.0,0.3333333333333333,0.4,0,,
+chat,base,Base model (no adapter),1.0,0.4,0.4666666666666667,1,0.4441181141883135,0.0
+chat,base,Base model (no adapter),1.0,0.4666666666666667,0.5333333333333333,14,0.5170312744698354,0.5714285714285714
+chat,base,Base model (no adapter),1.0,0.5333333333333333,0.6,14,0.5750978690484772,0.35714285714285715
+chat,base,Base model (no adapter),1.0,0.6,0.6666666666666666,18,0.6336602089116544,0.5555555555555556
+chat,base,Base model (no adapter),1.0,0.6666666666666666,0.7333333333333333,16,0.7071850662177894,0.5625
+chat,base,Base model (no adapter),1.0,0.7333333333333333,0.8,24,0.7684903830134621,0.6666666666666666
+chat,base,Base model (no adapter),1.0,0.8,0.8666666666666667,22,0.8380459093234756,0.5454545454545454
+chat,base,Base model (no adapter),1.0,0.8666666666666667,0.9333333333333333,35,0.9015346612249102,0.8
+chat,base,Base model (no adapter),1.0,0.9333333333333333,1.0,855,0.9959511697292328,0.8970760233918129
+chat,base,Base model (no adapter),fitted (3.08),0.0,0.06666666666666667,0,,
+chat,base,Base model (no adapter),fitted (3.08),0.06666666666666667,0.13333333333333333,0,,
+chat,base,Base model (no adapter),fitted (3.08),0.13333333333333333,0.2,0,,
+chat,base,Base model (no adapter),fitted (3.08),0.2,0.26666666666666666,0,,
+chat,base,Base model (no adapter),fitted (3.08),0.26666666666666666,0.3333333333333333,2,0.30788074371949853,0.5
+chat,base,Base model (no adapter),fitted (3.08),0.3333333333333333,0.4,4,0.3678833429866799,0.0
+chat,base,Base model (no adapter),fitted (3.08),0.4,0.4666666666666667,10,0.43604920525680824,0.6
+chat,base,Base model (no adapter),fitted (3.08),0.4666666666666667,0.5333333333333333,27,0.5098990166979578,0.4444444444444444
+chat,base,Base model (no adapter),fitted (3.08),0.5333333333333333,0.6,28,0.5749446525914078,0.7142857142857143
+chat,base,Base model (no adapter),fitted (3.08),0.6,0.6666666666666666,37,0.6348013849209165,0.6756756756756757
+chat,base,Base model (no adapter),fitted (3.08),0.6666666666666666,0.7333333333333333,50,0.7060112382281525,0.8
+chat,base,Base model (no adapter),fitted (3.08),0.7333333333333333,0.8,73,0.7705879619766544,0.7534246575342466
+chat,base,Base model (no adapter),fitted (3.08),0.8,0.8666666666666667,139,0.838449114507498,0.8057553956834532
+chat,base,Base model (no adapter),fitted (3.08),0.8666666666666667,0.9333333333333333,618,0.9077644154275563,0.93042071197411
+chat,base,Base model (no adapter),fitted (3.08),0.9333333333333333,1.0,12,0.9365923992591455,0.8333333333333334
+chat,own,Own adapter only,1.0,0.0,0.06666666666666667,0,,
+chat,own,Own adapter only,1.0,0.06666666666666667,0.13333333333333333,0,,
+chat,own,Own adapter only,1.0,0.13333333333333333,0.2,0,,
+chat,own,Own adapter only,1.0,0.2,0.26666666666666666,0,,
+chat,own,Own adapter only,1.0,0.26666666666666666,0.3333333333333333,0,,
+chat,own,Own adapter only,1.0,0.3333333333333333,0.4,4,0.3876590711879544,0.25
+chat,own,Own adapter only,1.0,0.4,0.4666666666666667,27,0.433675371235478,0.25925925925925924
+chat,own,Own adapter only,1.0,0.4666666666666667,0.5333333333333333,47,0.5011944309263391,0.23404255319148937
+chat,own,Own adapter only,1.0,0.5333333333333333,0.6,68,0.5665297007037546,0.20588235294117646
+chat,own,Own adapter only,1.0,0.6,0.6666666666666666,45,0.6294404739979654,0.2
+chat,own,Own adapter only,1.0,0.6666666666666666,0.7333333333333333,31,0.6931733750407735,0.3225806451612903
+chat,own,Own adapter only,1.0,0.7333333333333333,0.8,19,0.772404532683523,0.47368421052631576
+chat,own,Own adapter only,1.0,0.8,0.8666666666666667,26,0.8382399623783735,0.5
+chat,own,Own adapter only,1.0,0.8666666666666667,0.9333333333333333,40,0.9044335518032313,0.325
+chat,own,Own adapter only,1.0,0.9333333333333333,1.0,693,0.9931369784461471,0.7085137085137085
+chat,own,Own adapter only,fitted (3.67),0.0,0.06666666666666667,0,,
+chat,own,Own adapter only,fitted (3.67),0.06666666666666667,0.13333333333333333,0,,
+chat,own,Own adapter only,fitted (3.67),0.13333333333333333,0.2,0,,
+chat,own,Own adapter only,fitted (3.67),0.2,0.26666666666666666,0,,
+chat,own,Own adapter only,fitted (3.67),0.26666666666666666,0.3333333333333333,39,0.32066530521014036,0.38461538461538464
+chat,own,Own adapter only,fitted (3.67),0.3333333333333333,0.4,146,0.3639161941283469,0.2534246575342466
+chat,own,Own adapter only,fitted (3.67),0.4,0.4666666666666667,64,0.42956355806378455,0.375
+chat,own,Own adapter only,fitted (3.67),0.4666666666666667,0.5333333333333333,50,0.4979589399395551,0.38
+chat,own,Own adapter only,fitted (3.67),0.5333333333333333,0.6,66,0.5671927525716146,0.2727272727272727
+chat,own,Own adapter only,fitted (3.67),0.6,0.6666666666666666,92,0.6397193267131549,0.5
+chat,own,Own adapter only,fitted (3.67),0.6666666666666666,0.7333333333333333,440,0.7081835689499925,0.7613636363636364
+chat,own,Own adapter only,fitted (3.67),0.7333333333333333,0.8,103,0.7397614565460676,0.941747572815534
+chat,own,Own adapter only,fitted (3.67),0.8,0.8666666666666667,0,,
+chat,own,Own adapter only,fitted (3.67),0.8666666666666667,0.9333333333333333,0,,
+chat,own,Own adapter only,fitted (3.67),0.9333333333333333,1.0,0,,
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.0,0.06666666666666667,0,,
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.06666666666666667,0.13333333333333333,0,,
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.13333333333333333,0.2,0,,
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.2,0.26666666666666666,0,,
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.26666666666666666,0.3333333333333333,0,,
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.3333333333333333,0.4,2,0.36282040923833847,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.4,0.4666666666666667,5,0.43795492947101594,0.6
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.4666666666666667,0.5333333333333333,33,0.5026237070560455,0.48484848484848486
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.5333333333333333,0.6,49,0.5709378383293444,0.5102040816326531
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.6,0.6666666666666666,54,0.6375815708328176,0.7222222222222222
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.6666666666666666,0.7333333333333333,56,0.7017696562356183,0.7678571428571429
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.7333333333333333,0.8,71,0.7653095035905569,0.9154929577464789
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.8,0.8666666666666667,144,0.8351331601540247,0.9375
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.8666666666666667,0.9333333333333333,260,0.9023635387420654,0.9346153846153846
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",1.0,0.9333333333333333,1.0,326,0.9581057992449568,0.9846625766871165
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.0,0.06666666666666667,0,,
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.06666666666666667,0.13333333333333333,0,,
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.13333333333333333,0.2,0,,
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.2,0.26666666666666666,0,,
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.26666666666666666,0.3333333333333333,0,,
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.3333333333333333,0.4,2,0.38633452746256186,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.4,0.4666666666666667,2,0.4504308169208072,0.5
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.4666666666666667,0.5333333333333333,24,0.5069366221168385,0.5
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.5333333333333333,0.6,25,0.5712739889598258,0.52
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.6,0.6666666666666666,41,0.6304408561502317,0.5609756097560976
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.6666666666666666,0.7333333333333333,49,0.701767142901919,0.6938775510204082
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.7333333333333333,0.8,52,0.7677937033790024,0.7884615384615384
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.8,0.8666666666666667,70,0.8349561796190431,0.8857142857142857
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.8666666666666667,0.9333333333333333,164,0.905291820474155,0.9390243902439024
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",fitted (0.77),0.9333333333333333,1.0,571,0.9736626202222533,0.9632224168126094
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.0,0.06666666666666667,0,,
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.06666666666666667,0.13333333333333333,0,,
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.13333333333333333,0.2,0,,
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.2,0.26666666666666666,0,,
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.26666666666666666,0.3333333333333333,0,,
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.3333333333333333,0.4,3,0.3792173877589806,1.0
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.4,0.4666666666666667,17,0.43947541433055937,0.6470588235294118
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.4666666666666667,0.5333333333333333,83,0.505128120474635,0.5301204819277109
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.5333333333333333,0.6,102,0.5661164866294032,0.7941176470588235
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.6,0.6666666666666666,137,0.6343767765981352,0.8613138686131386
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.6666666666666666,0.7333333333333333,135,0.7018797456368434,0.8444444444444444
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.7333333333333333,0.8,120,0.7667052255285715,0.9583333333333334
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.8,0.8666666666666667,101,0.8296292693238136,0.9702970297029703
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.8666666666666667,0.9333333333333333,165,0.9051402400962788,0.9696969696969697
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",1.0,0.9333333333333333,1.0,137,0.9529922117937348,0.9927007299270073
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.0,0.06666666666666667,0,,
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.06666666666666667,0.13333333333333333,0,,
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.13333333333333333,0.2,0,,
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.2,0.26666666666666666,0,,
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.26666666666666666,0.3333333333333333,0,,
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.3333333333333333,0.4,3,0.38464005823664554,1.0
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.4,0.4666666666666667,16,0.44491950385715306,0.5625
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.4666666666666667,0.5333333333333333,97,0.5083054623900782,0.5979381443298969
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.5333333333333333,0.6,70,0.5628914516429515,0.7714285714285715
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.6,0.6666666666666666,80,0.6334571208258071,0.85
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.6666666666666666,0.7333333333333333,127,0.7009250098123112,0.8188976377952756
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.7333333333333333,0.8,174,0.7600283873748362,0.9022988505747126
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.8,0.8666666666666667,73,0.8287135140353726,0.958904109589041
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.8666666666666667,0.9333333333333333,81,0.9022678925703638,0.9753086419753086
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",fitted (0.39),0.9333333333333333,1.0,279,0.9798533942479599,0.978494623655914

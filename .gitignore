@@ -27,3 +27,6 @@ hf_cache
 Claude.md
 
 stale_olmo_run/
+experiments/runs/
+experiments/data/
+experiments/results/system_one/*/raw/

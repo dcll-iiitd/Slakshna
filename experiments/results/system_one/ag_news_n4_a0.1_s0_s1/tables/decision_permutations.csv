@@ -1,0 +1,73 @@
+format,permutations,orderings_scored,query_node,method,method_name,accuracy,recall_std_over_gold_positions,forward_passes_per_member
+raw,1,1,node1,base,Base model (no adapter),0.86275,0.02752612395525388,1
+raw,1,1,node1,own,Own adapter only,0.591,0.025189283435619977,1
+raw,1,1,node1,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.88175,0.02751704017513514,1
+raw,2,2,node1,base,Base model (no adapter),0.8695,0.01150000000000001,2
+raw,2,2,node1,own,Own adapter only,0.5995,0.0035000000000000027,2
+raw,2,2,node1,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.883,0.016000000000000014,2
+raw,all,4,node1,base,Base model (no adapter),0.872,0.0,4
+raw,all,4,node1,own,Own adapter only,0.597,0.0,4
+raw,all,4,node1,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.887,0.0,4
+raw,1,1,node2,base,Base model (no adapter),0.86275,0.02752612395525388,1
+raw,1,1,node2,own,Own adapter only,0.76475,0.02712355986960416,1
+raw,1,1,node2,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.88175,0.02751704017513514,1
+raw,2,2,node2,base,Base model (no adapter),0.8695,0.01150000000000001,2
+raw,2,2,node2,own,Own adapter only,0.7585,0.01150000000000001,2
+raw,2,2,node2,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.883,0.016000000000000014,2
+raw,all,4,node2,base,Base model (no adapter),0.872,0.0,4
+raw,all,4,node2,own,Own adapter only,0.757,0.0,4
+raw,all,4,node2,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.887,0.0,4
+raw,1,1,node3,base,Base model (no adapter),0.86275,0.02752612395525388,1
+raw,1,1,node3,own,Own adapter only,0.7375,0.08889460051094218,1
+raw,1,1,node3,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.88175,0.02751704017513514,1
+raw,2,2,node3,base,Base model (no adapter),0.8695,0.01150000000000001,2
+raw,2,2,node3,own,Own adapter only,0.7745,0.056499999999999995,2
+raw,2,2,node3,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.883,0.016000000000000014,2
+raw,all,4,node3,base,Base model (no adapter),0.872,0.0,4
+raw,all,4,node3,own,Own adapter only,0.794,0.0,4
+raw,all,4,node3,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.887,0.0,4
+raw,1,1,node4,base,Base model (no adapter),0.86275,0.02752612395525388,1
+raw,1,1,node4,own,Own adapter only,0.8745,0.02732672684387944,1
+raw,1,1,node4,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.88175,0.02751704017513514,1
+raw,2,2,node4,base,Base model (no adapter),0.8695,0.01150000000000001,2
+raw,2,2,node4,own,Own adapter only,0.8835,0.016500000000000015,2
+raw,2,2,node4,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.883,0.016000000000000014,2
+raw,all,4,node4,base,Base model (no adapter),0.872,0.0,4
+raw,all,4,node4,own,Own adapter only,0.886,0.0,4
+raw,all,4,node4,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.887,0.0,4
+chat,1,1,node1,base,Base model (no adapter),0.85075,0.014497844667397992,1
+chat,1,1,node1,own,Own adapter only,0.58775,0.0449576189316116,1
+chat,1,1,node1,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.881,0.015620499351813323,1
+chat,2,2,node1,base,Base model (no adapter),0.854,0.01200000000000001,2
+chat,2,2,node1,own,Own adapter only,0.579,0.01200000000000001,2
+chat,2,2,node1,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.8815,0.009500000000000008,2
+chat,all,4,node1,base,Base model (no adapter),0.855,0.0,4
+chat,all,4,node1,own,Own adapter only,0.578,0.0,4
+chat,all,4,node1,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.88,0.0,4
+chat,1,1,node2,base,Base model (no adapter),0.85075,0.014497844667397992,1
+chat,1,1,node2,own,Own adapter only,0.7185,0.0312849804219213,1
+chat,1,1,node2,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.881,0.015620499351813323,1
+chat,2,2,node2,base,Base model (no adapter),0.854,0.01200000000000001,2
+chat,2,2,node2,own,Own adapter only,0.7235,0.009500000000000008,2
+chat,2,2,node2,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.8815,0.009500000000000008,2
+chat,all,4,node2,base,Base model (no adapter),0.855,0.0,4
+chat,all,4,node2,own,Own adapter only,0.722,0.0,4
+chat,all,4,node2,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.88,0.0,4
+chat,1,1,node3,base,Base model (no adapter),0.85075,0.014497844667397992,1
+chat,1,1,node3,own,Own adapter only,0.77025,0.047599238439285985,1
+chat,1,1,node3,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.881,0.015620499351813323,1
+chat,2,2,node3,base,Base model (no adapter),0.854,0.01200000000000001,2
+chat,2,2,node3,own,Own adapter only,0.793,0.008000000000000007,2
+chat,2,2,node3,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.8815,0.009500000000000008,2
+chat,all,4,node3,base,Base model (no adapter),0.855,0.0,4
+chat,all,4,node3,own,Own adapter only,0.796,0.0,4
+chat,all,4,node3,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.88,0.0,4
+chat,1,1,node4,base,Base model (no adapter),0.85075,0.014497844667397992,1
+chat,1,1,node4,own,Own adapter only,0.8815,0.018227726133558202,1
+chat,1,1,node4,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.881,0.015620499351813323,1
+chat,2,2,node4,base,Base model (no adapter),0.854,0.01200000000000001,2
+chat,2,2,node4,own,Own adapter only,0.887,0.014000000000000012,2
+chat,2,2,node4,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.8815,0.009500000000000008,2
+chat,all,4,node4,base,Base model (no adapter),0.855,0.0,4
+chat,all,4,node4,own,Own adapter only,0.891,0.0,4
+chat,all,4,node4,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.88,0.0,4

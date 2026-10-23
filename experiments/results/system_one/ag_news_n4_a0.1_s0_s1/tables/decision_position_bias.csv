@@ -1,0 +1,37 @@
+format,method,method_name,orderings,gold_position,recall,n
+raw,base,Base model (no adapter),one,A,0.829,1000
+raw,base,Base model (no adapter),one,B,0.85,1000
+raw,base,Base model (no adapter),one,C,0.868,1000
+raw,base,Base model (no adapter),one,D,0.904,1000
+raw,own,Own adapter only,one,A,0.551,1000
+raw,own,Own adapter only,one,B,0.588,1000
+raw,own,Own adapter only,one,C,0.614,1000
+raw,own,Own adapter only,one,D,0.611,1000
+raw,base,Base model (no adapter),all cyclic,A,0.872,1000
+raw,base,Base model (no adapter),all cyclic,B,0.872,1000
+raw,base,Base model (no adapter),all cyclic,C,0.872,1000
+raw,base,Base model (no adapter),all cyclic,D,0.872,1000
+raw,own,Own adapter only,all cyclic,A,0.597,1000
+raw,own,Own adapter only,all cyclic,B,0.597,1000
+raw,own,Own adapter only,all cyclic,C,0.597,1000
+raw,own,Own adapter only,all cyclic,D,0.597,1000
+raw,base,Base model (no adapter),flip rate,-,0.131,1000
+raw,own,Own adapter only,flip rate,-,0.215,1000
+chat,base,Base model (no adapter),one,A,0.843,1000
+chat,base,Base model (no adapter),one,B,0.867,1000
+chat,base,Base model (no adapter),one,C,0.831,1000
+chat,base,Base model (no adapter),one,D,0.862,1000
+chat,own,Own adapter only,one,A,0.541,1000
+chat,own,Own adapter only,one,B,0.576,1000
+chat,own,Own adapter only,one,C,0.662,1000
+chat,own,Own adapter only,one,D,0.572,1000
+chat,base,Base model (no adapter),all cyclic,A,0.855,1000
+chat,base,Base model (no adapter),all cyclic,B,0.855,1000
+chat,base,Base model (no adapter),all cyclic,C,0.855,1000
+chat,base,Base model (no adapter),all cyclic,D,0.855,1000
+chat,own,Own adapter only,all cyclic,A,0.578,1000
+chat,own,Own adapter only,all cyclic,B,0.578,1000
+chat,own,Own adapter only,all cyclic,C,0.578,1000
+chat,own,Own adapter only,all cyclic,D,0.578,1000
+chat,base,Base model (no adapter),flip rate,-,0.097,1000
+chat,own,Own adapter only,flip rate,-,0.206,1000

@@ -1,0 +1,49 @@
+format,test_set,poisoned_members,weights,rule,accuracy,ece
+chat,global,0,equal weights,logit_mean,0.864,0.04011871472044296
+chat,global,0,equal weights,prob_mean,0.88,0.13435311020582993
+chat,global,0,trust-weighted (bad peers detected: trust 0.05 vs 0.25),logit_mean,0.864,0.04011871472044296
+chat,global,0,trust-weighted (bad peers detected: trust 0.05 vs 0.25),prob_mean,0.88,0.13435311020582993
+chat,global,1,equal weights,logit_mean,0.8109999999999999,0.055028512118480456
+chat,global,1,equal weights,prob_mean,0.79025,0.22609902667714785
+chat,global,1,trust-weighted (bad peers detected: trust 0.05 vs 0.25),logit_mean,0.8340000000000001,0.05732395078574962
+chat,global,1,trust-weighted (bad peers detected: trust 0.05 vs 0.25),prob_mean,0.8595,0.13940087883212746
+chat,global,2,equal weights,logit_mean,0.5153333333333333,0.2188069426088033
+chat,global,2,equal weights,prob_mean,0.2165,0.3234106279156696
+chat,global,2,trust-weighted (bad peers detected: trust 0.05 vs 0.25),logit_mean,0.8029999999999999,0.07757706149769147
+chat,global,2,trust-weighted (bad peers detected: trust 0.05 vs 0.25),prob_mean,0.7726666666666667,0.12659275722397004
+chat,own local,0,equal weights,logit_mean,0.843,0.06157503462218923
+chat,own local,0,equal weights,prob_mean,0.8714999999999999,0.13672149584364587
+chat,own local,0,trust-weighted (bad peers detected: trust 0.05 vs 0.25),logit_mean,0.843,0.06157503462218923
+chat,own local,0,trust-weighted (bad peers detected: trust 0.05 vs 0.25),prob_mean,0.8714999999999999,0.13672149584364587
+chat,own local,1,equal weights,logit_mean,0.8111666666666667,0.10066666407003917
+chat,own local,1,equal weights,prob_mean,0.7995,0.23948191605532088
+chat,own local,1,trust-weighted (bad peers detected: trust 0.05 vs 0.25),logit_mean,0.8344999999999999,0.07961000390407907
+chat,own local,1,trust-weighted (bad peers detected: trust 0.05 vs 0.25),prob_mean,0.8593333333333333,0.14334782839783883
+chat,own local,2,equal weights,logit_mean,0.5976666666666667,0.28304146015062037
+chat,own local,2,equal weights,prob_mean,0.32383333333333336,0.34444231219294297
+chat,own local,2,trust-weighted (bad peers detected: trust 0.05 vs 0.25),logit_mean,0.8521666666666666,0.08788177217558668
+chat,own local,2,trust-weighted (bad peers detected: trust 0.05 vs 0.25),prob_mean,0.8353333333333334,0.15952310606224887
+raw,global,0,equal weights,logit_mean,0.875,0.030303144310436188
+raw,global,0,equal weights,prob_mean,0.887,0.1382405122358327
+raw,global,0,trust-weighted (bad peers detected: trust 0.05 vs 0.25),logit_mean,0.875,0.030303144310436188
+raw,global,0,trust-weighted (bad peers detected: trust 0.05 vs 0.25),prob_mean,0.887,0.1382405122358327
+raw,global,1,equal weights,logit_mean,0.8175,0.045756736928724416
+raw,global,1,equal weights,prob_mean,0.80625,0.2436401544507092
+raw,global,1,trust-weighted (bad peers detected: trust 0.05 vs 0.25),logit_mean,0.842,0.04748450229551928
+raw,global,1,trust-weighted (bad peers detected: trust 0.05 vs 0.25),prob_mean,0.86075,0.13552941653927256
+raw,global,2,equal weights,logit_mean,0.5141666666666667,0.2217178015190968
+raw,global,2,equal weights,prob_mean,0.241,0.3252824343950305
+raw,global,2,trust-weighted (bad peers detected: trust 0.05 vs 0.25),logit_mean,0.8156666666666667,0.07210673668384966
+raw,global,2,trust-weighted (bad peers detected: trust 0.05 vs 0.25),prob_mean,0.7986666666666666,0.13719270277454168
+raw,own local,0,equal weights,logit_mean,0.8514999999999999,0.05849065961778148
+raw,own local,0,equal weights,prob_mean,0.874,0.14043628220366308
+raw,own local,0,trust-weighted (bad peers detected: trust 0.05 vs 0.25),logit_mean,0.8514999999999999,0.05849065961778148
+raw,own local,0,trust-weighted (bad peers detected: trust 0.05 vs 0.25),prob_mean,0.874,0.14043628220366308
+raw,own local,1,equal weights,logit_mean,0.8193333333333334,0.08976447376126334
+raw,own local,1,equal weights,prob_mean,0.8175,0.24528506577638345
+raw,own local,1,trust-weighted (bad peers detected: trust 0.05 vs 0.25),logit_mean,0.8436666666666667,0.06687242319353294
+raw,own local,1,trust-weighted (bad peers detected: trust 0.05 vs 0.25),prob_mean,0.871,0.1465375412737518
+raw,own local,2,equal weights,logit_mean,0.5895,0.28962407581315813
+raw,own local,2,equal weights,prob_mean,0.33816666666666667,0.34298440024650384
+raw,own local,2,trust-weighted (bad peers detected: trust 0.05 vs 0.25),logit_mean,0.8595,0.08381883120983939
+raw,own local,2,trust-weighted (bad peers detected: trust 0.05 vs 0.25),prob_mean,0.8503333333333334,0.16375980624250874

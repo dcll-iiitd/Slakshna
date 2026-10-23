@@ -53,6 +53,7 @@ def export_adapter(
     dropout: float = 0.0,
     target_modules: list[str] | None = None,
     dtype: str = "bfloat16",
+    kind: str = "aggregated",
 ) -> dict[str, Any]:
     """Write the adapter and return the fields ml_engine adds to its output."""
     cleaned, auto_rank, auto_targets = normalize_lora_keys(state_dict)
@@ -100,6 +101,7 @@ def export_adapter(
             json.dumps(
                 {
                     "node_id": node_id,
+                    "kind": kind,
                     "round": round_num,
                     "adapter_model_safetensors_sha256": digest,
                     "tensor_count": len(tensors),

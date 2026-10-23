@@ -1,0 +1,801 @@
+format,method,method_name,coverage,risk
+raw,base,Base model (no adapter),0.001,0.0
+raw,base,Base model (no adapter),0.011,0.09090909090909094
+raw,base,Base model (no adapter),0.021,0.04761904761904767
+raw,base,Base model (no adapter),0.031,0.09677419354838712
+raw,base,Base model (no adapter),0.041,0.09756097560975607
+raw,base,Base model (no adapter),0.051,0.07843137254901966
+raw,base,Base model (no adapter),0.061,0.06557377049180324
+raw,base,Base model (no adapter),0.071,0.05633802816901412
+raw,base,Base model (no adapter),0.081,0.04938271604938271
+raw,base,Base model (no adapter),0.091,0.04395604395604391
+raw,base,Base model (no adapter),0.101,0.03960396039603964
+raw,base,Base model (no adapter),0.111,0.036036036036036
+raw,base,Base model (no adapter),0.121,0.03305785123966942
+raw,base,Base model (no adapter),0.131,0.03816793893129766
+raw,base,Base model (no adapter),0.141,0.04255319148936165
+raw,base,Base model (no adapter),0.151,0.039735099337748325
+raw,base,Base model (no adapter),0.161,0.04347826086956519
+raw,base,Base model (no adapter),0.171,0.040935672514619936
+raw,base,Base model (no adapter),0.181,0.04972375690607733
+raw,base,Base model (no adapter),0.191,0.05235602094240843
+raw,base,Base model (no adapter),0.201,0.04975124378109452
+raw,base,Base model (no adapter),0.211,0.04739336492891
+raw,base,Base model (no adapter),0.221,0.04524886877828049
+raw,base,Base model (no adapter),0.231,0.04761904761904767
+raw,base,Base model (no adapter),0.241,0.0456431535269709
+raw,base,Base model (no adapter),0.251,0.043824701195219085
+raw,base,Base model (no adapter),0.261,0.04214559386973182
+raw,base,Base model (no adapter),0.271,0.044280442804428
+raw,base,Base model (no adapter),0.281,0.04982206405693945
+raw,base,Base model (no adapter),0.291,0.04810996563573888
+raw,base,Base model (no adapter),0.301,0.046511627906976716
+raw,base,Base model (no adapter),0.311,0.048231511254019255
+raw,base,Base model (no adapter),0.321,0.04672897196261683
+raw,base,Base model (no adapter),0.331,0.0453172205438066
+raw,base,Base model (no adapter),0.341,0.04398826979472137
+raw,base,Base model (no adapter),0.351,0.042735042735042694
+raw,base,Base model (no adapter),0.361,0.04155124653739617
+raw,base,Base model (no adapter),0.371,0.040431266846361225
+raw,base,Base model (no adapter),0.381,0.04199475065616798
+raw,base,Base model (no adapter),0.391,0.04603580562659848
+raw,base,Base model (no adapter),0.401,0.04738154613466339
+raw,base,Base model (no adapter),0.411,0.048661800486618056
+raw,base,Base model (no adapter),0.421,0.04750593824228033
+raw,base,Base model (no adapter),0.431,0.04640371229698381
+raw,base,Base model (no adapter),0.441,0.04761904761904767
+raw,base,Base model (no adapter),0.451,0.04656319290465627
+raw,base,Base model (no adapter),0.461,0.05206073752711493
+raw,base,Base model (no adapter),0.471,0.05307855626326963
+raw,base,Base model (no adapter),0.481,0.05405405405405406
+raw,base,Base model (no adapter),0.491,0.05702647657841142
+raw,base,Base model (no adapter),0.501,0.05788423153692612
+raw,base,Base model (no adapter),0.511,0.05675146771037187
+raw,base,Base model (no adapter),0.521,0.05758157389635321
+raw,base,Base model (no adapter),0.531,0.05838041431261776
+raw,base,Base model (no adapter),0.541,0.05730129390018479
+raw,base,Base model (no adapter),0.551,0.05807622504537202
+raw,base,Base model (no adapter),0.561,0.05882352941176472
+raw,base,Base model (no adapter),0.571,0.06479859894921192
+raw,base,Base model (no adapter),0.581,0.06540447504302926
+raw,base,Base model (no adapter),0.591,0.06598984771573602
+raw,base,Base model (no adapter),0.601,0.06821963394342767
+raw,base,Base model (no adapter),0.611,0.06710310965630117
+raw,base,Base model (no adapter),0.621,0.07085346215780997
+raw,base,Base model (no adapter),0.631,0.06973058637083995
+raw,base,Base model (no adapter),0.641,0.06864274570982842
+raw,base,Base model (no adapter),0.651,0.06758832565284179
+raw,base,Base model (no adapter),0.661,0.0680786686838124
+raw,base,Base model (no adapter),0.671,0.07004470938897167
+raw,base,Base model (no adapter),0.681,0.0734214390602056
+raw,base,Base model (no adapter),0.691,0.07814761215629518
+raw,base,Base model (no adapter),0.701,0.0784593437945792
+raw,base,Base model (no adapter),0.711,0.07876230661040784
+raw,base,Base model (no adapter),0.721,0.07766990291262132
+raw,base,Base model (no adapter),0.731,0.07934336525307795
+raw,base,Base model (no adapter),0.741,0.07962213225371118
+raw,base,Base model (no adapter),0.751,0.07989347536617841
+raw,base,Base model (no adapter),0.761,0.0788436268068331
+raw,base,Base model (no adapter),0.771,0.08041504539559019
+raw,base,Base model (no adapter),0.781,0.08194622279129327
+raw,base,Base model (no adapter),0.791,0.08217446270543616
+raw,base,Base model (no adapter),0.801,0.08114856429463169
+raw,base,Base model (no adapter),0.811,0.0826140567200987
+raw,base,Base model (no adapter),0.821,0.0840438489646772
+raw,base,Base model (no adapter),0.831,0.085439229843562
+raw,base,Base model (no adapter),0.841,0.0856123662306778
+raw,base,Base model (no adapter),0.851,0.08813160987074031
+raw,base,Base model (no adapter),0.861,0.08943089430894313
+raw,base,Base model (no adapter),0.871,0.09070034443168773
+raw,base,Base model (no adapter),0.881,0.09194097616345065
+raw,base,Base model (no adapter),0.891,0.09203142536475872
+raw,base,Base model (no adapter),0.901,0.09544950055493895
+raw,base,Base model (no adapter),0.911,0.09769484083424806
+raw,base,Base model (no adapter),0.921,0.09989142236699244
+raw,base,Base model (no adapter),0.931,0.10418904403866813
+raw,base,Base model (no adapter),0.941,0.10626992561105209
+raw,base,Base model (no adapter),0.951,0.10830704521556256
+raw,base,Base model (no adapter),0.961,0.11030176899063471
+raw,base,Base model (no adapter),0.971,0.11328527291452106
+raw,base,Base model (no adapter),0.981,0.11722731906218142
+raw,base,Base model (no adapter),0.991,0.12411705348133195
+raw,own,Own adapter only,0.001,0.0
+raw,own,Own adapter only,0.011,0.18181818181818177
+raw,own,Own adapter only,0.021,0.09523809523809523
+raw,own,Own adapter only,0.031,0.12903225806451613
+raw,own,Own adapter only,0.041,0.12195121951219512
+raw,own,Own adapter only,0.051,0.0980392156862745
+raw,own,Own adapter only,0.061,0.08196721311475408
+raw,own,Own adapter only,0.071,0.08450704225352113
+raw,own,Own adapter only,0.081,0.0864197530864198
+raw,own,Own adapter only,0.091,0.07692307692307687
+raw,own,Own adapter only,0.101,0.08910891089108908
+raw,own,Own adapter only,0.111,0.09009009009009006
+raw,own,Own adapter only,0.121,0.09917355371900827
+raw,own,Own adapter only,0.131,0.0992366412213741
+raw,own,Own adapter only,0.141,0.09219858156028371
+raw,own,Own adapter only,0.151,0.08609271523178808
+raw,own,Own adapter only,0.161,0.08074534161490687
+raw,own,Own adapter only,0.171,0.08187134502923976
+raw,own,Own adapter only,0.181,0.08839779005524862
+raw,own,Own adapter only,0.191,0.08900523560209428
+raw,own,Own adapter only,0.201,0.09452736318407962
+raw,own,Own adapter only,0.211,0.09004739336492895
+raw,own,Own adapter only,0.221,0.09954751131221717
+raw,own,Own adapter only,0.231,0.09956709956709953
+raw,own,Own adapter only,0.241,0.0954356846473029
+raw,own,Own adapter only,0.251,0.09960159362549803
+raw,own,Own adapter only,0.261,0.10344827586206895
+raw,own,Own adapter only,0.271,0.1070110701107011
+raw,own,Own adapter only,0.281,0.10676156583629892
+raw,own,Own adapter only,0.291,0.10652920962199308
+raw,own,Own adapter only,0.301,0.10631229235880402
+raw,own,Own adapter only,0.311,0.10289389067524113
+raw,own,Own adapter only,0.321,0.10591900311526481
+raw,own,Own adapter only,0.331,0.10876132930513593
+raw,own,Own adapter only,0.341,0.10850439882697949
+raw,own,Own adapter only,0.351,0.11111111111111116
+raw,own,Own adapter only,0.361,0.11634349030470914
+raw,own,Own adapter only,0.371,0.11590296495956875
+raw,own,Own adapter only,0.381,0.115485564304462
+raw,own,Own adapter only,0.391,0.11764705882352944
+raw,own,Own adapter only,0.401,0.12219451371571077
+raw,own,Own adapter only,0.411,0.12895377128953767
+raw,own,Own adapter only,0.421,0.13064133016627077
+raw,own,Own adapter only,0.431,0.14617169373549888
+raw,own,Own adapter only,0.441,0.1496598639455783
+raw,own,Own adapter only,0.451,0.1529933481152993
+raw,own,Own adapter only,0.461,0.16702819956616055
+raw,own,Own adapter only,0.471,0.16772823779193202
+raw,own,Own adapter only,0.481,0.16839916839916835
+raw,own,Own adapter only,0.491,0.17515274949083504
+raw,own,Own adapter only,0.501,0.17764471057884235
+raw,own,Own adapter only,0.511,0.18003913894324852
+raw,own,Own adapter only,0.521,0.1900191938579654
+raw,own,Own adapter only,0.531,0.19397363465160078
+raw,own,Own adapter only,0.541,0.19778188539741215
+raw,own,Own adapter only,0.551,0.20145190562613435
+raw,own,Own adapter only,0.561,0.2103386809269162
+raw,own,Own adapter only,0.571,0.21716287215411556
+raw,own,Own adapter only,0.581,0.22375215146299487
+raw,own,Own adapter only,0.591,0.23011844331641285
+raw,own,Own adapter only,0.601,0.2312811980033278
+raw,own,Own adapter only,0.611,0.23567921440261863
+raw,own,Own adapter only,0.621,0.24476650563607083
+raw,own,Own adapter only,0.631,0.25039619651347067
+raw,own,Own adapter only,0.641,0.2542901716068643
+raw,own,Own adapter only,0.651,0.26113671274961603
+raw,own,Own adapter only,0.661,0.2677760968229954
+raw,own,Own adapter only,0.671,0.27123695976154993
+raw,own,Own adapter only,0.681,0.2745961820851689
+raw,own,Own adapter only,0.691,0.27641099855282203
+raw,own,Own adapter only,0.701,0.2810271041369472
+raw,own,Own adapter only,0.711,0.28270042194092826
+raw,own,Own adapter only,0.721,0.2857142857142857
+raw,own,Own adapter only,0.731,0.2900136798905609
+raw,own,Own adapter only,0.741,0.29554655870445345
+raw,own,Own adapter only,0.751,0.30226364846870835
+raw,own,Own adapter only,0.761,0.304862023653088
+raw,own,Own adapter only,0.771,0.30739299610894943
+raw,own,Own adapter only,0.781,0.31241997439180536
+raw,own,Own adapter only,0.791,0.316055625790139
+raw,own,Own adapter only,0.801,0.3196004993757803
+raw,own,Own adapter only,0.811,0.32182490752157833
+raw,own,Own adapter only,0.821,0.3264311814859927
+raw,own,Own adapter only,0.831,0.3321299638989169
+raw,own,Own adapter only,0.841,0.3376932223543401
+raw,own,Own adapter only,0.851,0.34430082256169214
+raw,own,Own adapter only,0.861,0.3507549361207898
+raw,own,Own adapter only,0.871,0.3547646383467279
+raw,own,Own adapter only,0.881,0.3609534619750284
+raw,own,Own adapter only,0.891,0.3658810325476992
+raw,own,Own adapter only,0.901,0.3729189789123196
+raw,own,Own adapter only,0.911,0.37431394072447854
+raw,own,Own adapter only,0.921,0.37785016286644946
+raw,own,Own adapter only,0.931,0.3834586466165414
+raw,own,Own adapter only,0.941,0.38788522848034
+raw,own,Own adapter only,0.951,0.3922187171398528
+raw,own,Own adapter only,0.961,0.39438085327783556
+raw,own,Own adapter only,0.971,0.39649845520082394
+raw,own,Own adapter only,0.981,0.39959225280326194
+raw,own,Own adapter only,0.991,0.40161453077699294
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.001,0.0
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.011,0.0
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.021,0.0
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.031,0.0
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.041,0.0
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.051,0.0
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.061,0.0
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.071,0.014084507042253502
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.081,0.012345679012345734
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.091,0.01098901098901095
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.101,0.01980198019801982
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.111,0.018018018018018056
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.121,0.016528925619834656
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.131,0.01526717557251911
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.141,0.014184397163120588
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.151,0.013245033112582738
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.161,0.012422360248447228
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.171,0.011695906432748537
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.181,0.011049723756906049
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.191,0.010471204188481686
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.201,0.00995024875621886
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.211,0.009478672985781977
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.221,0.013574660633484115
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.231,0.012987012987012991
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.241,0.012448132780082943
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.251,0.01195219123505975
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.261,0.011494252873563204
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.271,0.011070110701106972
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.281,0.010676156583629859
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.291,0.010309278350515427
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.301,0.013289036544850474
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.311,0.012861736334405127
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.321,0.012461059190031154
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.331,0.012084592145015116
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.341,0.014662756598240456
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.351,0.017094017094017144
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.361,0.0166204986149584
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.371,0.018867924528301883
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.381,0.018372703412073532
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.391,0.020460358056266004
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.401,0.02493765586034913
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.411,0.024330900243308973
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.421,0.026128266033254133
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.431,0.02784222737819031
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.441,0.02947845804988658
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.451,0.02882483370288247
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.461,0.02819956616052066
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.471,0.027600849256900206
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.481,0.029106029106029108
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.491,0.02851323828920571
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.501,0.029940119760479056
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.511,0.03131115459882583
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.521,0.03262955854126681
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.531,0.032015065913371
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.541,0.03327171903881698
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.551,0.03266787658802173
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.561,0.03208556149732622
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.571,0.035026269702276736
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.581,0.03614457831325302
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.591,0.0372250423011844
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.601,0.03660565723793674
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.611,0.039279869067103124
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.621,0.03864734299516903
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.631,0.03961965134706813
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.641,0.03900156006240252
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.651,0.03840245775729645
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.661,0.03782148260211804
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.671,0.037257824143069995
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.681,0.03671071953010274
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.691,0.0361794500723589
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.701,0.03708987161198285
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.711,0.039381153305203975
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.721,0.04022191400832176
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.731,0.041039671682626566
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.741,0.04183535762483126
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.751,0.04394141145139818
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.761,0.0446780551905388
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.771,0.04409857328145261
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.781,0.04609475032010246
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.791,0.04804045512010113
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.801,0.048689138576779034
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.811,0.04932182490752157
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.821,0.0511571254567601
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.831,0.05294825511432011
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.841,0.05231866825208087
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.851,0.05640423031727382
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.861,0.061556329849012825
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.871,0.06314580941446613
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.881,0.06356413166855845
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.891,0.06958473625140293
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.901,0.07214206437291892
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.911,0.07464324917672882
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.921,0.07817589576547235
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.931,0.08055853920515577
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.941,0.08820403825717327
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.951,0.08937960042060988
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.961,0.09261186264308008
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.971,0.09577754891864054
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.981,0.09989806320081551
+raw,centralised,"Centralised training on pooled data (upper bound, not private)",0.991,0.10292633703329968
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.001,0.0
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.011,0.0
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.021,0.0
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.031,0.032258064516129004
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.041,0.024390243902439046
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.051,0.019607843137254943
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.061,0.016393442622950838
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.071,0.014084507042253502
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.081,0.012345679012345734
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.091,0.01098901098901095
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.101,0.00990099009900991
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.111,0.009009009009009028
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.121,0.008264462809917328
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.131,0.01526717557251911
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.141,0.014184397163120588
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.151,0.013245033112582738
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.161,0.012422360248447228
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.171,0.011695906432748537
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.181,0.011049723756906049
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.191,0.010471204188481686
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.201,0.00995024875621886
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.211,0.009478672985781977
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.221,0.013574660633484115
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.231,0.012987012987012991
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.241,0.012448132780082943
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.251,0.01195219123505975
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.261,0.011494252873563204
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.271,0.022140221402214055
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.281,0.02135231316725983
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.291,0.020618556701030966
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.301,0.019933554817275767
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.311,0.019292604501607746
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.321,0.01869158878504673
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.331,0.01812688821752262
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.341,0.02052785923753664
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.351,0.019943019943019946
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.361,0.01939058171745156
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.371,0.018867924528301883
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.381,0.023622047244094446
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.391,0.025575447570332477
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.401,0.02493765586034913
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.411,0.029197080291970767
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.421,0.028503562945368155
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.431,0.02784222737819031
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.441,0.02947845804988658
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.451,0.02882483370288247
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.461,0.02819956616052066
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.471,0.02972399150743099
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.481,0.029106029106029108
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.491,0.02851323828920571
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.501,0.029940119760479056
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.511,0.02935420743639927
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.521,0.028790786948176605
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.531,0.02824858757062143
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.541,0.027726432532347522
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.551,0.029038112522686066
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.561,0.033868092691622054
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.571,0.035026269702276736
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.581,0.03442340791738385
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.591,0.035532994923857864
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.601,0.038269550748752046
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.611,0.03764320785597386
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.621,0.040257648953301084
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.631,0.0427892234548336
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.641,0.04524180967238689
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.651,0.05069124423963134
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.661,0.05143721633888043
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.671,0.05216095380029806
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.681,0.05580029368575623
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.691,0.05499276410998555
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.701,0.05563480741797433
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.711,0.057665260196905765
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.721,0.05963938973647709
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.731,0.061559507523939794
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.741,0.06072874493927127
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.751,0.06125166444740349
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.761,0.06176084099868595
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.771,0.06095979247730221
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.781,0.06145966709346995
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.791,0.06321112515802785
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.801,0.06616729088639206
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.811,0.06535141800246613
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.821,0.06577344701583432
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.831,0.06618531889290014
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.841,0.06658739595719376
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.851,0.06698002350176269
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.861,0.06852497096399535
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.871,0.07462686567164178
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.881,0.07604994324631098
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.891,0.0785634118967452
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.901,0.08324084350721417
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.911,0.08562019758507133
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.921,0.08686210640608039
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.931,0.08915145005370573
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.941,0.09245483528161536
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.951,0.09463722397476337
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.961,0.09885535900104059
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.971,0.101956745623069
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.981,0.10499490316004079
+raw,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.991,0.10797174571140267
+chat,base,Base model (no adapter),0.001,0.0
+chat,base,Base model (no adapter),0.011,0.18181818181818177
+chat,base,Base model (no adapter),0.021,0.1428571428571429
+chat,base,Base model (no adapter),0.031,0.12903225806451613
+chat,base,Base model (no adapter),0.041,0.09756097560975607
+chat,base,Base model (no adapter),0.051,0.11764705882352944
+chat,base,Base model (no adapter),0.061,0.09836065573770492
+chat,base,Base model (no adapter),0.071,0.08450704225352113
+chat,base,Base model (no adapter),0.081,0.07407407407407407
+chat,base,Base model (no adapter),0.091,0.06593406593406592
+chat,base,Base model (no adapter),0.101,0.05940594059405946
+chat,base,Base model (no adapter),0.111,0.05405405405405406
+chat,base,Base model (no adapter),0.121,0.04958677685950408
+chat,base,Base model (no adapter),0.131,0.05343511450381677
+chat,base,Base model (no adapter),0.141,0.049645390070921946
+chat,base,Base model (no adapter),0.151,0.04635761589403975
+chat,base,Base model (no adapter),0.161,0.0496894409937888
+chat,base,Base model (no adapter),0.171,0.04678362573099415
+chat,base,Base model (no adapter),0.181,0.05524861878453036
+chat,base,Base model (no adapter),0.191,0.05235602094240843
+chat,base,Base model (no adapter),0.201,0.05472636815920395
+chat,base,Base model (no adapter),0.211,0.056872037914691975
+chat,base,Base model (no adapter),0.221,0.05882352941176472
+chat,base,Base model (no adapter),0.231,0.05627705627705626
+chat,base,Base model (no adapter),0.241,0.053941908713692976
+chat,base,Base model (no adapter),0.251,0.055776892430278835
+chat,base,Base model (no adapter),0.261,0.05747126436781613
+chat,base,Base model (no adapter),0.271,0.0627306273062731
+chat,base,Base model (no adapter),0.281,0.06049822064056942
+chat,base,Base model (no adapter),0.291,0.05841924398625431
+chat,base,Base model (no adapter),0.301,0.05980066445182719
+chat,base,Base model (no adapter),0.311,0.05787781350482313
+chat,base,Base model (no adapter),0.321,0.06230529595015577
+chat,base,Base model (no adapter),0.331,0.06042296072507558
+chat,base,Base model (no adapter),0.341,0.058651026392961825
+chat,base,Base model (no adapter),0.351,0.056980056980056926
+chat,base,Base model (no adapter),0.361,0.05540166204986152
+chat,base,Base model (no adapter),0.371,0.05929919137466311
+chat,base,Base model (no adapter),0.381,0.06036745406824151
+chat,base,Base model (no adapter),0.391,0.0613810741687979
+chat,base,Base model (no adapter),0.401,0.06234413965087282
+chat,base,Base model (no adapter),0.411,0.06326034063260344
+chat,base,Base model (no adapter),0.421,0.061757719714964354
+chat,base,Base model (no adapter),0.431,0.06264501160092806
+chat,base,Base model (no adapter),0.441,0.06349206349206349
+chat,base,Base model (no adapter),0.451,0.06208425720620847
+chat,base,Base model (no adapter),0.461,0.06724511930585686
+chat,base,Base model (no adapter),0.471,0.06581740976645434
+chat,base,Base model (no adapter),0.481,0.06860706860706856
+chat,base,Base model (no adapter),0.491,0.07128309572301428
+chat,base,Base model (no adapter),0.501,0.06986027944111772
+chat,base,Base model (no adapter),0.511,0.07045009784735812
+chat,base,Base model (no adapter),0.521,0.07101727447216888
+chat,base,Base model (no adapter),0.531,0.07156308851224102
+chat,base,Base model (no adapter),0.541,0.07024029574861368
+chat,base,Base model (no adapter),0.551,0.06896551724137934
+chat,base,Base model (no adapter),0.561,0.07308377896613194
+chat,base,Base model (no adapter),0.571,0.0735551663747811
+chat,base,Base model (no adapter),0.581,0.07573149741824436
+chat,base,Base model (no adapter),0.591,0.07614213197969544
+chat,base,Base model (no adapter),0.601,0.0765391014975042
+chat,base,Base model (no adapter),0.611,0.07855973813420625
+chat,base,Base model (no adapter),0.621,0.08051529790660228
+chat,base,Base model (no adapter),0.631,0.08082408874801905
+chat,base,Base model (no adapter),0.641,0.08112324492979717
+chat,base,Base model (no adapter),0.651,0.08141321044546856
+chat,base,Base model (no adapter),0.661,0.08320726172465964
+chat,base,Base model (no adapter),0.671,0.08643815201192251
+chat,base,Base model (no adapter),0.681,0.08663729809104259
+chat,base,Base model (no adapter),0.691,0.08538350217076696
+chat,base,Base model (no adapter),0.701,0.08416547788873041
+chat,base,Base model (no adapter),0.711,0.08298171589310832
+chat,base,Base model (no adapter),0.721,0.0859916782246879
+chat,base,Base model (no adapter),0.731,0.09028727770177836
+chat,base,Base model (no adapter),0.741,0.08906882591093113
+chat,base,Base model (no adapter),0.751,0.0905459387483355
+chat,base,Base model (no adapter),0.761,0.09329829172141924
+chat,base,Base model (no adapter),0.771,0.09597924773022048
+chat,base,Base model (no adapter),0.781,0.09603072983354677
+chat,base,Base model (no adapter),0.791,0.09987357774968397
+chat,base,Base model (no adapter),0.801,0.101123595505618
+chat,base,Base model (no adapter),0.811,0.10110974106041926
+chat,base,Base model (no adapter),0.821,0.10109622411693053
+chat,base,Base model (no adapter),0.831,0.09987966305655838
+chat,base,Base model (no adapter),0.841,0.10225921521997627
+chat,base,Base model (no adapter),0.851,0.10105757931844883
+chat,base,Base model (no adapter),0.861,0.1045296167247387
+chat,base,Base model (no adapter),0.871,0.10447761194029848
+chat,base,Base model (no adapter),0.881,0.10442678774120318
+chat,base,Base model (no adapter),0.891,0.1077441077441077
+chat,base,Base model (no adapter),0.901,0.1098779134295228
+chat,base,Base model (no adapter),0.911,0.11416026344676178
+chat,base,Base model (no adapter),0.921,0.11726384364820852
+chat,base,Base model (no adapter),0.931,0.11922663802363054
+chat,base,Base model (no adapter),0.941,0.12114771519659939
+chat,base,Base model (no adapter),0.951,0.12513144058885384
+chat,base,Base model (no adapter),0.961,0.12799167533818934
+chat,base,Base model (no adapter),0.971,0.13285272914521107
+chat,base,Base model (no adapter),0.981,0.13659531090723753
+chat,base,Base model (no adapter),0.991,0.14026236125126135
+chat,own,Own adapter only,0.001,0.0
+chat,own,Own adapter only,0.011,0.09090909090909094
+chat,own,Own adapter only,0.021,0.04761904761904767
+chat,own,Own adapter only,0.031,0.032258064516129004
+chat,own,Own adapter only,0.041,0.04878048780487809
+chat,own,Own adapter only,0.051,0.07843137254901966
+chat,own,Own adapter only,0.061,0.06557377049180324
+chat,own,Own adapter only,0.071,0.07042253521126762
+chat,own,Own adapter only,0.081,0.07407407407407407
+chat,own,Own adapter only,0.091,0.06593406593406592
+chat,own,Own adapter only,0.101,0.07920792079207917
+chat,own,Own adapter only,0.111,0.07207207207207211
+chat,own,Own adapter only,0.121,0.06611570247933884
+chat,own,Own adapter only,0.131,0.06106870229007633
+chat,own,Own adapter only,0.141,0.06382978723404253
+chat,own,Own adapter only,0.151,0.06622516556291391
+chat,own,Own adapter only,0.161,0.07453416149068326
+chat,own,Own adapter only,0.171,0.07602339181286555
+chat,own,Own adapter only,0.181,0.08287292817679559
+chat,own,Own adapter only,0.191,0.09424083769633507
+chat,own,Own adapter only,0.201,0.08955223880597019
+chat,own,Own adapter only,0.211,0.09478672985781988
+chat,own,Own adapter only,0.221,0.10859728506787325
+chat,own,Own adapter only,0.231,0.11688311688311692
+chat,own,Own adapter only,0.241,0.11618257261410792
+chat,own,Own adapter only,0.251,0.1155378486055777
+chat,own,Own adapter only,0.261,0.11111111111111116
+chat,own,Own adapter only,0.271,0.11070110701107017
+chat,own,Own adapter only,0.281,0.11032028469750887
+chat,own,Own adapter only,0.291,0.10996563573883167
+chat,own,Own adapter only,0.301,0.1129568106312292
+chat,own,Own adapter only,0.311,0.11575562700964626
+chat,own,Own adapter only,0.321,0.12461059190031154
+chat,own,Own adapter only,0.331,0.1238670694864048
+chat,own,Own adapter only,0.341,0.12609970674486803
+chat,own,Own adapter only,0.351,0.1282051282051282
+chat,own,Own adapter only,0.361,0.13296398891966754
+chat,own,Own adapter only,0.371,0.13746630727762799
+chat,own,Own adapter only,0.381,0.13648293963254599
+chat,own,Own adapter only,0.391,0.1483375959079284
+chat,own,Own adapter only,0.401,0.15960099750623447
+chat,own,Own adapter only,0.411,0.16301703163017034
+chat,own,Own adapter only,0.421,0.166270783847981
+chat,own,Own adapter only,0.431,0.17169373549883993
+chat,own,Own adapter only,0.441,0.17460317460317465
+chat,own,Own adapter only,0.451,0.17516629711751663
+chat,own,Own adapter only,0.461,0.17353579175704992
+chat,own,Own adapter only,0.471,0.17622080679405516
+chat,own,Own adapter only,0.481,0.18503118503118499
+chat,own,Own adapter only,0.491,0.1894093686354379
+chat,own,Own adapter only,0.501,0.18962075848303395
+chat,own,Own adapter only,0.511,0.19569471624266144
+chat,own,Own adapter only,0.521,0.20345489443378117
+chat,own,Own adapter only,0.531,0.2033898305084746
+chat,own,Own adapter only,0.541,0.20887245841035118
+chat,own,Own adapter only,0.551,0.21778584392014522
+chat,own,Own adapter only,0.561,0.2192513368983957
+chat,own,Own adapter only,0.571,0.2206654991243433
+chat,own,Own adapter only,0.581,0.23063683304647165
+chat,own,Own adapter only,0.591,0.23011844331641285
+chat,own,Own adapter only,0.601,0.23627287853577372
+chat,own,Own adapter only,0.611,0.2422258592471358
+chat,own,Own adapter only,0.621,0.24476650563607083
+chat,own,Own adapter only,0.631,0.248811410459588
+chat,own,Own adapter only,0.641,0.2527301092043682
+chat,own,Own adapter only,0.651,0.2626728110599078
+chat,own,Own adapter only,0.661,0.2723146747352496
+chat,own,Own adapter only,0.671,0.27570789865871836
+chat,own,Own adapter only,0.681,0.28487518355359764
+chat,own,Own adapter only,0.691,0.2894356005788712
+chat,own,Own adapter only,0.701,0.29814550641940085
+chat,own,Own adapter only,0.711,0.30379746835443033
+chat,own,Own adapter only,0.721,0.3079056865464632
+chat,own,Own adapter only,0.731,0.31190150478796175
+chat,own,Own adapter only,0.741,0.3130904183535762
+chat,own,Own adapter only,0.751,0.3155792276964048
+chat,own,Own adapter only,0.761,0.32063074901445465
+chat,own,Own adapter only,0.771,0.32166018158236054
+chat,own,Own adapter only,0.781,0.323943661971831
+chat,own,Own adapter only,0.791,0.327433628318584
+chat,own,Own adapter only,0.801,0.3320848938826467
+chat,own,Own adapter only,0.811,0.3378545006165228
+chat,own,Own adapter only,0.821,0.34591961023142515
+chat,own,Own adapter only,0.831,0.3513838748495788
+chat,own,Own adapter only,0.841,0.356718192627824
+chat,own,Own adapter only,0.851,0.3619271445358402
+chat,own,Own adapter only,0.861,0.3635307781649245
+chat,own,Own adapter only,0.871,0.36854190585533864
+chat,own,Own adapter only,0.881,0.37457434733257666
+chat,own,Own adapter only,0.891,0.37934904601571273
+chat,own,Own adapter only,0.901,0.38401775804661487
+chat,own,Own adapter only,0.911,0.3874862788144896
+chat,own,Own adapter only,0.921,0.3930510314875135
+chat,own,Own adapter only,0.931,0.397422126745435
+chat,own,Own adapter only,0.941,0.4038257173219979
+chat,own,Own adapter only,0.951,0.4069400630914827
+chat,own,Own adapter only,0.961,0.4099895941727367
+chat,own,Own adapter only,0.971,0.411946446961895
+chat,own,Own adapter only,0.981,0.4148827726809379
+chat,own,Own adapter only,0.991,0.4197780020181635
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.001,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.011,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.021,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.031,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.041,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.051,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.061,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.071,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.081,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.091,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.101,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.111,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.121,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.131,0.0
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.141,0.007092198581560294
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.151,0.0066225165562914245
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.161,0.006211180124223614
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.171,0.005847953216374324
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.181,0.0055248618784530246
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.191,0.015706806282722474
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.201,0.014925373134328401
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.211,0.014218009478673022
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.221,0.013574660633484115
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.231,0.012987012987012991
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.241,0.012448132780082943
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.251,0.01195219123505975
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.261,0.011494252873563204
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.271,0.011070110701106972
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.281,0.010676156583629859
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.291,0.010309278350515427
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.301,0.009966777408637828
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.311,0.012861736334405127
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.321,0.015576323987538943
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.331,0.015105740181268867
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.341,0.014662756598240456
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.351,0.014245014245014231
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.361,0.013850415512465353
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.371,0.013477088948787075
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.381,0.013123359580052507
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.391,0.012787723785166238
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.401,0.014962593516209433
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.411,0.024330900243308973
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.421,0.02375296912114011
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.431,0.023201856148491906
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.441,0.027210884353741527
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.451,0.026607538802660757
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.461,0.02819956616052066
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.471,0.02972399150743099
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.481,0.029106029106029108
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.491,0.02851323828920571
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.501,0.029940119760479056
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.511,0.02935420743639927
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.521,0.03262955854126681
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.531,0.03389830508474578
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.541,0.03327171903881698
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.551,0.03266787658802173
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.561,0.035650623885918
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.571,0.035026269702276736
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.581,0.03786574870912218
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.591,0.03891708967851104
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.601,0.03993344425956735
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.611,0.04091653027823239
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.621,0.040257648953301084
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.631,0.03961965134706813
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.641,0.03900156006240252
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.651,0.03840245775729645
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.661,0.039334341906202774
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.671,0.03874813710879288
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.681,0.038179148311306865
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.691,0.03907380607814759
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.701,0.03994293865905851
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.711,0.04078762306610406
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.721,0.04299583911234395
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.731,0.04240766073871405
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.741,0.04183535762483126
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.751,0.04394141145139818
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.761,0.04336399474375818
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.771,0.045395590142671804
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.781,0.04481434058898848
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.791,0.04551201011378003
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.801,0.046192259675405745
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.811,0.04932182490752157
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.821,0.04872107186358099
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.831,0.05054151624548742
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.841,0.053507728894173656
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.851,0.05522914218566388
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.861,0.061556329849012825
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.871,0.06429391504018367
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.881,0.06583427922814988
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.891,0.06846240179573515
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.901,0.06992230854605996
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.911,0.07135016465422617
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.921,0.07709011943539634
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.931,0.08270676691729328
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.941,0.08607863974495222
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.951,0.08727655099894849
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.961,0.09261186264308008
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.971,0.09886714727085477
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.981,0.1029561671763507
+chat,centralised,"Centralised training on pooled data (upper bound, not private)",0.991,0.10696266397578202
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.001,0.0
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.011,0.0
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.021,0.0
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.031,0.0
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.041,0.0
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.051,0.0
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.061,0.0
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.071,0.0
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.081,0.012345679012345734
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.091,0.01098901098901095
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.101,0.00990099009900991
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.111,0.009009009009009028
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.121,0.008264462809917328
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.131,0.007633587786259555
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.141,0.007092198581560294
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.151,0.0066225165562914245
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.161,0.006211180124223614
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.171,0.005847953216374324
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.181,0.011049723756906049
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.191,0.010471204188481686
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.201,0.00995024875621886
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.211,0.014218009478673022
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.221,0.013574660633484115
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.231,0.012987012987012991
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.241,0.016597510373444035
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.251,0.019920318725099584
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.261,0.019157088122605415
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.271,0.01845018450184499
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.281,0.017793594306049876
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.291,0.020618556701030966
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.301,0.019933554817275767
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.311,0.019292604501607746
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.321,0.01869158878504673
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.331,0.01812688821752262
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.341,0.017595307917888547
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.351,0.019943019943019946
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.361,0.01939058171745156
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.371,0.018867924528301883
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.381,0.018372703412073532
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.391,0.020460358056266004
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.401,0.02244389027431426
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.411,0.021897810218978075
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.421,0.02137767220902609
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.431,0.023201856148491906
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.441,0.024943310657596363
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.451,0.024390243902439046
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.461,0.02386117136659438
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.471,0.023354564755838636
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.481,0.02494802494802495
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.491,0.024439918533604943
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.501,0.0239520958083832
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.511,0.0273972602739726
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.521,0.026871401151631447
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.531,0.02824858757062143
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.541,0.02957486136783738
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.551,0.03448275862068961
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.561,0.03743315508021394
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.571,0.038528896672504365
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.581,0.03958691910499135
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.591,0.04230118443316411
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.601,0.04492512479201327
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.611,0.04909983633387893
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.621,0.048309178743961345
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.631,0.05071315372424723
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.641,0.05304212168486744
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.651,0.05222734254992323
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.661,0.055975794251134636
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.671,0.05663189269746649
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.681,0.05726872246696035
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.691,0.05788712011577424
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.701,0.059914407988587715
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.711,0.06469760900140642
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.721,0.06518723994452147
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.731,0.06566347469220246
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.741,0.06882591093117407
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.751,0.06924101198402133
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.761,0.06833114323258871
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.771,0.06874189364461736
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.781,0.06914212548015364
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.791,0.06826801517067005
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.801,0.06991260923845188
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.811,0.07274969173859436
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.821,0.07308160779537154
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.831,0.07340553549939832
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.841,0.07372175980975026
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.851,0.07520564042303168
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.861,0.07781649245063882
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.871,0.07921928817451207
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.881,0.08059023836549373
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.891,0.08417508417508412
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.901,0.0843507214206437
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.911,0.08452250274423712
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.921,0.08794788273615639
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.931,0.09237379162191195
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.941,0.09564293304994687
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.951,0.10094637223974767
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.961,0.10718002081165456
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.971,0.11122554067971169
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.981,0.11620795107033643
+chat,mix_uniform_prob,"Federated mix, equal weights, prob_mean (System One as deployed)",0.991,0.1170534813319879

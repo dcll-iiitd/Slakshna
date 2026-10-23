@@ -72,8 +72,7 @@ def quality(F, meta):
     sub = f"{meta['dataset']}, {meta['n_nodes']} nodes, label skew α={meta['alpha']:g}"
     pc = F.table("accuracy_per_topic")
     if pc is not None:
-        keep = [a for a in pc["adapter"].unique() if a == "base" or a.startswith("merged") or a.startswith("centralised/")
-                or (":local:" in a and "/" not in a)]
+        keep = [a for a in pc["adapter"].unique() if (a == "base" or a == "merged_avg" or a.startswith("centralised/") or (":local:" in a and "/" not in a)) and a != "merged_ties"]
         piv = pc[pc["adapter"].isin(keep)].pivot_table(index="adapter_name", columns="topic", values="accuracy")
         order = sorted(piv.index, key=lambda n: (not n.startswith("Base"), n.startswith("All") or n.startswith("Centr"), n))
         piv = piv.loc[order]
@@ -93,6 +92,7 @@ def quality(F, meta):
 
     sm = F.table("accuracy_by_selection_method")
     if sm is not None:
+        sm = sm[~sm["method"].isin(["merged_ties", "oracle", "fedavg"])]
         fig, axes = plt.subplots(2, 1, figsize=(8.5, 0.75 * sm["method"].nunique() + 2.8), sharex=True)
         res = {}
         for ax, which in zip(axes, ["all topics (balanced test)", "node's own mix (local test)"]):
@@ -162,6 +162,7 @@ def generation(F, meta):
     gq = F.table("generation_quality_by_method")
     if gq is None:
         return
+    gq = gq[~gq["method"].isin(["merged_ties", "oracle", "fedavg"])]
     sub = f"{meta['dataset']}, {meta['n_nodes']} nodes, task skew α={meta['alpha']:g}"
     fig, axes = plt.subplots(2, 1, figsize=(8.5, 0.75 * gq["method"].nunique() + 2.8), sharex=True)
     res = {}
@@ -395,13 +396,18 @@ def main():
     ap.add_argument("--dir", default=None)
     a = ap.parse_args()
     d = a.dir or os.path.join(REPO, "experiments", "results", a.tag)
-    meta = json.load(open(os.path.join(REPO, "experiments", "data", a.tag, "meta.json")))
+    meta_path = os.path.join(REPO, 'experiments', 'data', a.tag, 'meta.json')
+    if os.path.isfile(meta_path):
+        meta = json.load(open(meta_path))
+    else:
+        parts = a.tag.split('_')
+        meta = {'dataset': '_'.join(parts[:-3]), 'n_nodes': int(parts[-3][1:]), 'alpha': float(parts[-2][1:]), 'seed': int(parts[-1][1:])}
     F = Fig(d)
     quality(F, meta)
     generation(F, meta)
     system(F)
     comparison(F)
-    write_readme(F, meta)
+    # write_readme(F, meta)
 
 
 if __name__ == "__main__":

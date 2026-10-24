@@ -1,0 +1,47 @@
+% TikZ: Deciding vs. Generating Comparison (System One)
+% Usage: \input{tikzfigs/system_one/s1_fig_decision_vs_generation.tex}
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}
+\begin{axis}[
+    xbar,
+    width=6.6cm,
+    height=6.2cm,
+    xmin=50, xmax=108,
+    xtick={50, 60, 70, 80, 90, 100},
+    xlabel={Accuracy (\%)},
+    symbolic y coords={{Base model}, {Node 1 adapter}, {Node 2 adapter}, {Node 3 adapter}, {Node 4 adapter}, {Merged average}},
+    ytick=data,
+    yticklabel style={font=\scriptsize, align=right},
+    xticklabel style={font=\scriptsize},
+    xlabel style={font=\small},
+    nodes near coords,
+    nodes near coords style={font=\tiny, text=black, anchor=west},
+    bar width=5.5pt,
+    enlarge y limits=0.1,
+    legend style={font=\scriptsize, at={(0.5,-0.2)}, anchor=north, legend columns=2, draw=gray!40, fill=white},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+\addplot[fill=oursblue!85, draw=oursblue] coordinates {
+    (87.2,{Base model})
+    (59.7,{Node 1 adapter})
+    (75.7,{Node 2 adapter})
+    (79.4,{Node 3 adapter})
+    (88.6,{Node 4 adapter})
+    (87.8,{Merged average})
+};
+\addplot[fill=boundorange!85, draw=boundorange] coordinates {
+    (85.4,{Base model})
+    (69.0,{Node 1 adapter})
+    (80.4,{Node 2 adapter})
+    (80.2,{Node 3 adapter})
+    (88.0,{Node 4 adapter})
+    (85.4,{Merged average})
+};
+\legend{Decide (Option Logits), Generate (Text Output)}
+\end{axis}
+\end{tikzpicture}%
+}

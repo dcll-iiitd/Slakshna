@@ -1,0 +1,76 @@
+% TikZ: System One Decision Accuracy by Method
+% Usage: \input{tikzfigs/system_one/s1_fig_accuracy_by_method.tex}
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+\providecolor{vllmred}{RGB}{209,73,91}
+\providecolor{basegray}{RGB}{154,164,174}
+\providecolor{traingreen}{RGB}{89,161,79}
+
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}
+\begin{axis}[
+    xbar,
+    width=6.6cm,
+    height=8.5cm,
+    xmin=50, xmax=108,
+    xtick={50, 60, 70, 80, 90, 100},
+    xlabel={Accuracy (\%)},
+    symbolic y coords={
+        {Local-only training},
+        {Own adapter only},
+        {Own aggregated adapter},
+        {Base model},
+        {Federated mix (log avg)},
+        {All adapters merged},
+        {Federated mix (query-aware)},
+        {Federated mix (plain avg)},
+        {Federated mix (conf-weighted)},
+        {Centralised (upper bound)},
+    },
+    ytick=data,
+    yticklabel style={font=\scriptsize, align=right},
+    xticklabel style={font=\scriptsize},
+    xlabel style={font=\small},
+    nodes near coords,
+    nodes near coords style={font=\tiny, text=black, anchor=west},
+    nodes near coords align={horizontal},
+    point meta=rawx,
+    bar width=5pt,
+    enlarge y limits=0.06,
+    legend style={font=\scriptsize, at={(0.5,-0.15)}, anchor=north, legend columns=2, draw=gray!40, fill=white},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+
+% All Topics (Global Balanced Test Set)
+\addplot[fill=oursblue!85, draw=oursblue] coordinates {
+    (72.8,{Local-only training})
+    (75.8,{Own adapter only})
+    (85.8,{Own aggregated adapter})
+    (87.2,{Base model})
+    (87.5,{Federated mix (log avg)})
+    (87.8,{All adapters merged})
+    (88.4,{Federated mix (query-aware)})
+    (88.7,{Federated mix (plain avg)})
+    (88.8,{Federated mix (conf-weighted)})
+    (89.4,{Centralised (upper bound)})
+};
+
+% Node's Own Mix (Local Skewed Test Set)
+\addplot[fill=boundorange!85, draw=boundorange] coordinates {
+    (94.5,{Local-only training})
+    (94.2,{Own adapter only})
+    (91.9,{Own aggregated adapter})
+    (84.7,{Base model})
+    (85.1,{Federated mix (log avg)})
+    (86.0,{All adapters merged})
+    (88.8,{Federated mix (query-aware)})
+    (87.4,{Federated mix (plain avg)})
+    (88.0,{Federated mix (conf-weighted)})
+    (90.0,{Centralised (upper bound)})
+};
+
+\legend{All Topics (Global Test), Node's Own Mix (Local Test)}
+\end{axis}
+\end{tikzpicture}%
+}

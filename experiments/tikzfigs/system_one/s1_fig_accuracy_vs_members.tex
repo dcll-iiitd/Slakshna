@@ -1,0 +1,55 @@
+% TikZ: Accuracy and Calibration vs. Members Mixed (System One)
+% Usage: \input{tikzfigs/system_one/s1_fig_accuracy_vs_members.tex}
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{vllmred}{RGB}{209,73,91}
+
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}
+\begin{axis}[
+    width=7.2cm,
+    height=5.2cm,
+    xmin=0.8, xmax=4.2,
+    xtick={1, 2, 3, 4},
+    xlabel={Number of Peer Adapters Mixed ($k$)},
+    ymin=70, ymax=95,
+    ylabel={Accuracy (\%)},
+    ytick={70, 75, 80, 85, 90, 95},
+    axis y line*=left,
+    legend style={font=\scriptsize, at={(0.05,0.92)}, anchor=north west, draw=none, fill=none},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+\addplot[color=oursblue, mark=*, mark size=2.5pt, line width=1.5pt] coordinates {
+    (1, 75.85)
+    (2, 82.10)
+    (3, 86.33)
+    (4, 88.70)
+};
+\addlegendentry{Accuracy (\%) [Left Axis]}
+\node[font=\tiny, text=oursblue, anchor=south] at (axis cs:1, 75.8) {75.8\%};
+\node[font=\tiny, text=oursblue, anchor=south] at (axis cs:2, 82.1) {82.1\%};
+\node[font=\tiny, text=oursblue, anchor=south] at (axis cs:3, 86.3) {86.3\%};
+\node[font=\tiny, text=oursblue, anchor=south] at (axis cs:4, 88.7) {88.7\%};
+\end{axis}
+
+\begin{axis}[
+    width=7.2cm,
+    height=5.2cm,
+    xmin=0.8, xmax=4.2,
+    ymin=0, ymax=20,
+    ylabel={ECE (\%)},
+    ytick={0, 5, 10, 15, 20},
+    axis y line*=right,
+    axis x line=none,
+    legend style={font=\scriptsize, at={(0.95,0.92)}, anchor=north east, draw=none, fill=none}
+]
+\addplot[color=vllmred, mark=square*, mark size=2.2pt, line width=1.3pt, dashed] coordinates {
+    (1, 15.16)
+    (2, 8.35)
+    (3, 10.76)
+    (4, 13.82)
+};
+\addlegendentry{ECE (\%) [Right Axis, lower is better]}
+\end{axis}
+\end{tikzpicture}%
+}

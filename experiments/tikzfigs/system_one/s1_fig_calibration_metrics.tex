@@ -1,0 +1,206 @@
+% TikZ: Quality of Decision Probabilities (2x2 Single-Column Grid)
+% Source: experiments/results/system_one/ag_news_n4_a0.1_s0_s1/tables/decision_accuracy_by_method.csv
+% Usage: \input{tikzfigs/system_one/s1_fig_calibration_metrics.tex}
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+\providecolor{basegray}{RGB}{154,164,174}
+\providecolor{traingreen}{RGB}{89,161,79}
+
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}
+
+% ================= Panel (a): ECE =================
+\begin{axis}[
+    name=ax1,
+    xbar,
+    width=5.1cm,
+    height=4.6cm,
+    xmin=0, xmax=0.22,
+    xtick={0, 0.05, 0.10, 0.15, 0.20},
+    xticklabels={0, 0.05, 0.10, 0.15, 0.20},
+    scaled x ticks=false,
+    scaled ticks=false,
+    symbolic y coords={
+        {Centralised*},
+        {Fed (query)},
+        {Fed (log avg)},
+        {Fed (plain)},
+        {Merged avg},
+        {Base model},
+        {Own adapter},
+        {Local-only}
+    },
+    ytick=data,
+    yticklabel style={font=\tiny, align=right},
+    xticklabel style={font=\tiny},
+    point meta=explicit symbolic,
+    nodes near coords,
+    nodes near coords style={font=\tiny, text=black, anchor=west},
+    bar width=5.5pt,
+    enlarge y limits=0.08,
+    title={\textbf{(a) Calibration (ECE)} $\downarrow$},
+    title style={font=\scriptsize, yshift=-2pt},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+\addplot[fill=oursblue!80, draw=black!70] coordinates {
+    (0.180,{Local-only}) [0.180]
+    (0.152,{Own adapter}) [0.152]
+    (0.086,{Base model}) [0.086]
+    (0.058,{Merged avg}) [0.058]
+    (0.138,{Fed (plain)}) [0.138]
+    (0.030,{Fed (log avg)}) [0.030]
+    (0.033,{Fed (query)}) [0.033]
+    (0.086,{Centralised*}) [0.086]
+};
+\end{axis}
+
+% ================= Panel (b): Brier Score =================
+\begin{axis}[
+    name=ax2,
+    at={(ax1.east)},
+    anchor=west,
+    xshift=0.35cm,
+    xbar,
+    width=4.3cm,
+    height=4.6cm,
+    xmin=0, xmax=0.52,
+    xtick={0, 0.1, 0.2, 0.3, 0.4, 0.5},
+    xticklabels={0, 0.1, 0.2, 0.3, 0.4, 0.5},
+    scaled x ticks=false,
+    scaled ticks=false,
+    symbolic y coords={
+        {Centralised*},
+        {Fed (query)},
+        {Fed (log avg)},
+        {Fed (plain)},
+        {Merged avg},
+        {Base model},
+        {Own adapter},
+        {Local-only}
+    },
+    ytick=data,
+    yticklabels={},
+    xticklabel style={font=\tiny},
+    point meta=explicit symbolic,
+    nodes near coords,
+    nodes near coords style={font=\tiny, text=black, anchor=west},
+    bar width=5.5pt,
+    enlarge y limits=0.08,
+    title={\textbf{(b) Prob Error (Brier)} $\downarrow$},
+    title style={font=\scriptsize, yshift=-2pt},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+\addplot[fill=oursblue!80, draw=black!70] coordinates {
+    (0.441,{Local-only}) [0.441]
+    (0.391,{Own adapter}) [0.391]
+    (0.216,{Base model}) [0.216]
+    (0.198,{Merged avg}) [0.198]
+    (0.215,{Fed (plain)}) [0.215]
+    (0.199,{Fed (log avg)}) [0.199]
+    (0.186,{Fed (query)}) [0.186]
+    (0.177,{Centralised*}) [0.177]
+};
+\end{axis}
+
+% ================= Panel (c): NLL =================
+\begin{axis}[
+    name=ax3,
+    at={(ax1.south)},
+    anchor=north,
+    yshift=-1.1cm,
+    xbar,
+    width=5.1cm,
+    height=4.6cm,
+    xmin=0, xmax=1.35,
+    xtick={0, 0.3, 0.6, 0.9, 1.2},
+    xticklabels={0, 0.3, 0.6, 0.9, 1.2},
+    scaled x ticks=false,
+    scaled ticks=false,
+    symbolic y coords={
+        {Centralised*},
+        {Fed (query)},
+        {Fed (log avg)},
+        {Fed (plain)},
+        {Merged avg},
+        {Base model},
+        {Own adapter},
+        {Local-only}
+    },
+    ytick=data,
+    yticklabel style={font=\tiny, align=right},
+    xticklabel style={font=\tiny},
+    point meta=explicit symbolic,
+    nodes near coords,
+    nodes near coords style={font=\tiny, text=black, anchor=west},
+    bar width=5.5pt,
+    enlarge y limits=0.08,
+    title={\textbf{(c) Confident Mistakes (NLL)} $\downarrow$},
+    title style={font=\scriptsize, yshift=-2pt},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+\addplot[fill=oursblue!80, draw=black!70] coordinates {
+    (1.055,{Local-only}) [1.055]
+    (0.893,{Own adapter}) [0.893]
+    (0.724,{Base model}) [0.724]
+    (0.432,{Merged avg}) [0.432]
+    (0.417,{Fed (plain)}) [0.417]
+    (0.374,{Fed (log avg)}) [0.374]
+    (0.362,{Fed (query)}) [0.362]
+    (0.357,{Centralised*}) [0.357]
+};
+\end{axis}
+
+% ================= Panel (d): AURC =================
+\begin{axis}[
+    name=ax4,
+    at={(ax2.south)},
+    anchor=north,
+    yshift=-1.1cm,
+    xbar,
+    width=4.3cm,
+    height=4.6cm,
+    xmin=0, xmax=0.17,
+    xtick={0, 0.04, 0.08, 0.12, 0.16},
+    xticklabels={0, 0.04, 0.08, 0.12, 0.16},
+    scaled x ticks=false,
+    scaled ticks=false,
+    symbolic y coords={
+        {Centralised*},
+        {Fed (query)},
+        {Fed (log avg)},
+        {Fed (plain)},
+        {Merged avg},
+        {Base model},
+        {Own adapter},
+        {Local-only}
+    },
+    ytick=data,
+    yticklabels={},
+    xticklabel style={font=\tiny},
+    point meta=explicit symbolic,
+    nodes near coords,
+    nodes near coords style={font=\tiny, text=black, anchor=west},
+    bar width=5.5pt,
+    enlarge y limits=0.08,
+    title={\textbf{(d) Confidence Ranking (AURC)} $\downarrow$},
+    title style={font=\scriptsize, yshift=-2pt},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+\addplot[fill=oursblue!80, draw=black!70] coordinates {
+    (0.141,{Local-only}) [0.141]
+    (0.125,{Own adapter}) [0.125]
+    (0.065,{Base model}) [0.065]
+    (0.048,{Merged avg}) [0.048]
+    (0.040,{Fed (plain)}) [0.040]
+    (0.043,{Fed (log avg)}) [0.043]
+    (0.041,{Fed (query)}) [0.041]
+    (0.034,{Centralised*}) [0.034]
+};
+\end{axis}
+
+\end{tikzpicture}%
+}

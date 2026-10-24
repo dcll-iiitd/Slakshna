@@ -1,0 +1,40 @@
+% TikZ: Member Agreement vs. Decision Accuracy (System One)
+% Usage: \input{tikzfigs/system_one/s1_fig_member_agreement.tex}
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{traingreen}{RGB}{89,161,79}
+
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}
+\begin{axis}[
+    ybar,
+    width=7.0cm,
+    height=5.2cm,
+    ymin=40, ymax=108,
+    ytick={40, 50, 60, 70, 80, 90, 100},
+    ylabel={Accuracy / Query Share (\%)},
+    symbolic x coords={1 of 4, 2 of 4, 3 of 4, 4 of 4},
+    xtick=data,
+    xlabel={Members Agreeing on Decision},
+    nodes near coords,
+    nodes near coords style={font=\tiny, text=black, anchor=south},
+    bar width=10pt,
+    legend style={font=\scriptsize, at={(0.5,-0.22)}, anchor=north, legend columns=2, draw=gray!40, fill=white},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+\addplot[fill=oursblue!85, draw=oursblue] coordinates {
+    (1 of 4, 57.5)
+    (2 of 4, 70.2)
+    (3 of 4, 87.5)
+    (4 of 4, 96.6)
+};
+\addplot[fill=traingreen!80, draw=traingreen] coordinates {
+    (1 of 4, 1.1)
+    (2 of 4, 20.1)
+    (3 of 4, 37.6)
+    (4 of 4, 41.3)
+};
+\legend{Decision Accuracy (\%), Share of Queries (\%)}
+\end{axis}
+\end{tikzpicture}%
+}

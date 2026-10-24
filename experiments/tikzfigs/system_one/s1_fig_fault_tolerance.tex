@@ -1,0 +1,50 @@
+% TikZ: Fault Tolerance under Peer Node Outages (System One)
+% Usage: \input{tikzfigs/system_one/s1_fig_fault_tolerance.tex}
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{224,164,58}
+
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}
+\begin{axis}[
+    width=7.2cm,
+    height=5.2cm,
+    xmin=-0.3, xmax=2.3,
+    xtick={0, 1, 2},
+    xticklabels={0 Peers Down (4 active), 1 Peer Down (3 active), 2 Peers Down (2 active)},
+    xticklabel style={font=\tiny},
+    ymin=75, ymax=102,
+    ylabel={Decision Accuracy (\%)},
+    ytick={75, 80, 85, 90, 95, 100},
+    axis y line*=left,
+    legend style={font=\scriptsize, at={(0.05,0.08)}, anchor=south west, draw=none, fill=none},
+    grid=major,
+    grid style={dashed, gray!25}
+]
+\addplot[color=oursblue, mark=*, mark size=2.5pt, line width=1.5pt] coordinates {
+    (0, 90.0)
+    (1, 90.0)
+    (2, 86.7)
+};
+\addlegendentry{Accuracy (\%) [Left]}
+\end{axis}
+
+\begin{axis}[
+    width=7.2cm,
+    height=5.2cm,
+    xmin=-0.3, xmax=2.3,
+    ymin=500, ymax=1800,
+    ylabel={Latency (ms)},
+    ytick={600, 900, 1200, 1500, 1800},
+    axis y line*=right,
+    axis x line=none,
+    legend style={font=\scriptsize, at={(0.95,0.08)}, anchor=south east, draw=none, fill=none}
+]
+\addplot[color=boundorange, mark=square*, mark size=2.2pt, line width=1.3pt, dashed] coordinates {
+    (0, 705)
+    (1, 1553)
+    (2, 1362)
+};
+\addlegendentry{Latency (ms) [Right]}
+\end{axis}
+\end{tikzpicture}%
+}

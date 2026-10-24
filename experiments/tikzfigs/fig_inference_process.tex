@@ -1,0 +1,94 @@
+% TikZ Figure: Horizontal Query-Aware Federated Inference Pipeline
+% Usage: \input{plots/fig_inference_process.tex} or \input{tikzfigs/fig_inference_process.tex}
+\providecolor{oursblue}{RGB}{46,111,183}
+\providecolor{boundorange}{RGB}{217,130,43}
+\providecolor{traingreen}{RGB}{67,138,62}
+\providecolor{basegray}{RGB}{120,130,140}
+\providecolor{privacyred}{RGB}{201,59,78}
+
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+    >=stealth,
+    every node/.style={font=\scriptsize},
+    cardheader/.style={rectangle, rounded corners=2pt, font=\scriptsize\bfseries, text=white, align=center, inner sep=3pt},
+    subcard/.style={rectangle, rounded corners=2.5pt, draw=gray!40, fill=white, line width=0.5pt, align=center, inner sep=3.5pt},
+    arr/.style={->, line width=0.8pt, draw=gray!70!black},
+    transarr/.style={->, line width=1.1pt}
+]
+
+% ----------------- 1. OUTER PRIVATE FRAME -----------------
+\draw[rounded corners=5pt, dashed, line width=0.85pt, draw=oursblue!55, fill=oursblue!2] (-0.15, -0.2) rectangle (9.35, 5.25);
+\node[anchor=north west, font=\tiny\bfseries, text=oursblue!90!black] at (0.05, 5.12) {LOCAL CLIENT NODE $i$};
+\node[anchor=north west, font=\tiny, text=gray!60!black] at (2.4, 5.12) {$|$};
+\node[anchor=north west, font=\tiny\bfseries, text=privacyred!90!black] at (2.6, 5.12) {Private Device Boundary \textemdash{} Prompt Never Leaves Device};
+
+% ----------------- CARD 1: PROMPT & ENCODE (Left) -----------------
+\draw[rounded corners=4pt, draw=oursblue!85, fill=oursblue!5, line width=0.7pt] (0.05, 0.05) rectangle (2.85, 4.65);
+\node[cardheader, fill=oursblue, minimum width=2.65cm] at (1.45, 4.4) {1. PROMPT \& ENCODE};
+
+% Sub-box 1.1: Query
+\node[subcard, minimum width=2.45cm] (query) at (1.45, 3.55) {
+    \textbf{User Query}\\[2pt]
+    \large$\mathbf{q}$
+};
+
+% Sub-box 1.2: Local Encoder
+\node[subcard, draw=oursblue!70, minimum width=2.45cm] (enc) at (1.45, 1.55) {
+    \textbf{Local Encoder}\\[2pt]
+    \texttt{all-MiniLM-L6-v2}\\
+    \tiny(22M parameters)\\[3pt]
+    \colorbox{oursblue!12}{\tiny\textbf{Latency $<10$\,ms}}\\[3pt]
+    \textbf{$\mathbf{e}_q = \text{Embed}(\mathbf{q})$}
+};
+\draw[arr] (query) -- (enc);
+
+% ----------------- CARD 2: ROUTE & RETRIEVE (Center) -----------------
+\draw[rounded corners=4pt, draw=boundorange!90, fill=boundorange!5, line width=0.7pt] (3.2, 0.05) rectangle (6.0, 4.65);
+\node[cardheader, fill=boundorange, minimum width=2.65cm] at (4.6, 4.4) {2. ROUTE \& RETRIEVE};
+
+% Sub-box 2.1: Router
+\node[subcard, draw=boundorange!70, minimum width=2.45cm] (router) at (4.6, 3.25) {
+    \textbf{Semantic Router}\\[2pt]
+    \tiny Profile lookup vs.\ $\{\mathbf{c}_k\}$\\[3pt]
+    \scriptsize\textbf{$k^* = \arg\max_k \cos(\mathbf{e}_q, \mathbf{c}_k)$}
+};
+
+% Sub-box 2.2: P2P Retrieval
+\node[subcard, draw=boundorange!70, minimum width=2.45cm] (fetch) at (4.6, 1.35) {
+    \textbf{Adapter Retrieval}\\[2pt]
+    \textbf{\scriptsize Peer $k^*$ Specialist}\\[2pt]
+    \tiny $\bullet$ Warm: Cache hit ($0$\,ms)\\
+    \tiny $\bullet$ Cold: P2P QUIC ($<1.8$\,s)\\[3pt]
+    \colorbox{boundorange!15}{\tiny\textbf{SHA-256 Verified}}
+};
+\draw[arr] (router) -- (fetch);
+
+% ----------------- CARD 3: HOT-SWAP & SERVE (Right) -----------------
+\draw[rounded corners=4pt, draw=traingreen!85, fill=traingreen!5, line width=0.7pt] (6.35, 0.05) rectangle (9.15, 4.65);
+\node[cardheader, fill=traingreen, minimum width=2.65cm] at (7.75, 4.4) {3. HOT-SWAP \& SERVE};
+
+% Sub-box 3.1: LLM
+\node[subcard, draw=traingreen!75, minimum width=2.45cm] (llm) at (7.75, 2.95) {
+    \textbf{Dynamic Hot-Swap}\\[2pt]
+    \tiny Shared Base LLM $W_0$\\
+    \tiny (Qwen2.5-1.5B)\\[2pt]
+    \scriptsize\textbf{+ Active LoRA $\Delta W_{k^*}$}\\[3pt]
+    \colorbox{traingreen!15}{\tiny\textbf{GPU Forward Pass}}
+};
+
+% Sub-box 3.2: Output
+\node[subcard, minimum width=2.45cm] (out) at (7.75, 0.95) {
+    \textbf{Generated Answer}\\[2pt]
+    \large$\hat{\mathbf{y}}$
+};
+\draw[arr] (llm) -- (out);
+
+% ----------------- INTER-CARD TRANSITION ARROWS -----------------
+% Arrow 1 -> 2
+\draw[transarr, draw=oursblue] (2.85, 2.4) -- node[above=1pt, font=\tiny\bfseries, text=oursblue] {$\mathbf{e}_q \in \mathbb{R}^{384}$} (3.2, 2.4);
+
+% Arrow 2 -> 3
+\draw[transarr, draw=boundorange] (6.0, 2.4) -- node[above=1pt, font=\tiny\bfseries, text=boundorange] {$\Delta W_{k^*}$} (6.35, 2.4);
+
+\end{tikzpicture}%
+}

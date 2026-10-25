@@ -2,7 +2,7 @@
 set -e
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 <number_of_nodes> (2, 4, or 6)"
+    echo "Usage: $0 <number_of_nodes> [config_dir]   (nodes: 2, 4, or 6; default config_dir: examples/<N>node)"
     exit 1
 fi
 
@@ -13,7 +13,7 @@ if [ "$NUM_NODES" != "2" ] && [ "$NUM_NODES" != "4" ] && [ "$NUM_NODES" != "6" ]
     exit 1
 fi
 
-CONFIG_DIR="examples/${NUM_NODES}node"
+CONFIG_DIR="${2:-examples/${NUM_NODES}node}"
 
 if [ ! -d "$CONFIG_DIR" ]; then
     echo "Error: Configuration directory $CONFIG_DIR not found."
@@ -33,7 +33,9 @@ elif [ -d "$SCRIPT_DIR/../../Bhaskera" ]; then
     BASE_DIR=$(realpath "$SCRIPT_DIR/../..")
 fi
 
-if [ -f "$BASE_DIR/Bhaskera/bhaskera-activate.sh" ]; then
+if [ -n "$VIRTUAL_ENV" ]; then
+    echo "Using already-active virtual environment: $VIRTUAL_ENV"
+elif [ -f "$BASE_DIR/Bhaskera/bhaskera-activate.sh" ]; then
     source "$BASE_DIR/Bhaskera/bhaskera-activate.sh"
 elif [ -f ".venv/bin/activate" ]; then
     source .venv/bin/activate
@@ -61,7 +63,13 @@ for i in $(seq 1 $NUM_NODES); do
     fi
     
     echo "Starting Node $i with config $CONFIG_FILE (logging to $LOG_FILE)..."
-    ./target/release/iiitd --config "$CONFIG_FILE" > "$LOG_FILE" 2>&1 &
+    # Optional per-node training template: <config_dir>/node<i>.yaml (else node_template.yaml)
+    NODE_TEMPLATE=""
+    if [ -f "$CONFIG_DIR/node${i}.yaml" ]; then
+        NODE_TEMPLATE="$(realpath "$CONFIG_DIR/node${i}.yaml")"
+        echo "  using training template $NODE_TEMPLATE"
+    fi
+    SLAKSHNA_NODE_TEMPLATE="$NODE_TEMPLATE" ./target/release/iiitd --config "$CONFIG_FILE" > "$LOG_FILE" 2>&1 &
     
     # Save the PID
     echo $! >> cluster.pids

@@ -1,0 +1,49 @@
+# Node 2 training template: post-training RL (GRPO) on GSM8K with this node's own data shard.
+federated:
+  mode: "rl"
+  optimizer: "adamw"
+  trust_beta: 0.1
+  total_epochs: 3          # the node exits after 3 rounds
+
+model:
+  name: "Qwen/Qwen2.5-0.5B-Instruct"
+  dtype: "bfloat16"
+  use_liger_kernel: false
+
+data:                      # unused by RL; kept because ml_engine reads this section
+  name: "local"
+  seq_len: 1024
+
+lora:
+  enabled: true            # required for RL
+  rank: 16
+  alpha: 32
+  dropout: 0.0
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+training:
+  learning_rate: 5.0e-5
+  max_steps: 6             # GRPO steps per federated round
+  warmup_steps: 0
+  seed: 42                 # same seed on every node => identical LoRA init in round 1
+  grad_clip: 1.0
+
+checkpoint:
+  save_directory: "dummy"
+  local_interval: 1
+  sync_interval: 1
+  keep_last_n: 2
+
+rl:
+  train_path: "data/gsm8k/train_1.jsonl"   # this node's private shard
+  eval_path: "data/gsm8k/test.jsonl"
+  reward: "math_boxed"
+  group_size: 8
+  prompts_per_step: 8
+  max_new_tokens: 320
+  kl_coef: 0.04
+  micro_batch_size: 16
+  eval_max_prompts: 50
+
+logging:
+  tracker: "none"

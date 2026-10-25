@@ -1,0 +1,48 @@
+{
+ "lr": 1e-05,
+ "seed": 0,
+ "curve": {
+  "10": {
+   "acc": 0.3388931008339651,
+   "train_loss": 0.6647969801640441
+  },
+  "80": {
+   "acc": 0.3161485974222896,
+   "train_loss": 0.5319984838688742
+  }
+ },
+ "stats_200": {
+  "n": 200,
+  "acc": 0.35,
+  "mean_tokens": 89.75,
+  "frac_boxed": 0.98,
+  "frac_hit_limit": 0.0,
+  "acc_when_boxed": 0.35714285714285715,
+  "samples": [
+   {
+    "question": "Janet\u2019s ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fre",
+    "answer": "She has 16+4=20 eggs to sell.\nShe makes 2*20=$40 selling eggs.\nShe eats 3+4=7 eggs a day.\nSo, she makes 7*2=$14 from eating eggs.\nThat means she makes 40-14=$26 at the farmers' market every day.\nThe final answer is \\boxed{26}.",
+    "correct": 0.0,
+    "tokens": 86
+   },
+   {
+    "question": "A robe takes 2 bolts of blue fiber and half that much white fiber.  How many bolts in total does it take?",
+    "answer": "The number of bolts of blue fiber is 2*2=4.\nThe number of bolts of white fiber is 1/2*2=1.\nTherefore, a total of 4+1=5 bolts are needed.\nThe final answer is \\boxed{5}.",
+    "correct": 0.0,
+    "tokens": 57
+   },
+   {
+    "question": "Josh decides to try flipping a house.  He buys a house for $80,000 and then puts in $50,000 in repairs.  This increased the value of the house by 150%.  How much profit did he make?",
+    "answer": "The total cost of the house was $80,000 + $50,000 = $130,000.\nIf the house's value increased by 150%, it means that the house is now worth 130,000 * .15 = $19,500 more than its original price.\nSo the current value of the house is $130,000 + $19,500 = $149,500.\nTherefore, Josh made a profit of $149,500 - $130,000 = $19,500.\nThe final answer is \\boxed{19500}.",
+    "correct": 0.0,
+    "tokens": 159
+   },
+   {
+    "question": "James decides to run 3 sprints 3 times a week.  He runs 60 meters each sprint.  How many total meters does he run a week?",
+    "answer": "He runs 3*3=9 times a week.\nSo he runs 9*60=540 meters a week.\nThe final answer is \\boxed{540}.",
+    "correct": 1.0,
+    "tokens": 40
+   }
+  ]
+ }
+}

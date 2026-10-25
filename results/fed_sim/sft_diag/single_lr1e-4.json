@@ -1,0 +1,48 @@
+{
+ "lr": 0.0001,
+ "seed": 0,
+ "curve": {
+  "10": {
+   "acc": 0.30856709628506446,
+   "train_loss": 0.5536412255632636
+  },
+  "80": {
+   "acc": 0.31842304776345715,
+   "train_loss": 0.5092361895970665
+  }
+ },
+ "stats_200": {
+  "n": 200,
+  "acc": 0.34,
+  "mean_tokens": 88.355,
+  "frac_boxed": 1.0,
+  "frac_hit_limit": 0.0,
+  "acc_when_boxed": 0.34,
+  "samples": [
+   {
+    "question": "Janet\u2019s ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fre",
+    "answer": "She has 3+4=7 eggs to sell.\nSo she makes 7*2=$14 every day.\nThus, she makes 16+14=$30 every day.\nThe final answer is \\boxed{30}.",
+    "correct": 0.0,
+    "tokens": 52
+   },
+   {
+    "question": "A robe takes 2 bolts of blue fiber and half that much white fiber.  How many bolts in total does it take?",
+    "answer": "It takes 2*2=4 bolts of blue fiber.\nIt takes 2/2=1 bolt of white fiber.\nSo it takes a total of 4+1=5 bolts of fabric.\nThe final answer is \\boxed{5}.",
+    "correct": 0.0,
+    "tokens": 52
+   },
+   {
+    "question": "Josh decides to try flipping a house.  He buys a house for $80,000 and then puts in $50,000 in repairs.  This increased the value of the house by 150%.  How much profit did he make?",
+    "answer": "The house was worth $80,000 + $50,000 = $130,000 after Josh put in the money.\nHe made a profit of $130,000 - $80,000 = $50,000\nThe final answer is \\boxed{50}.",
+    "correct": 0.0,
+    "tokens": 76
+   },
+   {
+    "question": "James decides to run 3 sprints 3 times a week.  He runs 60 meters each sprint.  How many total meters does he run a week?",
+    "answer": "He runs 180 meters because 3 x 60 = 180\nHe runs 540 meters per week because 180 x 3 = 540\nThe final answer is \\boxed{540}.",
+    "correct": 1.0,
+    "tokens": 55
+   }
+  ]
+ }
+}

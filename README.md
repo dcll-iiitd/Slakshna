@@ -460,6 +460,14 @@ When `node-2` runs in malicious mode, it injects a destructive learning rate (`l
 
 ---
 
+## Post-training RL (optional)
+
+Instead of supervised fine-tuning, a node can improve the shared LoRA adapter with reinforcement learning (GRPO) against a **verifiable reward**, such as "is the final `\boxed{}` answer correct". Prompts, answers, the checker, and all generated text stay on the node; only the usual sparse LoRA delta is shared, so gossip, trust-weighted aggregation, and adapter export are unchanged.
+
+Enable it with `federated.mode: "rl"` and an `rl:` block in `node_template.yaml`. See [docs/rl_training.md](docs/rl_training.md) for the configuration and Bhaskera's `src/bhaskera/rl/README.md` for the trainer. Tests: `pytest tests/test_rl_integration.py`.
+
+---
+
 ## 📄 License
 
 This project is licensed under the **Apache License 2.0** — see the [LICENSE](file:///mnt/disk1/slakshna/slakshnaFL/SLAKSHNA/LICENSE) file for details.

@@ -1,0 +1,48 @@
+{
+ "lr": 3e-06,
+ "seed": 0,
+ "curve": {
+  "10": {
+   "acc": 0.3411675511751327,
+   "train_loss": 0.7020297242231435
+  },
+  "80": {
+   "acc": 0.2971948445792267,
+   "train_loss": 0.5916909438391574
+  }
+ },
+ "stats_200": {
+  "n": 200,
+  "acc": 0.335,
+  "mean_tokens": 123.93,
+  "frac_boxed": 0.84,
+  "frac_hit_limit": 0.08,
+  "acc_when_boxed": 0.39880952380952384,
+  "samples": [
+   {
+    "question": "Janet\u2019s ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fre",
+    "answer": "She has 16+4=20 eggs to sell\nShe makes 2*20=$40\nThe answer is 40.",
+    "correct": 0.0,
+    "tokens": 33
+   },
+   {
+    "question": "A robe takes 2 bolts of blue fiber and half that much white fiber.  How many bolts in total does it take?",
+    "answer": "It takes 1 bolt of blue fiber + 1/2 bolt of white fiber = 1.5 bolts of fiber.\nSo, a total of 1.5 x 2 = 3 bolts of fiber.\nThe final answer is \\boxed{3}.",
+    "correct": 1.0,
+    "tokens": 55
+   },
+   {
+    "question": "Josh decides to try flipping a house.  He buys a house for $80,000 and then puts in $50,000 in repairs.  This increased the value of the house by 150%.  How much profit did he make?",
+    "answer": "He bought the house for $80,000 + $50,000 = $130,000\nThe house was worth $130,000 and it went up by 150% so it is now worth $130,000 * (1 + 150/100) = $225,000\nHis profit is $225,000 - $130,000 = $95,000\nThe final answer is \\boxed{95}.",
+    "correct": 0.0,
+    "tokens": 128
+   },
+   {
+    "question": "James decides to run 3 sprints 3 times a week.  He runs 60 meters each sprint.  How many total meters does he run a week?",
+    "answer": "He runs 180 meters per week because 3 x 3 = 9\nHe runs 540 meters per week because 180 x 3 = 540\nThe final answer is \\boxed{540}.",
+    "correct": 1.0,
+    "tokens": 54
+   }
+  ]
+ }
+}

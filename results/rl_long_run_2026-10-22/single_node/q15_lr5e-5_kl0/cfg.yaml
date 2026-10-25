@@ -1,0 +1,48 @@
+# Post-training RL (GRPO) on GSM8K with a verifiable reward.
+#
+#   python scripts/prepare_gsm8k_rl.py --out-dir data/gsm8k
+#   bhaskera-rl --config configs/rl_gsm8k.yaml
+#
+# Single GPU. The base model is frozen; only the LoRA adapter is trained.
+
+model:
+  name: "Qwen/Qwen2.5-1.5B-Instruct"
+  dtype: "bfloat16"
+  use_liger_kernel: false
+
+lora:
+  enabled: true          # required: the KL reference is the base model (adapter off)
+  r: 16
+  alpha: 32
+  dropout: 0.0
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+rl:
+  train_path: "/home/anant/dcll/Slakshna/data/gsm8k/train.jsonl"
+  eval_path: "/home/anant/dcll/Slakshna/data/gsm8k/test.jsonl"
+  reward: "math_boxed"          # 1.0 if the final \boxed{} answer is correct, else 0.0
+  group_size: 8                 # completions per prompt
+  prompts_per_step: 16          # 16 prompts x 8 completions = 128 rollouts per step
+  max_new_tokens: 512
+  temperature: 1.0
+  kl_coef: 0.0
+  clip_eps: 0.2
+  epochs_per_rollout: 1
+  micro_batch_size: 16
+  eval_every: 80
+  eval_max_prompts: 1319
+  eval_batch_size: 64
+
+training:
+  max_steps: 240
+  lr: 5.0e-5
+  warmup_steps: 0
+  weight_decay: 0.0
+  grad_clip: 1.0
+  seed: 42
+
+checkpoint:
+  enabled: true
+  save_dir: "/tmp/claude-1011/-home-anant/658f4a9f-53c8-42cb-8775-05bc7e816fa1/scratchpad/long/q15_lr5e-5_kl0/ckpt"
+  save_interval: 80
+  keep_last_n: 2

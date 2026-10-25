@@ -52,6 +52,10 @@ STATE_DIR = os.path.join(BASE_DIR, "ml_states")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 
+# Per-node training template. Defaults to node_template.yaml next to this file; set
+# SLAKSHNA_NODE_TEMPLATE to give a node its own (e.g. its own private data paths).
+TEMPLATE_PATH = os.environ.get("SLAKSHNA_NODE_TEMPLATE") or os.path.join(BASE_DIR, "node_template.yaml")
+
 TRUST_CSV = os.path.join(LOG_DIR, "trust_scores_new.csv")
 MALICIOUS_LOG = os.path.join(LOG_DIR, "malicious_nodes.txt")
 ACCURACY_CSV = os.path.join(LOG_DIR, "accuracy_scores.csv")
@@ -61,12 +65,17 @@ os.makedirs(STATE_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 
+from federated_communication.progress import LR_RE, REWARD_RE, SUP_TOKENS_RE, TRAIN_PROGRESS_RE
 from federated_communication import (
     COMPRESSION_ENABLED,
     DELTA_SPARSITY,
     DELTA_QUANTIZATION,
     DELTA_FORMAT,
     DELTA_VERSION,
+    MAX_DELTA_NORM,
+    MAX_PEER_DELTA_NORM,
+    MAX_PEER_NORM_RATIO,
+    delta_norm,
     encode_delta_envelope,
     decode_delta_envelope,
     sparsify_tensor,
@@ -114,8 +123,91 @@ def log_trust_scores(my_id, weights):
 
 
 
-def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", state=None):
-    with open(os.path.join(BASE_DIR, "node_template.yaml"), "r") as f:
+def append_csv(path, header, row):
+    """Append one row to a CSV (writing the header on first use)."""
+    exists = os.path.isfile(path)
+    with open(path, "a", newline="") as f:
+        w = csv.writer(f)
+        if not exists:
+            w.writerow(header)
+        w.writerow(row)
+
+
+VAL_CSV = os.path.join(LOG_DIR, "metrics_val.csv")
+TRAIN_CSV = os.path.join(LOG_DIR, "metrics_train.csv")
+VAL_HEADER = ["timestamp", "node_id", "round", "model", "split", "nll_nats_per_token", "perplexity",
+              "bits_per_byte", "scored_tokens", "scored_bytes", "examples", "eval_seconds"]
+TRAIN_HEADER = ["timestamp", "node_id", "round", "steps", "train_nll_nats_per_token", "train_perplexity",
+                "supervised_tokens", "lr_first", "lr_last"]
+
+
+def run_heldout_evaluation(my_id, round_num, lora_sd, template_config, device, is_final):
+    """Exact held-out loss / perplexity / bits-per-byte of the node's aggregated model.
+
+    Enabled by an `eval:` block in the template (val_path, optional test_path). Metrics are defined in
+    slakshna_eval.py. Round 1 also scores the untrained base model as the round-0 reference; the test
+    split is scored once, after the final round.
+    """
+    ev_cfg = template_config.get("eval") or {}
+    if not ev_cfg.get("val_path"):
+        return None
+    import gc
+    import time as _time
+    import slakshna_eval as ev
+    from peft import LoraConfig, get_peft_model
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    def resolve(p):
+        return p if os.path.isabs(p) else os.path.join(BASE_DIR, p)
+
+    name = template_config["model"]["name"]
+    lora_cfg = template_config.get("lora", {})
+    tok = AutoTokenizer.from_pretrained(name, trust_remote_code=template_config["model"].get("trust_remote_code", False))
+    pad_id = tok.pad_token_id if tok.pad_token_id is not None else tok.eos_token_id
+    max_len = int(ev_cfg.get("max_len", 2048))
+    batch = int(ev_cfg.get("batch_size", 8))
+    splits = {"val": resolve(ev_cfg["val_path"])}
+    if is_final and ev_cfg.get("test_path"):
+        splits["test"] = resolve(ev_cfg["test_path"])
+    examples = {s: ev.load_examples(tok, p, max_len=max_len) for s, p in splits.items()}
+
+    torch.cuda.empty_cache()
+    base = AutoModelForCausalLM.from_pretrained(name, torch_dtype=torch.bfloat16,
+                                                trust_remote_code=template_config["model"].get("trust_remote_code", False)).to(device)
+
+    def score(model, label, rnd):
+        out = {}
+        for split, exs in examples.items():
+            t0 = _time.time()
+            r = ev.evaluate(model, exs, pad_id, batch_size=batch, device=device)
+            out[split] = r
+            append_csv(VAL_CSV, VAL_HEADER, [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), my_id, rnd, label, split,
+                                              f"{r['nll']:.6f}", f"{r['perplexity']:.4f}", f"{r['bits_per_byte']:.6f}",
+                                              r["tokens"], r["bytes"], r["examples"], f"{_time.time() - t0:.1f}"])
+            print(f"[{my_id}] {label} round {rnd} {split}: NLL {r['nll']:.4f} nats/token | PPL {r['perplexity']:.3f} "
+                  f"| {r['bits_per_byte']:.4f} bits/byte ({r['tokens']} tokens)", file=sys.stderr)
+        return out
+
+    if round_num == 1 and ev_cfg.get("baseline", True):
+        score(base, "base_untrained", 0)
+    rank = lora_cfg.get("rank", lora_cfg.get("r", 16))
+    model = get_peft_model(base, LoraConfig(
+        r=rank, lora_alpha=lora_cfg["alpha"], lora_dropout=0.0, task_type="CAUSAL_LM",
+        target_modules=lora_cfg["target_modules"]))
+    missing, unexpected = model.load_state_dict({k: v.to(device) for k, v in lora_sd.items()}, strict=False)
+    if unexpected or any("lora_" in k for k in missing):
+        raise RuntimeError(f"aggregated LoRA does not match the model: unexpected={unexpected[:3]} "
+                           f"missing={[k for k in missing if 'lora_' in k][:3]}")
+    result = score(model, "aggregated", round_num)
+    del model, base
+    gc.collect()
+    torch.cuda.empty_cache()
+    return result
+
+
+def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", state=None,
+                            global_steps_done=0, total_rounds=0):
+    with open(TEMPLATE_PATH, "r") as f:
         config = yaml.safe_load(f)
 
     node_data_dir = os.path.join(DATA_DIR, f"data_{my_id}")
@@ -148,12 +240,20 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", sta
     config["checkpoint"]["checkpoint_dir"] = node_ckpt_dir
     config["checkpoint"]["enabled"] = True
     config["checkpoint"]["save_interval"] = config["checkpoint"].get("local_interval", 1)
+    if training_mode == "finetuning" and config.get("lora", {}).get("enabled", True):
+        config["checkpoint"]["lora_only"] = True      # ml_engine only needs the adapter; skip the base model
     config["training"]["output_dir"] = node_ckpt_dir
     config["output_dir"] = node_ckpt_dir
     
     # Ensure the ML Engine initializes training from the aggregated base weights of the previous epoch
     if "lora" not in config: config["lora"] = {}
     config["lora"]["resume_path"] = os.path.join(MODEL_DIR, f"{my_id}_base_lora.pth")
+    # Snapshot the freshly initialised adapter so round-1 deltas are differences, not absolute weights.
+    config["lora"]["init_save_path"] = os.path.join(MODEL_DIR, f"{my_id}_init_lora.pth")
+    # One warmup + one cosine decay over ALL rounds (instead of restarting the schedule every round).
+    if config.get("federated", {}).get("global_lr_schedule") and total_rounds > 0:
+        config["training"]["total_steps"] = int(total_rounds * config["training"].get("max_steps", 0))
+        config["training"]["step_offset"] = int(global_steps_done)
     
     # Translate learning_rate to lr for Bhaskera if present in YAML
     if "learning_rate" in config["training"]:
@@ -166,6 +266,16 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", sta
     port_offset = int(hashlib.md5(my_id.encode()).hexdigest()[:8], 16) % 1000
     config["monitoring"]["dashboard_port"] = 8265 + port_offset
     config["monitoring"]["metrics_export_port"] = 9265 + port_offset
+
+    # Bhaskera runs with cwd=ckpt_dir, so resolve relative data paths against this repo.
+    for key in ("train_path", "val_path", "path"):
+        path = config.get("data", {}).get(key)
+        if path and not os.path.isabs(path):
+            config["data"][key] = os.path.join(BASE_DIR, path)
+    for key in ("train_path", "eval_path"):
+        path = config.get("rl", {}).get(key)
+        if path and not os.path.isabs(path):
+            config["rl"][key] = os.path.join(BASE_DIR, path)
 
     if is_malicious:
         # Poisoning the model with huge LR
@@ -293,10 +403,16 @@ def main():
 
     device = get_device(my_id)
     
-    with open(os.path.join(BASE_DIR, "node_template.yaml"), "r") as f:
+    with open(TEMPLATE_PATH, "r") as f:
         template_config = yaml.safe_load(f)
     
     TRAINING_MODE = template_config.get("federated", {}).get("mode", "finetuning")
+    # Post-training RL (GRPO) trains a LoRA adapter, so it shares the finetuning delta logic.
+    RL_MODE = TRAINING_MODE == "rl"
+    if RL_MODE:
+        if not template_config.get("lora", {}).get("enabled", True):
+            raise ValueError("federated.mode 'rl' requires lora.enabled: true")
+        TRAINING_MODE = "finetuning"
     # If lora is explicitly disabled, we are doing full-parameter fine-tuning which follows the pretraining logic
     if not template_config.get("lora", {}).get("enabled", True):
         TRAINING_MODE = "pretraining"
@@ -346,7 +462,7 @@ def main():
         total_epochs = 0
 
     # INITIALIZE STATE
-    state = {"alpha": {}, "grad_alpha": {}, "score": 0.0, "round": 0}
+    state = {"alpha": {}, "grad_alpha": {}, "score": 0.0, "round": 0, "global_steps": 0}
     if os.path.exists(my_state_path):
         try:
             with open(my_state_path, "r") as f:
@@ -376,7 +492,9 @@ def main():
     log_trust_scores(my_id, w_i)
 
     # 1. Bhaskera config preparation
-    config_path, tokenized_path, ckpt_dir = prepare_bhaskera_config(my_id, is_malicious, TRAINING_MODE)
+    config_path, tokenized_path, ckpt_dir = prepare_bhaskera_config(
+        my_id, is_malicious, TRAINING_MODE,
+        global_steps_done=state["global_steps"], total_rounds=total_epochs)
 
     try:
         # 2. Tokenize dataset once if not present
@@ -401,7 +519,7 @@ def main():
             os.makedirs(tokenized_path, exist_ok=True)
             has_parquets = False
 
-        if not has_parquets:
+        if not has_parquets and not RL_MODE:  # RL reads prompts from JSONL, not tokenized shards
             subprocess.run([sys.executable, "-m", "bhaskera.launcher.tokenize", "--config", config_path], check=True)
 
         if os.path.exists(tokenized_path):
@@ -500,7 +618,8 @@ def main():
                                 pass
             current_epoch += 1
 
-            cmd = [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", str(num_gpus)]
+            launcher = "bhaskera.launcher.rl_train" if RL_MODE else "bhaskera.launcher.train"
+            cmd = [sys.executable, "-m", launcher, "--config", config_path, "--num-workers", str(num_gpus)]
             if last_samples > 0:
                 cmd.extend(["--resume-samples", str(last_samples)])
             if last_tokens > 0:
@@ -514,13 +633,15 @@ def main():
                 text=True
             )
             
-            import re
-            # Regex to match: [epoch 0][step 6] loss=2.2678 ... samples=8 tokens=16384
-            pattern = re.compile(r"\[epoch\s+(\d+)\]\[step\s+(\d+)\]\s+loss=([0-9.]+).*?samples=(\d+)\s+tokens=(\d+)")
+            # Matches: [epoch 0][step 6] loss=2.2678 ... samples=8 tokens=16384
+            pattern = TRAIN_PROGRESS_RE
 
             steps_taken_in_this_round = 0
+            last_reward = None  # RL only: mean reward of the most recent step
+            round_nll_sum, round_sup_tokens, lr_first, lr_last = 0.0, 0, None, None   # token-weighted train loss
             crash_log_path = os.path.join(LOG_DIR, f"{my_id}_bhaskera_crash.log")
-            with open(crash_log_path, "w") as crash_log:
+            with open(crash_log_path, "a") as crash_log:
+                crash_log.write(f"\n===== round {state['round']} {datetime.now().isoformat()} =====\n")
                 for line in process.stdout:
                     sys.stderr.write(line)
                     sys.stderr.flush()
@@ -528,6 +649,9 @@ def main():
                     crash_log.flush()
                     
                     match = pattern.search(line)
+                    reward_match = REWARD_RE.search(line) if match else None
+                    if reward_match:
+                        last_reward = float(reward_match.group(1))
                     if match:
                         step = match.group(2)
                         loss_val = match.group(3)
@@ -537,6 +661,14 @@ def main():
                         # If samples="0" (from dataset exhaustion), then dont count it as a real training step.
                         if samples_val != "0":
                             steps_taken_in_this_round += 1
+                            sup_m = SUP_TOKENS_RE.search(line)
+                            lr_m = LR_RE.search(line)
+                            if sup_m and math.isfinite(float(loss_val)):
+                                round_nll_sum += float(loss_val) * int(sup_m.group(1))
+                                round_sup_tokens += int(sup_m.group(1))
+                            if lr_m:
+                                lr_first = lr_first if lr_first is not None else float(lr_m.group(1))
+                                lr_last = float(lr_m.group(1))
                             
                         loss_f = float(loss_val)
                         perplexity_val = math.exp(loss_f) if loss_f < 20 else float('inf')
@@ -548,6 +680,15 @@ def main():
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, process.args)
 
+        # 3a. Per-round training loss, token-weighted over every step of the round
+        if round_sup_tokens > 0:
+            train_nll = round_nll_sum / round_sup_tokens
+            append_csv(TRAIN_CSV, TRAIN_HEADER, [
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"), my_id, state["round"], steps_taken_in_this_round,
+                f"{train_nll:.6f}", f"{math.exp(train_nll):.4f}", round_sup_tokens, lr_first, lr_last])
+            print(f"[{my_id}] Round {state['round']} train NLL {train_nll:.4f} | PPL {math.exp(train_nll):.3f} "
+                  f"({round_sup_tokens} supervised tokens)", file=sys.stderr)
+
         # 3b. Log Training Performance (Loss & Perplexity)
         loss, perplexity = extract_training_metrics(ckpt_dir)
         if loss is not None:
@@ -555,6 +696,15 @@ def main():
     finally:
         if 'ray' in sys.modules and ray.is_initialized():
             ray.shutdown()
+
+    state["global_steps"] += steps_taken_in_this_round
+
+    # Round 1 has no previous adapter on disk: the delta is measured against the saved initial LoRA.
+    if TRAINING_MODE == "finetuning" and not old_sd:
+        init_path = os.path.join(MODEL_DIR, f"{my_id}_init_lora.pth")
+        if os.path.exists(init_path):
+            old_sd = torch.load(init_path, map_location=device, weights_only=True)
+            print(f"[{my_id}] Using the saved initial LoRA as the round-1 reference.", file=sys.stderr)
 
     # # 4. Extract LoRA Weights (Delta) this we will share with peers
     # adapter_path = get_adapter_path(ckpt_dir)
@@ -637,7 +787,7 @@ def main():
                 with torch.device("meta"):
                     tmp_model = AutoModelForCausalLM.from_config(AutoConfig.from_pretrained(hf_model_name))
                 peft_config = LoraConfig(
-                    r=template_config["lora"]["rank"],
+                    r=template_config["lora"].get("rank", template_config["lora"].get("r", 16)),
                     lora_alpha=template_config["lora"]["alpha"],
                     lora_dropout=template_config["lora"]["dropout"],
                     target_modules=template_config["lora"]["target_modules"],
@@ -696,7 +846,7 @@ def main():
     # [Security & DP] 
     # Apply L2 Norm Clipping to the isolated delta parameters. This prevents local node poisoning 
     # (Byzantine anomalies) from overpowering the global model consensus by capping extreme parameter updates.
-    dp_delta_i = apply_differential_privacy_and_clipping(delta_i, max_norm=100.0, noise_multiplier=0.0)
+    dp_delta_i = apply_differential_privacy_and_clipping(delta_i, max_norm=MAX_DELTA_NORM, noise_multiplier=0.0)
 
     # Error Feedback: Load previous residual errors
     error_path = os.path.join(STATE_DIR, f"{my_id}_error_feedback.pth")
@@ -795,6 +945,7 @@ def main():
     # We aggregate our own *sparsified* delta rather than our dense delta. The dropped weights 
     # (dense - sparse) have already been saved to the error feedback buffer for the next epoch.
     available_deltas = {my_id: decode_delta_envelope(b64_delta, device, allow_legacy=True)}
+    own_delta_norm = delta_norm(available_deltas[my_id])   # reference for the relative peer check
     for j in neighbors:
         n_delta_path = os.path.join(NETWORK_DELTAS_DIR, f"{j}_delta.b64")
         if os.path.exists(n_delta_path):
@@ -803,8 +954,15 @@ def main():
                     peer_b64 = f.read().strip()
                 peer_delta = decode_delta_envelope(peer_b64, device)
 
-                if not validate_peer_delta(peer_delta, max_allowed_norm=10.0):
+                if not validate_peer_delta(
+                    peer_delta,
+                    max_allowed_norm=MAX_PEER_DELTA_NORM,
+                    reference_norm=own_delta_norm,
+                    max_ratio=MAX_PEER_NORM_RATIO,
+                ):
                     print(f"[{my_id}] 🔒 SECURITY ALERT: Peer delta from {j} failed norm/sanity validation!", file=sys.stderr)
+                    # stderr is discarded by the Rust node on success, so record the rejection here too
+                    log_runtime(my_id, "peer_delta_rejected", peer_id=j, reason="norm_or_sanity")
                     continue
 
                 available_deltas[j] = peer_delta
@@ -828,6 +986,7 @@ def main():
     delta_agg = aggregate_deltas(available_deltas, w_i)
 
     # Save aggregated LoRA as base for next epoch OR apply full-model updates
+    heldout = None
     if TRAINING_MODE == "finetuning":
         # Inject aggregated weights back into the Bhaskera checkpoint dir!
         final_sd = {}
@@ -856,6 +1015,9 @@ def main():
             os.makedirs(sync_ckpt_dir, exist_ok=True)
             sync_path = os.path.join(sync_ckpt_dir, f"sync_round_{state['round']}.pth")
             torch.save(final_sd, sync_path)
+
+        # Held-out loss / perplexity of the aggregated model (this is the model the next round starts from)
+        heldout = run_heldout_evaluation(my_id, state["round"], final_sd, template_config, device, is_finished)
     else:
         # Pretraining: Apply delta to base model and save
         local_model_dir = os.path.join(MODEL_DIR, f"{my_id}_base_full")
@@ -917,6 +1079,8 @@ def main():
         state["alpha"][j] += step
         state["alpha"][j] *= 0.98
 
+    if heldout is not None:
+        final_epoch_score = heldout["val"]["nll"]   # validation NLL is the meaningful per-round score
     score = final_epoch_score
     state["score"] = score
     with open(my_state_path, "w") as f:
@@ -942,7 +1106,11 @@ def main():
         "validation_score": float(score),
         "model_hash": model_hash,
         "weights": w_i,
-        "metadata": f"Loss: {score:.4f} | Mode: SparseLoCo | Delta: {DELTA_FORMAT}/v{DELTA_VERSION}",
+        "metadata": (
+            f"Reward: {last_reward:.4f} | Mode: GRPO | Delta: {DELTA_FORMAT}/v{DELTA_VERSION}"
+            if RL_MODE and last_reward is not None
+            else f"Loss: {score:.4f} | Mode: SparseLoCo | Delta: {DELTA_FORMAT}/v{DELTA_VERSION}"
+        ),
         "compressed_delta": b64_delta,  # Sending the actual weights to Rust
         "round": state["round"],
         "total_epochs": total_epochs,

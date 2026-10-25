@@ -1,0 +1,74 @@
+# Node 1: federated supervised fine-tuning of OLMo-2 1B on its own shard of the South Asia dataset.
+#
+# Setup (all values are standard for LoRA SFT):
+#   LoRA r=16, alpha=32 (alpha = 2r), dropout 0.05, all linear projections
+#   AdamW, peak lr 2e-4, 5-step warmup then cosine decay to 10% over ALL rounds, weight decay 0.01,
+#   gradient clipping 1.0, bf16 compute with fp32 LoRA weights, packed 2048-token sequences,
+#   16 sequences (about 33K tokens) per optimizer step on each node.
+federated:
+  mode: "finetuning"
+  optimizer: "adamw"
+  trust_beta: 0.1
+  total_epochs: 10               # federated rounds
+  global_lr_schedule: true
+
+model:
+  name: "allenai/OLMo-2-0425-1B"
+  dtype: "bfloat16"
+  attn_impl: "sdpa"
+  trust_remote_code: false
+  use_liger_kernel: false
+
+data:
+  name: "local"
+  format: "chatml"
+  train_path: "data/south_asia/node_0.jsonl"    # this node's own shard (disjoint documents)
+  seq_len: 2048
+  pack_sequences: true
+  tokenized_path: "dummy"                        # each node tokenizes into its own cache
+  num_workers: 4
+  tokenize_batch_size: 64
+  tokenize_compression: "snappy"
+  prefetch_batches: 2
+
+lora:
+  enabled: true
+  rank: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+training:
+  batch_size: 4                  # packed sequences per micro-batch
+  gradient_accumulation_steps: 4 # -> 16 sequences per optimizer step
+  learning_rate: 2.0e-4
+  weight_decay: 0.01
+  max_steps: 10                  # optimizer steps per round
+  warmup_steps: 5                # global (first 5 steps of the whole run)
+  max_grad_norm: 1.0
+  num_epochs: 2                  # lets a round continue into the next data epoch
+  seed: 42                       # identical LoRA initialisation on every node
+  distributed:
+    strategy: "ddp"              # single GPU per node; keeps LoRA weights in fp32
+    ddp:
+      find_unused_parameters: false
+      gradient_as_bucket_view: true
+      activation_checkpointing: false
+
+checkpoint:
+  save_directory: "dummy"
+  local_interval: 1
+  sync_interval: 10                 # keep only the final round's adapter copy
+  keep_last_n: 1
+
+# Held-out evaluation of each node's aggregated model after every round (see slakshna_eval.py).
+# Document-level split: no source document appears in train, val and test.
+eval:
+  val_path: "data/south_asia/val.jsonl"
+  test_path: "data/south_asia/test.jsonl"   # scored once, after the final round
+  max_len: 2048
+  batch_size: 8
+  baseline: true                            # also score the untrained base model (round 0)
+
+logging:
+  tracker: "none"

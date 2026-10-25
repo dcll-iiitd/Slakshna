@@ -1,0 +1,38 @@
+{
+ "step": 0,
+ "stats_200": {
+  "n": 200,
+  "acc": 0.39,
+  "mean_tokens": 270.82,
+  "frac_boxed": 0.67,
+  "frac_hit_limit": 0.335,
+  "acc_when_boxed": 0.582089552238806,
+  "samples": [
+   {
+    "question": "Janet\u2019s ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fre",
+    "answer": " for breakfast every morning, so the number of eggs eaten in a day is:\n   \\[\n   16 - 3 = 13\n   \\]\n3. Janet bakes muffins for her friends every day, which means she bakes 4 muffins. So, the number of eggs baked is:\n   \\[\n   13 - 4 = 9\n   \\]\n4. Janet sells the remaining eggs at the farmers' market. Each fresh egg egg sells for $2, so the revenue from selling the 9 eggs is:\n   \\[\n   9 \\times 2 = 18\n   \\]\n\nTherefore, the amount of money Janet makes every day at the farmers' market is \\(\\boxed{18}\\).",
+    "correct": 1.0,
+    "tokens": 270
+   },
+   {
+    "question": "A robe takes 2 bolts of blue fiber and half that much white fiber.  How many bolts in total does it take?",
+    "answer": "and white fibers together to find the total number of bolts.\n\nStep 1: The amount of blue fiber is given as 2 bolts.\n\nStep 2: The amount of white fiber is half the amount of blue fiber. Therefore, we calculate:\n\\[\n\\text{Amount of white fiber} = \\frac{2}{2} = 1 \\text{ bolt}\n\\]\n\nStep 3: To find the total number of bolts, we add the amount of blue fiber and the amount of white fiber:\n\\[\n\\text{Total number of bolts} = 2 + 1 = 3\n\\]\n\nThus, the total number of bolts needed for the robe is \\(\\boxed{3}\\).",
+    "correct": 1.0,
+    "tokens": 192
+   },
+   {
+    "question": "Josh decides to try flipping a house.  He buys a house for $80,000 and then puts in $50,000 in repairs.  This increased the value of the house by 150%.  How much profit did he make?",
+    "answer": "000\n     \\]\n\n3. **Add the net increase to the original value:**\n   - Original value of the house: $80,000\n   - Net increase: $120,000\n\n4. **Calculate the total value of the house after repairs:**\n   \\[\n   \\$80,000 + \\$120,000 = \\$200,000\n   \\]\n\n5. **Determine the profit:**\n   - Profit is calculated as the difference between the total value after repairs and the original value.\n   \\[\n   \\text{Profit} = \\$200,000 - \\$80,000 = \\$120,000\n   \\]\n\nThus, Josh's profit from flipping his house is \\(\\boxed",
+    "correct": 0.0,
+    "tokens": 320
+   },
+   {
+    "question": "James decides to run 3 sprints 3 times a week.  He runs 60 meters each sprint.  How many total meters does he run a week?",
+    "answer": " each sprint.\n\n2. **Determine the number of sprints per week:**\n   James runs 3 sprints each time.\n   \n   \\[\n   \\text{Total sprints per week} = 3\n   \\]\n\n3. **Calculate the total distance for all sprints in a week:**\n   Each sprint is 60 meters long, so for 3 sprints:\n   \\[\n   \\text{Total distance per week} = 3 \\times 60 \\text{ meters}\n   \\]\n   Perform the multiplication:\n   \\[\n   3 \\times 60 = 180 \\text{ meters}\n   \\]\n\nTherefore, the total distance James runs in a week is \\(\\boxed{180}\\) meters.",
+    "correct": 0.0,
+    "tokens": 207
+   }
+  ]
+ },
+ "acc_full": 0.34874905231235787
+}

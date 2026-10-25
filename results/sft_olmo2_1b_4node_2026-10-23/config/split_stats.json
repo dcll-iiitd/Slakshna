@@ -1,0 +1,19 @@
+{
+ "seed": 42,
+ "documents": {
+  "val": 62,
+  "test": 62,
+  "train": 1107
+ },
+ "examples": {
+  "val": 765,
+  "test": 613,
+  "train": 13953
+ },
+ "node_examples": [
+  3489,
+  3488,
+  3488,
+  3488
+ ]
+}

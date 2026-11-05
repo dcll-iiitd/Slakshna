@@ -1,9 +1,11 @@
 mod config;
 mod history;
 mod identity;
+mod agents;
 mod state;
 mod network;
 mod api;
+mod api_agents;
 
 use crate::config::Config;
 use crate::history::UpdateHistory;
@@ -39,6 +41,55 @@ struct MLEngineOutput {
 async fn main() -> Result<(), BoxError> {
     // Parse command line args
     let args: Vec<String> = std::env::args().collect();
+
+    // `iiitd llm-bench --servers name=url|model,... --test gsm8k_test.json --train gsm8k_train.json [options]`:
+    // real LLM agents on the GPUs (OpenAI-compatible servers), results with bootstrap confidence intervals.
+    if args.get(1).map(String::as_str) == Some("llm-bench") {
+        use crate::agents::llm_bench as lb;
+        use crate::agents::testbed::Behavior;
+        let opt = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned();
+        let servers: Vec<lb::ModelServer> = opt("--servers")
+            .ok_or("--servers name=url|model,... required")?
+            .split(',')
+            .map(|s| {
+                let (name, rest) = s.split_once('=').ok_or("server must be name=url|model")?;
+                let (url, model) = rest.split_once('|').ok_or("server must be name=url|model")?;
+                Ok::<_, BoxError>(lb::ModelServer { name: name.into(), url: url.into(), model: model.into() })
+            })
+            .collect::<Result<_, _>>()?;
+        let test = lb::load_gsm8k(&opt("--test").ok_or("--test required")?)?;
+        let train = lb::load_gsm8k(&opt("--train").ok_or("--train required")?)?;
+        let num = |n: &str, d: usize| opt(n).and_then(|v| v.parse().ok()).unwrap_or(d);
+        let cfg = lb::BenchConfig {
+            servers,
+            workers: num("--workers", 9),
+            ks: opt("--ks").map(|v| v.split(',').filter_map(|x| x.parse().ok()).collect()).unwrap_or_else(|| vec![0, 2, 3]),
+            adversaries: opt("--adversaries").map(|v| v.split(',').filter_map(|x| match x { "colluding" => Some(Behavior::Colluding), "lying" => Some(Behavior::Lying), "silent" => Some(Behavior::Silent), _ => None }).collect()).unwrap_or_else(|| vec![Behavior::Colluding, Behavior::Lying]),
+            problems: num("--problems", 60),
+            seeds: (0..num("--seeds", 3) as u64).collect(),
+            redundancy: num("--redundancy", 3),
+            temperature: opt("--temperature").and_then(|v| v.parse().ok()).unwrap_or(0.7),
+            concurrency: num("--concurrency", 6),
+            quorum: opt("--quorum").and_then(|v| v.parse().ok()).unwrap_or(0.0),
+            calibration: num("--calibration", 8),
+        };
+        let cells = lb::run(&cfg, &test, &train).await?;
+        println!("{}", lb::report(&cells));
+        if let Some(out) = opt("--out") {
+            std::fs::write(&out, serde_json::to_vec_pretty(&lb::to_json(&cells))?)?;
+            eprintln!("raw results written to {out}");
+        }
+        return Ok(());
+    }
+
+    // `iiitd testbed [tasks]`: M7 evaluation matrix over real QUIC, printed as a Markdown table.
+    if args.get(1).map(String::as_str) == Some("testbed") {
+        let tasks: usize = args.get(2).and_then(|t| t.parse().ok()).unwrap_or(40);
+        use crate::agents::testbed::{run_matrix, to_markdown, Behavior};
+        let rows = run_matrix(9, &[0, 1, 2, 3], &[Behavior::Colluding, Behavior::Lying, Behavior::Silent], tasks, 3).await?;
+        println!("{}", to_markdown(&rows, 9));
+        return Ok(());
+    }
 
     let config_path = if args.len() > 2 && args[1] == "--config" {
         args[2].clone()
@@ -95,9 +146,23 @@ async fn main() -> Result<(), BoxError> {
         net.start().await?;
     }
 
+    // Steps 4-5: federated agents and A2A (off unless [agents] enabled = true)
+    let agent_service = if config.agents.enabled {
+        let keypair = state.read().await.get_keypair().cloned().ok_or("node keypair missing")?;
+        match crate::agents::runtime::start(&config, keypair, history.clone(), network.clone()).await {
+            Ok(rt) => Some(rt.service),
+            Err(e) => {
+                tracing::error!("❌ agents failed to start: {}", e);
+                return Err(e);
+            }
+        }
+    } else {
+        None
+    };
+
     // Start API server
     let api_handle = tokio::spawn(
-        start_api_server(config.clone(), history.clone(), state.clone(), network.clone())
+        start_api_server(config.clone(), history.clone(), state.clone(), network.clone(), agent_service)
     );
 
     let hist = history.clone();
@@ -112,6 +177,7 @@ async fn main() -> Result<(), BoxError> {
     let hist_loop = hist.clone();
     let net_loop = net.clone();
     let node_id_loop = node_id.clone();
+    let keypair_loop = state.read().await.get_keypair().cloned().ok_or("node keypair missing")?;
     let gpu_id_loop = config.node.gpu_id;
     let config_loop = config.clone();
 
@@ -235,8 +301,9 @@ async fn main() -> Result<(), BoxError> {
                     delta_hash: "error_hash".to_string(),
                     compressed_delta: String::new(),
                 },
-                signature: format!("node_signature_{}", epoch_start),
+                signature: String::new(),
                 hash: String::new(),
+                public_key: String::new(),
             };
 
             let mut reviews = Vec::new();
@@ -266,7 +333,7 @@ async fn main() -> Result<(), BoxError> {
                             delta_hash: ml_data.model_hash.clone(),
                             compressed_delta: ml_data.compressed_delta.clone(),
                         };
-                        my_update.hash = my_update.calculate_hash();
+                        my_update.sign(&keypair_loop);
 
                         let mut current_tail_hash = my_update.hash.clone();
 
@@ -307,10 +374,11 @@ async fn main() -> Result<(), BoxError> {
                                     loss_drop: 0.0, // Simplified for now
                                     trust_score: weight,
                                 },
-                                signature: format!("review_sig_{}", epoch_start),
+                                signature: String::new(),
                                 hash: String::new(),
+                                public_key: String::new(),
                             };
-                            review.hash = review.calculate_hash();
+                            review.sign(&keypair_loop);
                             current_tail_hash = review.hash.clone();
                             reviews.push(review);
                         }
@@ -328,15 +396,17 @@ async fn main() -> Result<(), BoxError> {
                 Err(e) => tracing::error!("❌ Failed to start Python process: {}", e),
             }
 
-            {
-                let mut history = hist_loop.write().await;
-                history.record_update(my_update.clone());
-                for review in &reviews {
-                    history.record_update(review.clone());
+            // A failed epoch leaves `my_update` unsigned; it is neither
+            // recorded nor broadcast.
+            if my_update.verify().is_ok() {
+                {
+                    let mut history = hist_loop.write().await;
+                    let _ = history.record_update(my_update.clone());
+                    for review in &reviews {
+                        let _ = history.record_update(review.clone());
+                    }
                 }
-            }
 
-            {
                 let network_guard = net_loop.read().await;
                 let _ = network_guard.broadcast_update(&my_update).await;
                 for review in &reviews {

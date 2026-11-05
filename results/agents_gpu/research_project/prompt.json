@@ -1,0 +1,1 @@
+{"system": "You are a helpful assistant.", "few_shot": [], "user_template": "{question}\nGive the final answer as 'Answer: <number>'.", "max_new_tokens": 400}

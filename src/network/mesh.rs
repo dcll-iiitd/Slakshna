@@ -1,3 +1,4 @@
+use crate::agents::protocol::{AgentProtocol, AGENT_ALPN};
 use crate::history::{UpdateRecord, UpdateHistory, BoxError};
 use crate::network::{Network, P2PMessage};
 use crate::state::State;
@@ -51,6 +52,9 @@ pub struct MeshNetwork {
     endpoint_id: Arc<RwLock<Option<String>>>,
     _router: Option<iroh::protocol::Router>,
     _endpoint: Option<iroh::Endpoint>,
+    agent_slot: crate::agents::protocol::AgentSlot,
+    topics: Option<Arc<ProgramTopics>>,
+    blob_store: Option<iroh_blobs::api::Store>,
 }
 
 impl MeshNetwork {
@@ -68,7 +72,50 @@ impl MeshNetwork {
             endpoint_id: Arc::new(RwLock::new(None)),
             _router: None,
             _endpoint: None,
+            agent_slot: Default::default(),
+            topics: None,
+            blob_store: None,
         }
+    }
+
+    /// Per-program gossip topics (None before `start`).
+    pub fn topics(&self) -> Option<Arc<ProgramTopics>> {
+        self.topics.clone()
+    }
+
+    /// The iroh-blobs store served on this endpoint (None before `start`, or with agents disabled).
+    pub fn blob_store(&self) -> Option<iroh_blobs::api::Store> {
+        self.blob_store.clone()
+    }
+
+    /// Broadcast an emergency halt/resume to the federation.
+    pub async fn broadcast_halt(&self, msg: crate::agents::safety::HaltMsg) {
+        if let Some(tx) = &self.command_tx {
+            let _ = tx.send(P2PMessage::Halt(msg)).await;
+        }
+    }
+
+    /// EndpointIds of current gossip neighbours (for blob providers).
+    pub fn neighbour_ids(&self) -> Vec<iroh::EndpointId> {
+        self.active_peers
+            .try_read()
+            .map(|p| p.iter().filter_map(|s| s.parse().ok()).collect())
+            .unwrap_or_default()
+    }
+
+    /// Shared handle to the live neighbour list.
+    pub fn neighbours_handle(&self) -> Arc<RwLock<Vec<String>>> {
+        self.active_peers.clone()
+    }
+
+    /// Attach the agent service once it exists; the agent ALPN handler picks it up.
+    pub fn agent_slot(&self) -> crate::agents::protocol::AgentSlot {
+        self.agent_slot.clone()
+    }
+
+    /// The bound Iroh endpoint (None before `start`).
+    pub fn endpoint(&self) -> Option<iroh::Endpoint> {
+        self._endpoint.clone()
     }
 
     /// This node's Iroh EndpointId, once the endpoint has been bound.
@@ -192,7 +239,7 @@ impl Network for MeshNetwork {
             .ca_tls_config(iroh::tls::CaTlsConfig::insecure_skip_verify())
             .bind_addr(bind_addr)
             .map_err(|e| format!("Failed to set bind_addr: {}", e))?
-            .alpns(vec![ALPN.to_vec()]);
+            .alpns(vec![ALPN.to_vec(), AGENT_ALPN.to_vec(), iroh_blobs::ALPN.to_vec()]);
 
         if !discovery.dns {
             // Drop the n0 pkarr publisher/resolver the preset installed.
@@ -230,9 +277,36 @@ impl Network for MeshNetwork {
             .max_message_size(10_485_760) // 10 MB limit for large AI payloads
             .spawn(endpoint.clone());
 
-        let router = Router::builder(endpoint.clone())
+        let topics = Arc::new(ProgramTopics::new(
+            gossip.clone(),
+            self.history.clone(),
+            self.active_peers.clone(),
+            self.config.network.allowed_peers.clone(),
+        ));
+        self.topics = Some(topics);
+
+        // Routing by ALPN: gossip for the training mesh, agent protocol for
+        // Steps 4-5 traffic. Both share this one authenticated endpoint.
+        let agent_node_id = self.history.read().await.node_identity.to_string();
+        let agent_protocol = AgentProtocol::new(
+            self.history.clone(),
+            agent_node_id,
+            self.config.network.allowed_peers.clone(),
+        )
+        .with_agent_slot(self.agent_slot.clone());
+        let mut router_builder = Router::builder(endpoint.clone())
             .accept(ALPN, gossip.clone())
-            .spawn();
+            .accept(AGENT_ALPN, agent_protocol);
+        if self.config.agents.enabled {
+            // Artifacts (candidate diffs, ...) move by BLAKE3 hash over iroh-blobs.
+            let dir = std::path::Path::new(&self.config.node.data_dir).join("blobs");
+            let store = iroh_blobs::store::fs::FsStore::load(&dir)
+                .await
+                .map_err(|e| format!("Failed to open blob store: {}", e))?;
+            router_builder = router_builder.accept(iroh_blobs::ALPN, iroh_blobs::BlobsProtocol::new(&store, None));
+            self.blob_store = Some((*store).clone());
+        }
+        let router = router_builder.spawn();
 
         self._router = Some(router);
         self._endpoint = Some(endpoint.clone());
@@ -274,6 +348,7 @@ impl Network for MeshNetwork {
         let peers_clone = self.active_peers.clone();
         let state_clone = self.state.clone();
         let allowed_peers = self.config.network.allowed_peers.clone();
+        let agent_slot = self.agent_slot.clone();
 
         // 7. Feed mDNS discoveries straight into the gossip membership layer.
         if let Some(mdns) = mdns {
@@ -357,6 +432,16 @@ impl Network for MeshNetwork {
                                     error!("Failed to broadcast gossip message: {:?}", e);
                                 }
                             }
+                            P2PMessage::Halt(_) => {
+                                match serde_json::to_vec(&msg) {
+                                    Ok(data) => {
+                                        if let Err(e) = gossip_sender.broadcast(data.into()).await {
+                                            error!("Failed to broadcast halt: {:?}", e);
+                                        }
+                                    }
+                                    Err(e) => error!("Failed to serialize halt: {}", e),
+                                }
+                            }
                             _ => continue,
                         }
                     }
@@ -384,7 +469,17 @@ impl Network for MeshNetwork {
                                             match p2p_msg {
                                                 P2PMessage::NewUpdate(record) => {
                                                     let mut history = history_clone.write().await;
-                                                    history.record_update(record);
+                                                    let _ = history.record_update(record);
+                                                }
+                                                P2PMessage::Halt(h) => {
+                                                    match agent_slot.get() {
+                                                        Some(svc) => match svc.kill.apply(&h) {
+                                                            Ok(true) => warn!("🛑 Halt message applied: {:?} seq {} ({})", h.action, h.seq, h.reason),
+                                                            Ok(false) => {}
+                                                            Err(e) => warn!("Ignored halt message from {}: {}", from_id, e),
+                                                        },
+                                                        None => debug!("Halt message ignored: no agent service on this node"),
+                                                    }
                                                 }
                                                 _ => {}
                                             }
@@ -455,5 +550,167 @@ async fn remember_peer(state: &Arc<RwLock<State>>, endpoint_id: &str) {
     let mut state = state.write().await;
     if let Err(e) = state.remember_peer(endpoint_id) {
         debug!("Could not cache peer {}: {}", endpoint_id, e);
+    }
+}
+
+
+/// Per-program gossip topics (A2): one topic per research program, so only nodes
+/// taking part in a program receive its records. Records still verify and land in
+/// the same history as everything else.
+pub struct ProgramTopics {
+    gossip: Gossip,
+    history: Arc<RwLock<UpdateHistory>>,
+    active_peers: Arc<RwLock<Vec<String>>>,
+    allowed_peers: Option<Vec<String>>,
+    senders: tokio::sync::Mutex<std::collections::HashMap<String, iroh_gossip::api::GossipSender>>,
+}
+
+pub fn program_topic(program: &str) -> iroh_gossip::TopicId {
+    let hash = Sha256::digest([b"slakshna/program-topic/v1\0".as_slice(), program.as_bytes()].concat());
+    let mut bytes = [0u8; 32];
+    bytes.copy_from_slice(&hash);
+    iroh_gossip::TopicId::from_bytes(bytes)
+}
+
+impl ProgramTopics {
+    fn new(gossip: Gossip, history: Arc<RwLock<UpdateHistory>>, active_peers: Arc<RwLock<Vec<String>>>, allowed_peers: Option<Vec<String>>) -> Self {
+        ProgramTopics { gossip, history, active_peers, allowed_peers, senders: Default::default() }
+    }
+
+    /// Subscribe to a program's topic (idempotent), bootstrapping from current neighbours.
+    pub async fn join(&self, program: &str) -> Result<(), BoxError> {
+        let mut senders = self.senders.lock().await;
+        if senders.contains_key(program) {
+            return Ok(());
+        }
+        let peers: Vec<EndpointId> = self.active_peers.read().await.iter().filter_map(|s| s.parse().ok()).collect();
+        let (sender, mut receiver) = self
+            .gossip
+            .subscribe(program_topic(program), peers)
+            .await
+            .map_err(|e| format!("Failed to subscribe to program topic: {}", e))?
+            .split();
+        senders.insert(program.to_string(), sender);
+        let history = self.history.clone();
+        let allowed = self.allowed_peers.clone();
+        let program = program.to_string();
+        tokio::spawn(async move {
+            while let Some(ev) = receiver.next().await {
+                match ev {
+                    Ok(iroh_gossip::api::Event::Received(msg)) => {
+                        let from = msg.delivered_from.to_string();
+                        if let Some(a) = &allowed {
+                            if !a.is_empty() && !a.contains(&from) {
+                                continue;
+                            }
+                        }
+                        if let Ok(P2PMessage::NewUpdate(rec)) = serde_json::from_slice::<P2PMessage>(&msg.content) {
+                            let _ = history.write().await.record_update(rec);
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        warn!("program topic {} receive error: {:?}", program, e);
+                        break;
+                    }
+                }
+            }
+        });
+        Ok(())
+    }
+
+    /// Broadcast a record on the program's topic, joining it first if needed.
+    pub async fn broadcast(&self, program: &str, record: &UpdateRecord) -> Result<(), BoxError> {
+        self.join(program).await?;
+        let data = serde_json::to_vec(&P2PMessage::NewUpdate(record.clone()))?;
+        let senders = self.senders.lock().await;
+        if let Some(s) = senders.get(program) {
+            s.broadcast(data.into()).await.map_err(|e| format!("program broadcast failed: {:?}", e))?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agents::graph::make_record;
+    use crate::agents::records::*;
+    use crate::config::Config;
+    use crate::identity::Keypair;
+    use iroh::address_lookup::MemoryLookup;
+
+    async fn history(kp: &Keypair) -> Arc<RwLock<UpdateHistory>> {
+        let dir = std::env::temp_dir().join(format!("slk-mesh-{}", rand::random::<u64>()));
+        let cfg: Config = toml::from_str(&format!(
+            "[federation]\nid=\"t\"\nname=\"t\"\n[node]\nid=\"x\"\ndata_dir=\"{}\"\n[network]\nhost=\"127.0.0.1\"\napi_port=0\nws_port=0\np2p_port=0\n[logging]\nlevel=\"error\"\n",
+            dir.display()
+        ))
+        .unwrap();
+        let state = Arc::new(RwLock::new(State::new(&cfg.node.data_dir).unwrap()));
+        Arc::new(RwLock::new(UpdateHistory::new(cfg, state, kp.node_id()).await.unwrap()))
+    }
+
+    struct Peer { topics: ProgramTopics, hist: Arc<RwLock<UpdateHistory>>, kp: Keypair, _router: Router, ep: Endpoint }
+
+    async fn peer(lookup: &MemoryLookup, neighbours: Arc<RwLock<Vec<String>>>) -> Peer {
+        let kp = Keypair::generate();
+        let hist = history(&kp).await;
+        let ep = Endpoint::builder(presets::Minimal).relay_mode(RelayMode::Disabled).alpns(vec![ALPN.to_vec()]).address_lookup(lookup.clone()).bind().await.unwrap();
+        let gossip = Gossip::builder().spawn(ep.clone());
+        let router = Router::builder(ep.clone()).accept(ALPN, gossip.clone()).spawn();
+        lookup.add_endpoint_info(ep.addr());
+        Peer { topics: ProgramTopics::new(gossip, hist.clone(), neighbours, None), hist, kp, _router: router, ep }
+    }
+
+    fn candidate(kp: &Keypair, program: &str, n: u8) -> crate::history::UpdateRecord {
+        let mut r = make_record(&kp.node_id().to_string(), &"0".repeat(64), KIND_CANDIDATE, &Candidate { program: program.into(), diff_hash: format!("{:064x}", n), parents: vec![], agenda_item: None });
+        r.sign(kp);
+        r
+    }
+
+    #[test]
+    fn program_topics_are_distinct_per_program_and_from_the_federation_topic() {
+        assert_eq!(program_topic("p1"), program_topic("p1"));
+        assert_ne!(program_topic("p1"), program_topic("p2"));
+        assert_ne!(program_topic("p1"), topic_from_federation_id("p1"));
+    }
+
+    /// Records for a program reach exactly the peers that joined its topic, and bad records are refused on receipt.
+    #[tokio::test]
+    async fn program_records_travel_only_on_the_programs_own_topic() {
+        let lookup = MemoryLookup::new();
+        let na: Arc<RwLock<Vec<String>>> = Default::default();
+        let nb: Arc<RwLock<Vec<String>>> = Default::default();
+        let nc: Arc<RwLock<Vec<String>>> = Default::default();
+        let (a, b, c) = (peer(&lookup, na.clone()).await, peer(&lookup, nb.clone()).await, peer(&lookup, nc.clone()).await);
+        // bootstrap: a knows b; b knows a; c knows a (but will not join the program)
+        na.write().await.push(b.ep.id().to_string());
+        nb.write().await.push(a.ep.id().to_string());
+        nc.write().await.push(a.ep.id().to_string());
+
+        let program = "a".repeat(64);
+        a.topics.join(&program).await.unwrap();
+        b.topics.join(&program).await.unwrap();
+        // wait for the swarm to form, then broadcast until delivered (gossip is best effort while neighbours connect)
+        let rec = candidate(&a.kp, &program, 1);
+        let mut delivered = false;
+        for _ in 0..40 {
+            a.topics.broadcast(&program, &rec).await.unwrap();
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            if b.hist.read().await.peer_updates.get(&a.kp.node_id().to_string()).map_or(false, |l| !l.is_empty()) {
+                delivered = true;
+                break;
+            }
+        }
+        assert!(delivered, "B joined the program topic and must receive A's record");
+        assert_eq!(b.hist.read().await.peer_updates[&a.kp.node_id().to_string()][0].hash, rec.hash);
+        assert!(c.hist.read().await.peer_updates.is_empty(), "C never joined the program topic and saw nothing");
+        // a forged record on the topic is dropped by the receiver's verification
+        let mut forged = candidate(&a.kp, &program, 2);
+        forged.signature = "00".repeat(64);
+        a.topics.broadcast(&program, &forged).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        assert_eq!(b.hist.read().await.peer_updates[&a.kp.node_id().to_string()].len(), 1);
     }
 }

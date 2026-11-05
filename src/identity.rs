@@ -134,6 +134,27 @@ impl Keypair {
 
 const TRANSPORT_KEY_DOMAIN: &[u8] = b"slakshna/iroh-endpoint/v1";
 
+/// Verify an Ed25519 signature against a raw 32-byte public key (hex encoded
+/// signature, hex encoded key). Uses strict verification, so malleable
+/// signatures are rejected.
+pub fn verify_hex(public_key_hex: &str, message: &[u8], signature_hex: &str) -> bool {
+    let (Ok(pk), Ok(sig)) = (hex::decode(public_key_hex), hex::decode(signature_hex)) else {
+        return false;
+    };
+    let Ok(pk): Result<[u8; 32], _> = pk.as_slice().try_into() else { return false };
+    let Ok(sig): Result<[u8; 64], _> = sig.as_slice().try_into() else { return false };
+    let Ok(vk) = VerifyingKey::from_bytes(&pk) else { return false };
+    vk.verify_strict(message, &Signature::from_bytes(&sig)).is_ok()
+}
+
+/// True when `node_id` is the id derived from `public_key_hex`.
+pub fn node_id_matches_key(node_id: &str, public_key_hex: &str) -> bool {
+    match hex::decode(public_key_hex) {
+        Ok(pk) => NodeId::from_public_key(&pk).as_str() == node_id,
+        Err(_) => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

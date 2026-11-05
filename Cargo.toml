@@ -57,3 +57,26 @@ iroh-blobs = "0.103.0"
 # privileged bootstrap node.
 iroh-mdns-address-lookup = "0.4"
 iroh-mainline-address-lookup = "0.4"
+
+# Steps 4-5 (agents / A2A)
+curve25519-dalek = "4.1"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+hyper = "1"
+hyper-util = { version = "0.1", features = ["server-auto", "tokio", "service"] }
+tower = "0.5"
+base64 = "0.22"
+blake3 = "1"
+rustls-pki-types = "1"
+
+[dev-dependencies]
+rcgen = "0.14"
+
+# Keep the crypto fast in debug/test builds (Ed25519 and VRF checks run in hot loops).
+[profile.dev.package.curve25519-dalek]
+opt-level = 3
+[profile.dev.package.ed25519-dalek]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3

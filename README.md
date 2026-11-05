@@ -464,3 +464,13 @@ When `node-2` runs in malicious mode, it injects a destructive learning rate (`l
 
 This project is licensed under the **Apache License 2.0** — see the [LICENSE](file:///mnt/disk1/slakshna/slakshnaFL/SLAKSHNA/LICENSE) file for details.
 
+## Federated agents and A2A (Steps 4–5)
+
+Nodes can run federated research programs and cooperate as A2A agents without a coordinator: signed provenance
+records for every step, VRF-drawn planner committees, a lease-based task market, private evaluation with Merkle
+commitments and auditor spot checks, Shapley credit, contract-net delegation with reputation-weighted pooling,
+capability tokens and a policy engine, and an A2A v1.0 gateway for agents outside the federation.
+See [docs/AGENTS_A2A.md](docs/AGENTS_A2A.md) for what is built, measured results, and what is not verified on every
+host, and [examples/agents.toml](examples/agents.toml) to enable it. `python3 scripts/e2e_agents.py` exercises it
+against real node processes.
+

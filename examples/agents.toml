@@ -1,0 +1,66 @@
+# Add to a node config to enable the agent layer (Steps 4-5). Everything is off by default.
+[agents]
+enabled = true
+gateway_port = 8700                 # A2A JSON-RPC gateway for outside agents; 0 disables it
+gateway_bind = "127.0.0.1"          # put a TLS terminator in front, or set tls_cert/tls_key for HTTPS
+# tls_cert = "/etc/slakshna/cert.pem"
+# tls_key  = "/etc/slakshna/key.pem"
+# public_url = "https://agents.example.org"
+serve_url = "http://127.0.0.1:8000" # federation serving endpoint (OpenAI-compatible /v1/chat/completions)
+python = "python3"
+max_concurrent_tasks = 4
+task_timeout_secs = 600
+# SHA-256 of your admin key: echo -n 'my-admin-key' | sha256sum   (enables /agents/* management API)
+admin_key_sha256 = "..."
+# Hex Ed25519 public keys allowed to broadcast an emergency halt.
+halt_keys = []
+
+[agents.task_budget]                # hard ceiling per task
+tokens = 20000
+gpu_seconds = 0
+wall_clock_secs = 600
+
+[agents.prices]                     # announced in the Agent Card; used by delegating nodes
+chat = 10
+
+[agents.egress]                     # what may leave in task results; a node with private data: ["finding", "metric"]
+allow = ["finding", "metric", "artifact"]
+max_bytes = 1048576
+
+[agents.policy]
+denied_counterparties = []
+human_approval_actions = []         # e.g. ["task:agent"]: parked until /agents/approvals/:id/approve
+max_spend_per_task = 100
+max_spend_per_day = 1000
+
+[agents.tools]                      # MCP tools for the `agent` skill, from a per-agent manifest
+# manifest = "agent-tools.json"     # {"servers":[{"name":"fs","command":"mcp-fs","args":[],"allow":["read_file"]}]}
+max_steps = 6
+
+[agents.provider]                   # outside HTTP APIs the `agent` skill may call (https only, no redirects)
+allowed_hosts = []
+
+[[agents.api_keys]]                 # bearer keys for the gateway; store only the hash
+principal = "partner-lab"
+key_sha256 = "..."
+
+# A data owner serves evaluation and audit of a private dataset (rows never leave except to listed auditors):
+# [[agents.datasets]]
+# name = "hospital-a"
+# path = "data/eval.jsonl"          # {"input": "<base64>", "label": "<base64>"} per line
+# metric = "accuracy"
+# queries_per_requester = 20
+# epsilon_total = 4.0               # optional differential privacy budget
+# auditors = ["endpoint:<auditor endpoint id>"]
+
+# Take part in research programs (needs Podman or Apptainer for executor/evaluator/auditor roles):
+# [agents.research]
+# enabled = true
+# roles = ["planner", "executor", "evaluator", "auditor"]
+# project = "/path/to/base/project"
+# image = "registry.example.org/team/runner:1"
+# run_command = ["python", "train.py"]
+# predict_command = ["python", "predict.py"]   # reads /work/in.jsonl, writes /work/out.jsonl
+# dataset = "hospital-a"
+# committee_size = 5
+# gpu_budget_seconds = 86400

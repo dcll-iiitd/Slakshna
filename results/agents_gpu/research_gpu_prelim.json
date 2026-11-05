@@ -1,0 +1,217 @@
+{
+ "program": "4c0aaff596310cf1252f779d7c75664330a5c1e854803720401f3838cf97c6b4",
+ "elapsed_s": 344,
+ "history": [
+  {
+   "t": 124,
+   "generation": 0,
+   "candidates": 0,
+   "findings": 0,
+   "best_score": null
+  },
+  {
+   "t": 134,
+   "generation": 1,
+   "candidates": 0,
+   "findings": 0,
+   "best_score": null
+  },
+  {
+   "t": 154,
+   "generation": 1,
+   "candidates": 1,
+   "findings": 0,
+   "best_score": null
+  },
+  {
+   "t": 164,
+   "generation": 1,
+   "candidates": 2,
+   "findings": 0,
+   "best_score": null
+  },
+  {
+   "t": 184,
+   "generation": 1,
+   "candidates": 3,
+   "findings": 3,
+   "best_score": 0.4667
+  },
+  {
+   "t": 214,
+   "generation": 1,
+   "candidates": 3,
+   "findings": 6,
+   "best_score": 0.4667
+  },
+  {
+   "t": 244,
+   "generation": 1,
+   "candidates": 3,
+   "findings": 9,
+   "best_score": 0.4667
+  },
+  {
+   "t": 254,
+   "generation": 2,
+   "candidates": 3,
+   "findings": 9,
+   "best_score": 0.4667
+  },
+  {
+   "t": 274,
+   "generation": 2,
+   "candidates": 5,
+   "findings": 9,
+   "best_score": 0.4667
+  },
+  {
+   "t": 304,
+   "generation": 2,
+   "candidates": 5,
+   "findings": 11,
+   "best_score": 0.4667
+  },
+  {
+   "t": 314,
+   "generation": 2,
+   "candidates": 5,
+   "findings": 12,
+   "best_score": 0.4667
+  },
+  {
+   "t": 324,
+   "generation": 2,
+   "candidates": 5,
+   "findings": 13,
+   "best_score": 0.4667
+  },
+  {
+   "t": 334,
+   "generation": 2,
+   "candidates": 5,
+   "findings": 14,
+   "best_score": 0.4667
+  },
+  {
+   "t": 344,
+   "generation": 3,
+   "candidates": 5,
+   "findings": 15,
+   "best_score": 0.4667
+  }
+ ],
+ "final": {
+  "candidates": 5,
+  "credit": {
+   "exact": true,
+   "per_node": {},
+   "rule": "slakshna/credit/shapley-lineage/v1"
+  },
+  "evidence_root": "943b2b46383d57202cd2676dd68cf8fa1c5467ba46abb1b2b02eb6c5e12015b3",
+  "findings": 15,
+  "generation": 3,
+  "lanes": {
+   "frontier": [
+    {
+     "agenda_item": "frontier-1",
+     "author": "slakshna1u5dmmfq9fmks0sce6gkad630xyuqhykaerdkx0",
+     "candidate": "32fa1c62a98a92c78f3eea1378dca2f5b7ce0f561921908df3dfd764e7a43ae2",
+     "diff_hash": "c553ed8237c7b06b552614a066a2596931edb6b205a9dd1d108223bd31dfb964",
+     "evaluators": 3,
+     "parents": [],
+     "score": 0.4667
+    },
+    {
+     "agenda_item": "frontier-2",
+     "author": "slakshna1u5dmmfq9fmks0sce6gkad630xyuqhykaerdkx0",
+     "candidate": "8433d73d500974f28f061530e932f90d7bb7a5d5e40d4883d7e905cfe104a447",
+     "diff_hash": "294edb0a9a138cd3902cbfc2755aa74de78f8c92a9bb1487beb15eab356f2ebd",
+     "evaluators": 3,
+     "parents": [],
+     "score": 0.44
+    },
+    {
+     "agenda_item": "1b8c4a5e-5d5a-4b9a-8c7a-4b9a5e1b8c4a",
+     "author": "slakshna1u5dmmfq9fmks0sce6gkad630xyuqhykaerdkx0",
+     "candidate": "3fc25242efa31087e07c4dcb406cd64b6629ae5edea8ec55ffcc81f2e8b229d4",
+     "diff_hash": "00615d0d6dcef81665c6505a6519d7e890faf969352c0379ea7e3eb905079656",
+     "evaluators": 3,
+     "parents": [
+      "32fa1c62a98a92c78f3eea1378dca2f5b7ce0f561921908df3dfd764e7a43ae2",
+      "8433d73d500974f28f061530e932f90d7bb7a5d5e40d4883d7e905cfe104a447"
+     ],
+     "score": 0.42
+    }
+   ],
+   "gems": [],
+   "incubator": []
+  },
+  "payouts": {},
+  "program": "4c0aaff596310cf1252f779d7c75664330a5c1e854803720401f3838cf97c6b4"
+ },
+ "candidates": [
+  {
+   "lane": "frontier",
+   "candidate": "32fa1c62a98a92c78f3eea1378dca2f5b7ce0f561921908df3dfd764e7a43ae2",
+   "score": 0.4667,
+   "evaluators": 3,
+   "agenda_item": "frontier-1",
+   "prompt": "{\"system\": \"You are a careful math tutor. Think step by step, then finish with a line 'Answer: <number>'.\",\n \"few_shot\": [\n  {\"q\": \"There are 5 apples and 3 oranges. If you eat 2 apples and 1 orange, how many fruits are left?\",\n   \"a\": \"Initially there are 5 + 3 = 8 fruits. After eating 2 apples and 1 orange: 8 - 2 - 1 = 5.\\nAnswer: 5\"},\n  {\"q\": \"John has 10 candies and gives 3 to Mary. Then he eats 2 candies. How many candies does John have now?\",\n   \"a\": \"John starts with 10 candies. He gives 3 to Mary: 10 - 3 = 7. Then he eats 2: 7 - 2 = 5.\\nAnswer: 5\"},\n  {\"q\": \"In a classroom, there are 12 boys and 15 girls. If 4 boys and 3 girls leave the classroom, how many students remain?\",\n   \"a\": \"Initially there are 12 + 15 = 27 students. After 4 boys and 3 girls leave: 27 - 4 - 3 = 19.\\nAnswer: 19\"}\n ],\n \"user_template\": \"{question}\\nThink step by step and end with 'Answer: <number>'.\",\n \"max_new_tokens\": 400}\n"
+  },
+  {
+   "lane": "frontier",
+   "candidate": "8433d73d500974f28f061530e932f90d7bb7a5d5e40d4883d7e905cfe104a447",
+   "score": 0.44,
+   "evaluators": 3,
+   "agenda_item": "frontier-2",
+   "prompt": "{\"system\": \"You are a careful math tutor. Check your arithmetic after performing operations, then think step by step, and finish with a line 'Answer: <number>'.\",\n \"few_shot\": [\n  {\"q\": \"Tom has 3 boxes with 4 pencils each and gives away 5 pencils. How many pencils are left?\",\n   \"a\": \"3 boxes of 4 pencils is 3 * 4 = 12 pencils. After giving away 5: 12 - 5 = 7.\\nAnswer: 7\"},\n  {\"q\": \"A shirt costs $20 and is 25% off. What is the sale price?\",\n   \"a\": \"25% of 20 is 0.25 * 20 = 5. The sale price is 20 - 5 = 15.\\nAnswer: 15\"}],\n \"user_template\": \"{question}\\nCheck your arithmetic after performing operations, think step by step, and end with 'Answer: <number>'.\",\n \"max_new_tokens\": 400}\n"
+  },
+  {
+   "lane": "frontier",
+   "candidate": "3fc25242efa31087e07c4dcb406cd64b6629ae5edea8ec55ffcc81f2e8b229d4",
+   "score": 0.42,
+   "evaluators": 3,
+   "agenda_item": "1b8c4a5e-5d5a-4b9a-8c7a-4b9a5e1b8c4a",
+   "prompt": "{\"system\": \"You are a careful math tutor. Think step by step, then finish with a line 'Answer: <number>'.\",\n \"few_shot\": [\n  {\"q\": \"There are 5 apples and 3 oranges. If you eat 2 apples and 1 orange, how many fruits are left?\",\n   \"a\": \"Initially there are 5 + 3 = 8 fruits. After eating 2 apples and 1 orange: 8 - 2 - 1 = 5.\\nAnswer: 5\"},\n  {\"q\": \"A shirt costs $20 and is 25% off. What is the sale price?\",\n   \"a\": \"25% of 20 is 0.25 * 20 = 5. The sale price is 20 - 5 = 15.\\nAnswer: 15\"},\n  {\"q\": \"If 3/4 of a pizza is eaten and 1/2 of the remaining pizza is given to a friend, what fraction of the original pizza is left?\",\n   \"a\": \"3/4 of the pizza is eaten, leaving 1/4. Then 1/2 of the remaining 1/4 is given away, which is (1/2) * (1/4) = 1/8.\\nAnswer: 1/8\"}\n ],\n \"user_template\": \"{question}\\nThink step by step and end with 'Answer: <number>'.\",\n \"max_new_tokens\": 400}\n"
+  }
+ ],
+ "heldout": {
+  "top-2 (private score 0.440)": {
+   "accuracy": 0.4177215189873418,
+   "n": 869,
+   "correct": 363,
+   "ci95": [
+    0.3854,
+    0.4508
+   ]
+  },
+  "baseline": {
+   "accuracy": 0.40736478711162255,
+   "n": 869,
+   "correct": 354,
+   "ci95": [
+    0.3752,
+    0.4404
+   ]
+  },
+  "top-1 (private score 0.467)": {
+   "accuracy": 0.4579976985040276,
+   "n": 869,
+   "correct": 398,
+   "ci95": [
+    0.4251,
+    0.4912
+   ]
+  },
+  "top-3 (private score 0.420)": {
+   "accuracy": 0.4372842347525892,
+   "n": 869,
+   "correct": 380,
+   "ci95": [
+    0.4047,
+    0.4705
+   ]
+  }
+ }
+}

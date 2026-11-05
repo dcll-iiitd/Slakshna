@@ -18,6 +18,8 @@ pub enum P2PMessage {
     GetState,
     HistorySnapshot(HistorySnapshot),
     NewUpdate(UpdateRecord),
+    /// Emergency halt/resume (A7). Only messages signed by a configured halt key take effect.
+    Halt(crate::agents::safety::HaltMsg),
     GetUpdate { index: u64 },
     Ping,
     Pong,

@@ -16,26 +16,29 @@ use tokio::sync::RwLock;
 use tower_http::cors::CorsLayer;
 use tracing::info;
 
-type SharedState = Arc<AppState>;
+pub(crate) type SharedState = Arc<AppState>;
 
-struct AppState {
-    config: Config,
-    history: Arc<RwLock<UpdateHistory>>,
-    state: Arc<RwLock<State>>,
-    network: Arc<RwLock<crate::network::mesh::MeshNetwork>>,
+pub(crate) struct AppState {
+    pub(crate) config: Config,
+    pub(crate) history: Arc<RwLock<UpdateHistory>>,
+    pub(crate) state: Arc<RwLock<State>>,
+    pub(crate) network: Arc<RwLock<crate::network::mesh::MeshNetwork>>,
+    pub(crate) agents: Option<Arc<crate::agents::service::AgentService>>,
 }
 
 pub async fn start_api_server(
     config: Config,
     history: Arc<RwLock<UpdateHistory>>,
     state: Arc<RwLock<State>>,
-    network: Arc<RwLock<crate::network::mesh::MeshNetwork>>
+    network: Arc<RwLock<crate::network::mesh::MeshNetwork>>,
+    agents: Option<Arc<crate::agents::service::AgentService>>
 ) -> Result<(), BoxError> {
     let app_state = Arc::new(AppState {
         config: config.clone(),
         history,
         state,
         network,
+        agents,
     });
 
     let app = Router::new()
@@ -47,6 +50,7 @@ pub async fn start_api_server(
         .route("/leaderboard", get(get_leaderboard))
         .route("/peers", get(get_peers))
         .route("/ws", get(ws_handler))
+        .merge(crate::api_agents::routes())
         .layer(CorsLayer::permissive())
         .with_state(app_state);
 

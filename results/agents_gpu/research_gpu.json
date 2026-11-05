@@ -1,0 +1,343 @@
+{
+ "program": "292e5d64645cfc11c410c53ada00fd29d2573a95977d336b8d33b124464d3560",
+ "elapsed_s": 654,
+ "history": [
+  {
+   "t": 154,
+   "generation": 0,
+   "candidates": 0,
+   "findings": 0,
+   "best_score": null
+  },
+  {
+   "t": 164,
+   "generation": 1,
+   "candidates": 0,
+   "findings": 0,
+   "best_score": null
+  },
+  {
+   "t": 184,
+   "generation": 1,
+   "candidates": 1,
+   "findings": 0,
+   "best_score": null
+  },
+  {
+   "t": 194,
+   "generation": 1,
+   "candidates": 2,
+   "findings": 0,
+   "best_score": null
+  },
+  {
+   "t": 204,
+   "generation": 1,
+   "candidates": 2,
+   "findings": 1,
+   "best_score": 0.4733
+  },
+  {
+   "t": 214,
+   "generation": 1,
+   "candidates": 2,
+   "findings": 3,
+   "best_score": 0.4533
+  },
+  {
+   "t": 244,
+   "generation": 2,
+   "candidates": 2,
+   "findings": 6,
+   "best_score": 0.4533
+  },
+  {
+   "t": 264,
+   "generation": 2,
+   "candidates": 3,
+   "findings": 6,
+   "best_score": 0.4533
+  },
+  {
+   "t": 284,
+   "generation": 2,
+   "candidates": 3,
+   "findings": 7,
+   "best_score": 0.4533
+  },
+  {
+   "t": 294,
+   "generation": 2,
+   "candidates": 3,
+   "findings": 9,
+   "best_score": 0.4533
+  },
+  {
+   "t": 304,
+   "generation": 3,
+   "candidates": 3,
+   "findings": 9,
+   "best_score": 0.4533
+  },
+  {
+   "t": 314,
+   "generation": 3,
+   "candidates": 4,
+   "findings": 9,
+   "best_score": 0.4533
+  },
+  {
+   "t": 344,
+   "generation": 3,
+   "candidates": 4,
+   "findings": 10,
+   "best_score": 0.4533
+  },
+  {
+   "t": 354,
+   "generation": 3,
+   "candidates": 4,
+   "findings": 12,
+   "best_score": 0.4533
+  },
+  {
+   "t": 364,
+   "generation": 4,
+   "candidates": 4,
+   "findings": 12,
+   "best_score": 0.4533
+  },
+  {
+   "t": 374,
+   "generation": 4,
+   "candidates": 5,
+   "findings": 12,
+   "best_score": 0.4533
+  },
+  {
+   "t": 384,
+   "generation": 4,
+   "candidates": 7,
+   "findings": 12,
+   "best_score": 0.4533
+  },
+  {
+   "t": 404,
+   "generation": 4,
+   "candidates": 7,
+   "findings": 13,
+   "best_score": 0.4533
+  },
+  {
+   "t": 414,
+   "generation": 4,
+   "candidates": 7,
+   "findings": 15,
+   "best_score": 0.4533
+  },
+  {
+   "t": 434,
+   "generation": 4,
+   "candidates": 7,
+   "findings": 17,
+   "best_score": 0.4533
+  },
+  {
+   "t": 444,
+   "generation": 5,
+   "candidates": 7,
+   "findings": 18,
+   "best_score": 0.4533
+  },
+  {
+   "t": 464,
+   "generation": 5,
+   "candidates": 8,
+   "findings": 20,
+   "best_score": 0.4533
+  },
+  {
+   "t": 474,
+   "generation": 5,
+   "candidates": 8,
+   "findings": 21,
+   "best_score": 0.4533
+  },
+  {
+   "t": 494,
+   "generation": 5,
+   "candidates": 8,
+   "findings": 23,
+   "best_score": 0.4533
+  },
+  {
+   "t": 504,
+   "generation": 5,
+   "candidates": 8,
+   "findings": 24,
+   "best_score": 0.4533
+  }
+ ],
+ "final": {
+  "candidates": 8,
+  "credit": {
+   "exact": true,
+   "per_node": {
+    "slakshna19c8cyk4as6xs7dnlx3w8je56csc3wfy5lmm0dg": 0.31731,
+    "slakshna1lhn92p9zd5qn6rcdlftq5538gzwn5jc57t8hh2": 0.04533,
+    "slakshna1udlyfl7htlwhknp6rft40e37fuv06gtefhctcq": 0.04533,
+    "slakshna1xhcwxvprhm67cm6c66yg6d5tgcvw45qse4y6k9": 0.04533
+   },
+   "rule": "slakshna/credit/shapley-lineage/v1"
+  },
+  "evidence_root": "6337c4fcf27bf850e14bc8db9d5c955c7d7b0db609d9aa21b394bdaa476546a0",
+  "findings": 24,
+  "generation": 5,
+  "lanes": {
+   "frontier": [
+    {
+     "agenda_item": "8f5a1d64645c",
+     "author": "slakshna19c8cyk4as6xs7dnlx3w8je56csc3wfy5lmm0dg",
+     "candidate": "dc303c01e33c9761c3053a77fd24140711967726c145355d08d99dd0aab9f130",
+     "diff_hash": "9c303a29a6f137a18bd08121cefe5a5fdcaccc9a6ffd0c9ec785647af83845ca",
+     "evaluators": 3,
+     "parents": [
+      "4990d4dc00e79fb92685cea7e44472e9ce8dc7346f3d1eadb06d5262408bb39e",
+      "b7e2b801e0593fd8557c31107dcf428335f2b917b5943f0fc0f374a7b6f5d502"
+     ],
+     "score": 0.44
+    },
+    {
+     "agenda_item": "8f8a5d64645c",
+     "author": "slakshna1xl4nv74mx05gn3tchvm6uljmt87hch4wj6ael0",
+     "candidate": "fec32efeb0925d1d006fe17b396f3d4a9c92cb6dbb748f1196aecbb0a1fab35f",
+     "diff_hash": "c8a2f223a2f517662136d43114da5b42975e07a731e22b03b249882210f9cb94",
+     "evaluators": 3,
+     "parents": [
+      "4990d4dc00e79fb92685cea7e44472e9ce8dc7346f3d1eadb06d5262408bb39e",
+      "dc303c01e33c9761c3053a77fd24140711967726c145355d08d99dd0aab9f130"
+     ],
+     "score": 0.44
+    },
+    {
+     "agenda_item": "program-292e5d64645c-gen1-1",
+     "author": "slakshna19c8cyk4as6xs7dnlx3w8je56csc3wfy5lmm0dg",
+     "candidate": "b7e2b801e0593fd8557c31107dcf428335f2b917b5943f0fc0f374a7b6f5d502",
+     "diff_hash": "a8c9dfcb3e65ff22de426978f5fdb4282b6a8c2f59c46e8359a09a6dc4e1efd7",
+     "evaluators": 3,
+     "parents": [],
+     "score": 0.4267
+    }
+   ],
+   "gems": [
+    {
+     "agenda_item": "292e5d64645d",
+     "author": "slakshna19c8cyk4as6xs7dnlx3w8je56csc3wfy5lmm0dg",
+     "candidate": "4990d4dc00e79fb92685cea7e44472e9ce8dc7346f3d1eadb06d5262408bb39e",
+     "diff_hash": "a1ad56578105ff93621a1f090f7ceccdc2713a7380aa4a9983af5478616cfcf0",
+     "evaluators": 3,
+     "parents": [],
+     "score": 0.4533
+    }
+   ],
+   "incubator": []
+  },
+  "payouts": {
+   "slakshna19c8cyk4as6xs7dnlx3w8je56csc3wfy5lmm0dg": 700,
+   "slakshna1lhn92p9zd5qn6rcdlftq5538gzwn5jc57t8hh2": 100,
+   "slakshna1udlyfl7htlwhknp6rft40e37fuv06gtefhctcq": 100,
+   "slakshna1xhcwxvprhm67cm6c66yg6d5tgcvw45qse4y6k9": 100
+  },
+  "program": "292e5d64645cfc11c410c53ada00fd29d2573a95977d336b8d33b124464d3560"
+ },
+ "candidates": [
+  {
+   "lane": "gems",
+   "candidate": "4990d4dc00e79fb92685cea7e44472e9ce8dc7346f3d1eadb06d5262408bb39e",
+   "score": 0.4533,
+   "evaluators": 3,
+   "agenda_item": "292e5d64645d",
+   "prompt": "{\"system\": \"You are a careful math tutor. Think step by step, then finish with a line 'Answer: <number>'.\",\n \"few_shot\": [\n  {\"q\": \"Tom has 3 boxes with 4 pencils each and gives away 5 pencils. How many pencils are left?\",\n   \"a\": \"3 boxes of 4 pencils is 3 * 4 = 12 pencils. After giving away 5: 12 - 5 = 7.\\nAnswer: 7\"},\n  {\"q\": \"A shirt costs $20 and is 25% off. What is the sale price?\",\n   \"a\": \"25% of 20 is 0.25 * 20 = 5. The sale price is 20 - 5 = 15.\\nAnswer: 15\"},\n  {\"q\": \"There are 12 apples and 8 oranges. If you take away 3 apples and 2 oranges, how many fruits are left?\",\n   \"a\": \"Taking away 3 apples leaves 12 - 3 = 9 apples. Taking away 2 oranges leaves 8 - 2 = 6 oranges. Total left: 9 + 6 = 15.\\nAnswer: 15\"}\n ],\n \"user_template\": \"{question}\\nThink step by step and end with 'Answer: <number>'.\",\n \"max_new_tokens\": 400}\n"
+  },
+  {
+   "lane": "frontier",
+   "candidate": "dc303c01e33c9761c3053a77fd24140711967726c145355d08d99dd0aab9f130",
+   "score": 0.44,
+   "evaluators": 3,
+   "agenda_item": "8f5a1d64645c",
+   "prompt": "{\"system\": \"You are a careful math tutor. Think step by step, then explain the process of checking your arithmetic, and finish with a line 'Answer: <number>'.\",\n \"few_shot\": [\n  {\"q\": \"Tom has 3 boxes with 4 pencils each and gives away 5 pencils. How many pencils are left?\",\n   \"a\": \"Problem setup: Tom has 3 boxes with 4 pencils each. Reasoning: 3 boxes * 4 pencils/box = 12 pencils. After giving away 5: 12 - 5 = 7.\\nCheck: 12 - 5 = 7. Answer: 7\"},\n  {\"q\": \"A shirt costs $20 and is 25% off. What is the sale price?\",\n   \"a\": \"Problem setup: A shirt costs $20 and is 25% off. Reasoning: 25% of 20 is 0.25 * 20 = 5. The sale price is 20 - 5 = 15.\\nCheck: 20 - 5 = 15. Answer: 15\"}\n ],\n \"user_template\": \"{question}\\nThink step by step, explain the process of checking your arithmetic, and finish with 'Answer: <number>'.\",\n \"max_new_tokens\": 400}\n"
+  },
+  {
+   "lane": "frontier",
+   "candidate": "fec32efeb0925d1d006fe17b396f3d4a9c92cb6dbb748f1196aecbb0a1fab35f",
+   "score": 0.44,
+   "evaluators": 3,
+   "agenda_item": "8f8a5d64645c",
+   "prompt": "{\"system\": \"You are a careful math tutor. Think step by step, then explain the process of checking your arithmetic, and finish with a line 'Answer: <number>'.\",\n \"few_shot\": [\n  {\"q\": \"Tom has 3 boxes with 4 pencils each and gives away 5 pencils. How many pencils are left?\",\n   \"a\": \"Problem setup: Tom has 3 boxes with 4 pencils each. Reasoning: 3 boxes * 4 pencils/box = 12 pencils. After giving away 5: 12 - 5 = 7.\\nCheck: 12 - 5 = 7. Answer: 7\"},\n  {\"q\": \"A shirt costs $20 and is 25% off. What is the sale price?\",\n   \"a\": \"Problem setup: A shirt costs $20 and is 25% off. Reasoning: 25% of 20 is 0.25 * 20 = 5. The sale price is 20 - 5 = 15.\\nCheck: 20 - 5 = 15. Answer: 15\"},\n  {\"q\": \"There are 12 apples and 8 oranges. If you take away 3 apples and 2 oranges, how many fruits are left?\",\n   \"a\": \"Problem setup: There are 12 apples and 8 oranges. Reasoning: Taking away 3 apples leaves 12 - 3 = 9 apples. Taking away 2 oranges leaves 8 - 2 = 6 oranges. Total left: 9 + 6 = 15.\\nCheck: 9 + 6 = 15. Answer: 15\"},\n  {\"q\": \"Solve the equation 1/2 + 1/4 = ?\",\n   \"a\": \"Reasoning: 1/2 + 1/4 = 2/4 + 1/4 = 3/4.\\nCheck: 2/4 + 1/4 = 3/4. Answer: 3/4\"}\n ],\n \"user_template\": \"{question}\\nThink step by step, explain the process of checking your arithmetic, and finish with 'Answer: <number>'.\",\n \"max_new_tokens\": 400}\n"
+  },
+  {
+   "lane": "frontier",
+   "candidate": "b7e2b801e0593fd8557c31107dcf428335f2b917b5943f0fc0f374a7b6f5d502",
+   "score": 0.4267,
+   "evaluators": 3,
+   "agenda_item": "program-292e5d64645c-gen1-1",
+   "prompt": "{\"system\": \"You are a careful math tutor. Explain the problem setup and reasoning step by step. Think step by step, then finish with a line 'Answer: <number>'.\",\n \"few_shot\": [\n  {\"q\": \"Tom has 3 boxes with 4 pencils each and gives away 5 pencils. How many pencils are left?\",\n   \"a\": \"Problem setup: Tom has 3 boxes with 4 pencils each. Reasoning: 3 boxes * 4 pencils/box = 12 pencils. After giving away 5: 12 - 5 = 7.\\nAnswer: 7\"},\n  {\"q\": \"A shirt costs $20 and is 25% off. What is the sale price?\",\n   \"a\": \"Problem setup: A shirt costs $20 and is 25% off. Reasoning: 25% of 20 is 0.25 * 20 = 5. The sale price is 20 - 5 = 15.\\nAnswer: 15\"}],\n \"user_template\": \"{question}\\nExplain the problem setup and reasoning step by step, then finish with 'Answer: <number>'.\",\n \"max_new_tokens\": 400}\n"
+  }
+ ],
+ "heldout": {
+  "top-1 (private score 0.453)": {
+   "accuracy": 0.43498273878020716,
+   "n": 869,
+   "correct": 378,
+   "ci95": [
+    0.4024,
+    0.4682
+   ],
+   "vs_baseline": {
+    "candidate_only_correct": 135,
+    "baseline_only_correct": 111,
+    "mcnemar_exact_p": 0.14237677466974724,
+    "delta": 0.0276
+   }
+  },
+  "top-2 (private score 0.440)": {
+   "accuracy": 0.39815880322209435,
+   "n": 869,
+   "correct": 346,
+   "ci95": [
+    0.3661,
+    0.4311
+   ],
+   "vs_baseline": {
+    "candidate_only_correct": 106,
+    "baseline_only_correct": 114,
+    "mcnemar_exact_p": 0.6370697150887977,
+    "delta": -0.0092
+   }
+  },
+  "top-3 (private score 0.440)": {
+   "accuracy": 0.42117376294591485,
+   "n": 869,
+   "correct": 366,
+   "ci95": [
+    0.3888,
+    0.4543
+   ],
+   "vs_baseline": {
+    "candidate_only_correct": 129,
+    "baseline_only_correct": 117,
+    "mcnemar_exact_p": 0.4831705602293283,
+    "delta": 0.0138
+   }
+  },
+  "baseline": {
+   "accuracy": 0.40736478711162255,
+   "n": 869,
+   "correct": 354,
+   "ci95": [
+    0.3752,
+    0.4404
+   ]
+  }
+ }
+}

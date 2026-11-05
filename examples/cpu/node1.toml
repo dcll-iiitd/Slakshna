@@ -1,0 +1,38 @@
+# CPU / laptop example (2 nodes on one machine). See README "Running on a CPU-only laptop".
+[federation]
+id = "slakshna-cpu"
+name = "SLAKSHNA CPU Federation"
+
+[training]
+epoch_duration_secs = 300
+sync_deadline_secs = 240
+expected_peers = 1
+
+[compression]
+enabled = true
+sparsity = 0.1
+quantization = "symmetric_int8"
+allow_legacy_delta_format = false
+max_payload_bytes = 2000000000
+max_tensor_elements = 2000000000
+
+[node]
+id = "node-1"
+data_dir = "./data-cpu-node1"
+# No gpu_id / num_gpus: the ML engine runs on CPU when CUDA is unavailable.
+
+[network]
+host = "0.0.0.0"
+p2p_port = 9101
+ws_port = 8651
+api_port = 8661
+peers = []
+
+[discovery]
+mdns = true
+dht = false
+dns = false
+relay = false
+
+[logging]
+level = "info"

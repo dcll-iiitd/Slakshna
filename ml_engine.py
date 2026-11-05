@@ -76,12 +76,32 @@ from federated_communication import (
 )
 
 
+def _template_path():
+    """node_template.yaml, or the file named by SLAKSHNA_TEMPLATE (e.g. node_template.cpu.yaml)."""
+    p = os.environ.get("SLAKSHNA_TEMPLATE")
+    if p:
+        return p if os.path.isabs(p) else os.path.join(BASE_DIR, p)
+    return os.path.join(BASE_DIR, "node_template.yaml")
+
+
+def _cuda_ok():
+    """True iff CUDA is available and CPU mode is not forced (BHASKERA_FORCE_CPU=1)."""
+    if os.environ.get("BHASKERA_FORCE_CPU", "").strip().lower() in ("1", "true", "yes"):
+        return False
+    return torch.cuda.is_available()
+
+
+def _base_dtype():
+    """dtype used for the base model: bf16 on GPU, fp32 on CPU."""
+    return torch.bfloat16 if _cuda_ok() else torch.float32
+
+
 def get_device(my_id):
     """
     Map each node to a dedicated GPU.
     """
-    if not torch.cuda.is_available():
-        print(f"[{my_id}] WARNING: CUDA not available – running on CPU", file=sys.stderr)
+    if not _cuda_ok():
+        print(f"[{my_id}] No CUDA GPU in use – running on CPU (slow; use a small model)", file=sys.stderr)
         return torch.device("cpu")
 
     num_gpus = torch.cuda.device_count()
@@ -115,7 +135,7 @@ def log_trust_scores(my_id, weights):
 
 
 def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", state=None):
-    with open(os.path.join(BASE_DIR, "node_template.yaml"), "r") as f:
+    with open(_template_path(), "r") as f:
         config = yaml.safe_load(f)
 
     node_data_dir = os.path.join(DATA_DIR, f"data_{my_id}")
@@ -172,6 +192,11 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", sta
         config["training"]["lr"] = 1.0
 
     opt_name = config.get("federated", {}).get("optimizer", "adamw").lower()
+    if not _cuda_ok() and opt_name in ("muon", "galore_muon"):
+        # Muon variants use bitsandbytes/Triton CUDA kernels.
+        print(f"[{my_id}] CPU mode: optimizer '{opt_name}' needs CUDA, falling back to adamw", file=sys.stderr)
+        opt_name = "adamw"
+        config.setdefault("training", {})["optimizer"] = {"backend": "default"}
 
     if opt_name == "muon":
         config.setdefault("plugins", {})["optimizers"] = ["bhaskera.plugins.optimizers.muon"]
@@ -293,7 +318,7 @@ def main():
 
     device = get_device(my_id)
     
-    with open(os.path.join(BASE_DIR, "node_template.yaml"), "r") as f:
+    with open(_template_path(), "r") as f:
         template_config = yaml.safe_load(f)
     
     TRAINING_MODE = template_config.get("federated", {}).get("mode", "finetuning")
@@ -307,7 +332,7 @@ def main():
             print(f"[{my_id}] Base model not found locally. Downloading from HuggingFace to {local_model_dir}...", file=sys.stderr)
             hf_model_name = template_config.get("model", {}).get("name", "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T")
             from transformers import AutoModelForCausalLM, AutoTokenizer
-            model_tmp = AutoModelForCausalLM.from_pretrained(hf_model_name, torch_dtype=torch.bfloat16)
+            model_tmp = AutoModelForCausalLM.from_pretrained(hf_model_name, torch_dtype=_base_dtype())
             tokenizer_tmp = AutoTokenizer.from_pretrained(hf_model_name)
             model_tmp.save_pretrained(local_model_dir)
             tokenizer_tmp.save_pretrained(local_model_dir)
@@ -420,6 +445,9 @@ def main():
         
         print(f"[{my_id}] Starting private Ray cluster...", file=sys.stderr)
         num_gpus = int(os.environ.get("SLAKSHNA_NUM_GPUS", "1"))
+        if not _cuda_ok():
+            # CPU mode: one CPU training worker, no GPU resources in Ray.
+            num_gpus = 0
         import tempfile
         ray_temp_dir = os.path.join(tempfile.gettempdir(), f"ray_{my_id[:8]}")
         os.makedirs(ray_temp_dir, exist_ok=True)
@@ -500,7 +528,7 @@ def main():
                                 pass
             current_epoch += 1
 
-            cmd = [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", str(num_gpus)]
+            cmd = [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", str(max(1, num_gpus))]
             if last_samples > 0:
                 cmd.extend(["--resume-samples", str(last_samples)])
             if last_tokens > 0:
@@ -861,7 +889,7 @@ def main():
         local_model_dir = os.path.join(MODEL_DIR, f"{my_id}_base_full")
         from transformers import AutoModelForCausalLM
         print(f"[{my_id}] Applying full-parameter aggregated updates to base model...", file=sys.stderr)
-        model_tmp = AutoModelForCausalLM.from_pretrained(local_model_dir, torch_dtype=torch.bfloat16)
+        model_tmp = AutoModelForCausalLM.from_pretrained(local_model_dir, torch_dtype=_base_dtype())
         sd = model_tmp.state_dict()
         for k, update in delta_agg.items():
             if k in sd:

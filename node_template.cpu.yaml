@@ -1,0 +1,59 @@
+# CPU / laptop template. Use with:  SLAKSHNA_TEMPLATE=node_template.cpu.yaml
+# (see README "Running on a CPU-only laptop"). Small model + short sequences.
+federated:
+  mode: "finetuning"
+  optimizer: "adamw"        # muon/galore_muon need CUDA (auto-falls back to adamw on CPU)
+  trust_beta: 0.1
+  total_epochs: 3
+
+plugins:
+  optimizers: []
+
+model:
+  name: "Qwen/Qwen2.5-0.5B-Instruct"   # swap for e.g. HuggingFaceTB/SmolLM2-135M-Instruct on weaker laptops
+  dtype: "float32"
+  trust_remote_code: false
+  use_liger_kernel: false
+
+data:
+  name: "local"
+  train_path: "examples/cpu/sample_train.jsonl"
+  tokenized_path: "dummy"
+  seq_len: 256
+  pack_sequences: false
+  format: "chatml"
+  max_train_samples: 64
+  num_workers: 1
+
+lora:
+  enabled: true
+  rank: 8
+  alpha: 16
+  dropout: 0.03
+  target_modules: ["q_proj", "v_proj"]
+
+training:
+  batch_size: 2
+  gradient_accumulation_steps: 2
+  learning_rate: 3e-4
+  warmup_steps: 0
+  max_steps: 4
+  save_strategy: "steps"
+  save_steps: 2
+  save_total_limit: 2
+  optimizer:
+    backend: "default"
+  distributed:
+    strategy: "ddp"
+    ddp:
+      activation_checkpointing: false
+
+checkpoint:
+  save_directory: "dummy"
+  local_interval: 1
+  sync_interval: 1
+  retention: 1
+
+logging:
+  tracker: "none"
+  project: "slakshna-cpu"

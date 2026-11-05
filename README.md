@@ -464,3 +464,17 @@ When `node-2` runs in malicious mode, it injects a destructive learning rate (`l
 
 This project is licensed under the **Apache License 2.0** — see the [LICENSE](file:///mnt/disk1/slakshna/slakshnaFL/SLAKSHNA/LICENSE) file for details.
 
+## Running on a CPU-only laptop
+
+No GPU is needed for small models. The ML engine detects missing CUDA (or `BHASKERA_FORCE_CPU=1`) and automatically:
+runs one CPU Ray worker, uses DDP/gloo instead of FSDP, float32 instead of bf16, SDPA attention, no Liger/QLoRA,
+and falls back from the Muon optimizers (bitsandbytes/CUDA) to AdamW.
+
+```bash
+export SLAKSHNA_TEMPLATE=node_template.cpu.yaml     # Qwen2.5-0.5B + LoRA, seq_len 256
+./target/release/iiitd --config examples/cpu/node1.toml   # terminal 1
+./target/release/iiitd --config examples/cpu/node2.toml   # terminal 2
+```
+Do not set `gpu_id`/`num_gpus` in the node toml. Use `HuggingFaceTB/SmolLM2-135M-Instruct` in the template for weaker machines
+(0.5B needs ~6-8 GB RAM per node; each node is a separate process, so 2 nodes is a sensible laptop maximum).
+Verified on a CPU-only run (CUDA hidden) with two nodes: LoRA training, delta exchange, trust scoring and aggregation all completed.

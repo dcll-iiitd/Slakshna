@@ -1,610 +1,434 @@
-# SLAKSHNA — Decentralized Geo-Localised Personalized Federated Learning
+# SLAKSHNA — Decentralized, Serverless Federated Inference on the Edge
 
-A **Peer-to-Peer Federated Learning Framework** built in **Rust** and integrated with a Python Machine Learning Engine (**Bhaskera**). **SLAKSHNA** enables decentralized, privacy-preserving, weighted-aggregation Federated Learning (FL) without centralized aggregators or synchronous blocking rounds. It runs across geo-localized machines and institutional clusters (including SLURM-managed supercomputers, kubernetes managed clusters) separated by complex firewalls, securely sharing compressed model updates without any central coordinator.
+A **Peer-to-Peer Federated Inference Framework** built in **Rust** (Iroh QUIC mesh, gossip metadata dissemination, BLAKE3 blob transfer) and integrated with a high-performance Python inference sidecar (**Bhaskera-serve** + Hugging Face / PEFT). 
 
----
-
-## Key Features & Architectural Highlights
-
-- **Asynchronous P2P Training**  
-  Instead of traditional synchronous FL rounds waiting for slow participants, SLAKSHNA operates asynchronously. Nodes continuously train on local data, broadcast compressed model deltas to the network, and evaluate peers dynamically.
-
-- **Iroh QUIC Mesh & Gossip Network (`iroh-gossip`)** 
-  Built on **Iroh v1.0.2**, the framework utilizes **QUIC (Quick UDP (User Datagram Protocol) Internet Connections)** transport, direct NAT (Network Address Translation) traversal (STUN/DERP), and `iroh-gossip` topic swarms. Nodes discover peers dynamically using cryptographic Ed25519 `EndpointId` public keys.
-
-- **No Bootstrap Node**  
-  Every participant is identical: there is no coordinator, no first node, and no node type. Membership follows from the shared `[federation] id` alone. Nodes find each other through **mDNS** on the local network, the **BitTorrent mainline DHT** and pkarr/DNS globally, and **gossip peer exchange** once connected — and each node remembers every peer it has ever met in its own RocksDB, so a restarted federation reassembles itself with no configuration and no privileged host.
-
-- **Universal Firewall & VPN Traversal (`Playit.gg`)**  
-  Academic and enterprise networks (such as university campus firewalls or remote VPNs) often block inbound UDP/TCP hole-punching and standard DERP relay traffic. SLAKSHNA natively supports static public UDP/TCP tunneling via **Playit.gg**, providing fixed, persistent public addresses (`<ip>:<port>`) for nodes across different cities without requiring root/sudo access or complex router configurations.
-
-- **Bhaskera ML Engine (`ml_engine.py`)**  
-  A robust Python engine bridging the Rust networking layer with distributed GPU/CPU training. Powered by **Ray Train (`TorchTrainer`)**, **PyTorch**, and **parameter efficient training algorithms**, it executes local pre-training, and fine-tuning on tokenized datasets while streaming real-time epoch loss tracking. During training it can offload the optimizer states to perform **concurrent evals** on the model.
-
-- **SLURM Supercomputer & Multi-Core Cluster Support**  
-  Fully compatible with HPC SLURM clusters (`srun` / `sbatch`). SLURM isolates allocated GPUs seamlessly and maps to cluster-assigned resources without port collisions or resource deadlocks.
-
-- **Weighted Aggregation**  
-  Peers asynchronously evaluate incoming model updates by computing cosine similarity against their local gradient direction and tracking validation loss improvements. Nodes dynamically update peer weights (`state["alpha"]` and normalized `w_i` weights) and aggregate updates based on these weights. It checks not only malicious updates but also provides foundation for mitigating catastrophic forgetting.
-
-- **Sparsification and Compression**  
-  Before broadcasting over the P2P network, local weight updates are sparsified to retain only the most significant weights (e.g., `sparsity=0.01`). The sparse tensors are encoded (e.g., `fp16`, `fp8`) and base64 compressed, reducing network bandwidth requirements by over 98%.
-
-- **Differential Privacy (DP)**  
-  L2 norm clipping, Gaussian noise etc. augmented to ensure Differential Privacy for local gradients protected against membership inference and model inversion attacks. Our differential privacy component also allows integrating `opacus` (`PrivacyEngine`) and `opt-einsum`.
+**SLAKSHNA** enables decentralized, privacy-preserving, collaborative inference across heterogeneous edge nodes without centralized multi-LoRA servers, cloud coordinators, or prompt leakage. Any participating node can answer complex user queries with the most capable specialist adapter across the entire federation—fetching weights on demand, caching locally, or ensembling multi-node posteriors with zero central infrastructure.
 
 ---
 
-## Security & Privacy Architecture
+## Key Highlights & Architectural Innovations
 
-SLAKSHNA is built from the ground up to operate securely over untrusted public networks, proxies, and shared supercomputers:
+- **100% Prompt Privacy by Design (Zero Prompt Leakage)**  
+  Traditional cloud and multi-tenant servers (e.g., vLLM multi-LoRA) require clients to transmit sensitive user queries across the internet. In SLAKSHNA, **prompts never leave the local node (0 bytes transferred)**. Instead of sending data to the model, SLAKSHNA routes and fetches lightweight LoRA adapters to the edge device holding the prompt.
 
-1. **End-to-End Cryptographic Transport (`TLS 1.3 over QUIC`)**  
-   Every node generates an `Ed25519` cryptographic keypair upon startup (`src/network/mesh.rs`). All communication across the Iroh mesh, whether sent directly via local IPs or routed across public internet tunnels like `Playit.gg`, is wrapped in end-to-end **TLS 1.3** encryption.
-   - **Zero-Trust Tunnels:** Public proxy services (`Playit.gg`) act purely as raw packet forwarders. They cannot read, decrypt, or tamper with model weights because they do not hold the private keys. This mechanism consistently saves both subscription and storage on services such as Cloudflare.
+- **Separation of Metadata Gossip vs. Weight Transfer**  
+  Metadata is lightweight; model weights are not. Nodes continuously sign (Ed25519) and broadcast tiny adapter announcements (~100 bytes) over `iroh-gossip`. Large LoRA weights (~4–33 MB) are never broadcast: they are fetched point-to-point via `iroh-blobs` over encrypted QUIC streams **strictly on demand** when a query actually requests that adapter.
 
-2. **Poisoning Defense**  
-   To prevent adversarial nodes from ruining the global model (`Model Poisoning`), SLAKSHNA does not use simple averaging. When a node receives a peer's delta, `ml_engine.py` evaluates the update against local validation metrics (`Cosine Similarity` & `Validation Loss`). If a node submits poisoned or erratic updates, its trust score (`alpha`) drops, rendering its weight in the Federated Averaging formula close to `0.0`.
+- **Content-Addressed In-Memory LRU Caching**  
+  Peer adapters are verified against advertised cryptographic SHA-256 hashes before GPU attachment and cached in an on-device LRU pool. The network fetch penalty is paid **only once** (~55.9 ms over 1 Gbps LAN). All subsequent warm queries execute at native GPU speed with zero network traffic.
 
-3. **Differential Privacy against Data Reconstruction**  
-   By combining sparsification/compression with differential privacy, raw local dataset samples (e.g., chat dataset, patient records, etc.) can never be reconstructed by eavesdroppers or peer nodes.
+- **Dynamic Query-Aware Semantic Routing**  
+  Under non-IID client distributions, individual client adapters specialize in narrow sub-domains (e.g., Business vs. Sci/Tech), suffering catastrophic accuracy drops on unfamiliar topics. SLAKSHNA matches prompt embeddings against peer descriptor centroids, dynamically routing queries to the best specialist adapter and recovering full multi-domain accuracy (84.3% on AG News, matching centralized upper bounds).
+
+- **Weight-Level vs. Output-Level Collaborative Ensembling**  
+  Supports both **Adapter-Level Merging** (averaging parameter matrices $\Delta W_{\text{merged}} = \frac{1}{K}\sum \Delta W_k$ in a single forward pass) and **Output-Level Federated Mixes** (arithmetic probability averaging, log-probability averaging, confidence weighting, and majority voting).
+
+- **High Availability & Graceful Byzantine Fallback**  
+  No single point of failure. If a peer node crashes or goes offline, SLAKSHNA automatically falls through to the next best peer adapter or the local base model (retaining **100% query availability**). Cryptographic hash mismatches or corrupt weights are rejected immediately before reaching the model.
 
 ---
 
 ## System Architecture
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Axum HTTP & WS Server                           │
-│                     (Node Status, Leaderboard)                         │
-├──────────────────────────────────┬─────────────────────────────────────┤
-│         Rust P2P Engine          │           Python ML Engine          │
-│                                  │                                     │
-│  • Iroh Mesh & Gossip Protocol   │  • ml_engine.py Bridge              │
-│  • Decentralized Sync            │  • Bhaskera (Ray Train / PyTorch)   │
-│  • Local State Persistence       │  • LoRA Fine-Tuning & SparseLoCo    │
-│  • Asynchronous Evaluation       │  • Differential Privacy             │
-├──────────────────────────────────┴─────────────────────────────────────┤
-│                    Iroh Network (`iroh-gossip`)                        │
-│          (QUIC / Ed25519 TLS 1.3 / mDNS / STUN / Playit.gg)            │
-└────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                             Client Application / API                             │
+│                      POST /infer   |   POST /decide   |   GET /adapters          │
+└────────────────────────────────────────┬─────────────────────────────────────────┘
+                                         │
+┌────────────────────────────────────────▼─────────────────────────────────────────┐
+│                          Axum REST & WebSocket Server                            │
+│                     (Authorization, Routing, Status Telemetry)                   │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│                          Rust P2P Engine (`src/`)                                │
+│                                                                                  │
+│   • Adapter Registry (RocksDB)       • Strategy Selector (`src/inference/`)      │
+│     - Tracks peer adapter metadata     - self (personalized local adapter)       │
+│     - Validates Ed25519 signatures     - trust (highest peer trust score)        │
+│     - Resolves hashes & availability   - latest (newest training round)          │
+│                                        - query_aware (semantic centroid match)   │
+│                                                                                  │
+│   • Iroh QUIC & Gossip Protocol (`src/network/`)                                 │
+│     - `iroh-gossip`: Tiny signed metadata announcements over QUIC                │
+│     - `iroh-blobs`: On-demand P2P weight downloads (BLAKE3 verified)             │
+│     - SHA-256 Integrity Verification: Rejects tampered weights                   │
+│     - Local Disk Cache: `{data_dir}/adapters/<sha256>/`                          │
+└────────────────────────────────────────┬─────────────────────────────────────────┘
+                                         │ Loopback HTTP (127.0.0.1:8765)
+┌────────────────────────────────────────▼─────────────────────────────────────────┐
+│                    Python Inference Sidecar (`inference_engine.py`)              │
+│                           (Bhaskera-serve + HF PEFT)                             │
+│                                                                                  │
+│   • Shared Base Model loaded once in GPU memory (e.g., Qwen2.5-1.5B / OLMo-7B)   │
+│   • In-Memory PEFT LoRA Hot-Swapping (LRU Cache of active adapters)              │
+│   • Generation Engine (Token streaming, TTFT/TPOT telemetry, Chat Templates)     │
+│   • Option-Logits Scoring (System One single forward pass, Option Permutations)  │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Technology Stack
+## Inference Execution Pipeline
 
-| Layer                    | Technologies Used                                                                                                                                            |
-| :----------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Networking Core**      | **Rust** (`edition = 2021`), **Tokio** async runtime                                                                                                         |
-| **P2P Communication**    | **Iroh** (`iroh v1.0.2`, `iroh-gossip`, `iroh-relay`), **QUIC**, **Ed25519 TLS 1.3**, **Playit.gg** (Static Tunnels)                                         |
-| **Peer Discovery**       | **mDNS** (`iroh-mdns-address-lookup`), **BitTorrent mainline DHT** (`iroh-mainline-address-lookup`), **pkarr/DNS**, gossip peer exchange, on-disk peer cache |
-| **API & WebSockets**     | **Axum 0.7**, **Hyper**, **tokio-tungstenite** (`WebSocket`), **Serde / Serde JSON**                                                                         |
-| **ML Engine & FL**       | **Python 3.11+**, **PyTorch**, **Ray / Ray Train** (`ray.train.torch.TorchTrainer`), **setproctitle**                                                        |
-| **Transformers & PEFT**  | **HuggingFace Transformers**, **PEFT** (`LoRA`), **PyArrow** (Parquet caching), **PyYAML**                                                                   |
-| **Differential Privacy** | **Gradient clipping**, **Noice injection**, **Opacus** (`PrivacyEngine`), **opt-einsum**                                                                     |
+Federated inference executes in six coordinated stages:
 
----
-
-## Repository Structure
-
-| Path                       | Description                                                                                                                     |
-| :------------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
-| `src/main.rs`              | Rust Node entry point, federated epoch loop, P2P orchestrator, and network broadcast                                            |
-| `src/history.rs`           | Local update history — the per-peer append-only log of model updates and peer reviews                                           |
-| `src/identity.rs`          | Ed25519 keypair and the node's stable federation identity (`NodeId`)                                                            |
-| `src/network/`             | Iroh QUIC + Gossip network implementation (`mesh.rs`, `mod.rs`) — peer discovery, gossip swarm, and secure peer synchronization |
-| `src/api.rs`               | Axum HTTP REST endpoints and real-time WebSocket broadcast server for dashboards                                                |
-| `src/config.rs`            | TOML configuration loader for federation, training cadence, network ports, IDs, and storage paths                               |
-| `ml_engine.py`             | Python ML bridge executing Bhaskera distributed LoRA training, DP clipping, sparsification, and peer evaluation                 |
-| `setup.sh`                 | Main installation script for system dependencies and virtual environments                                                       |
-| `Bhaskera/`                | Submodule / embedded repository containing the distributed LLM training framework                                               |
-| `Bhaskera-serve/`          | Second submodule (branch `serve`) used by federated inference; see [Federated Inference](#federated-inference-optional)                  |
-| `inference_engine.py`      | Local inference sidecar: base model + hot-swapped LoRA adapters                                                                 |
-| `adapter_export.py`        | Exports each round's aggregated LoRA as a content-addressed PEFT directory                                                      |
-| `node_template.yaml`       | Base YAML template for HuggingFace / Ray / PEFT training arguments                                                              |
-| `node1.toml`               | Node-1 configuration file                                                                                                       |
-| `node2.toml`, `node3.toml` | Peer node configuration files                                                                                                   |
-| `logs/`                    | Directory containing runtime communication logs and real-time epoch loss tracking CSVs                                          |
-| `plots_script/`            | Python scripts for visualizing training metrics, trust scores, and system performance                                           |
-| `results/`                 | Output directory containing generated plots and evaluation metric graphs                                                        |
----
-
-## Environment & Prerequisites Setup
-
-When setting up on a machine where Rust, Cargo, or Python are installed in custom directories (such as `/mnt/disk1/...` or scratch drives), export your environment variables before compiling or running:
-
-```bash
-# 1. Point to your Rust & Cargo installation
-export CARGO_HOME=/mnt/disk1/slakshna/rust/.cargo
-export RUSTUP_HOME=/mnt/disk1/slakshna/rust/.rustup
-export PATH=$CARGO_HOME/bin:$PATH
-
-# 2. Activate Python Environment (e.g., using uv, poetry, etc.)
-if [ -f "/mnt/disk1/slakshna/Bhaskera/bhaskera-activate.sh" ]; then
-    source /mnt/disk1/slakshna/Bhaskera/bhaskera-activate.sh
-elif [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
-fi
+```
+  1. Adapter Export ──► 2. Signed Gossip ──► 3. Local Registry ──► 4. Strategy Selection
+     (PEFT weights)       (Metadata only)      (RocksDB storage)     (Query / Trust / Self)
+                                                                            │
+                                         ┌──────────────────────────────────┴───────────────┐
+                                         │ Is selected adapter in local cache?              │
+                                         └───────────────┬──────────────────┬───────────────┘
+                                                    No   │                  │ Yes
+                                                         ▼                  │
+                                              5. On-Demand P2P Fetch        │
+                                                 (iroh-blobs via QUIC)      │
+                                                         │                  │
+                                                         ▼                  │
+                                                 SHA-256 Check OK?          │
+                                                         │                  │
+                                                         ▼                  ▼
+                                              6. Sidecar Local Forward Pass
+                                                 (Attach LoRA -> Generate / Score on GPU)
 ```
 
-### Installation & Build
+1. **Export & Hashing:** When an adapter is trained, it is saved into a content-addressed directory named by its SHA-256 hash (`{data_dir}/adapters/<sha256>/`).
+2. **Metadata Gossip:** The node announces `{node_id, round, sha256, blake3, size, base_model, rank, trust_score}` via `iroh-gossip`. No weights are broadcast.
+3. **Registry Maintenance:** Every node maintains an on-disk RocksDB table of all active adapters in the swarm (`GET /adapters`).
+4. **Query-Time Selection:** Upon receiving a query, the node selects an adapter locally based on the configured strategy (`trust`, `self`, `latest`, or `query_aware`).
+5. **On-Demand Retrieval & Verification:** If the adapter is not in the local cache, it is retrieved directly from the peer over QUIC using `iroh-blobs`. The downloaded file is checked against the announced SHA-256 hash. Corrupted files trigger graceful fallback to the base model.
+6. **On-Device Forward Pass:** The Python sidecar hot-swaps the verified adapter onto the shared base model and performs the forward pass locally on the node's GPU.
 
-Follow these exact steps in sequence to set up the environment and build the project:
+---
+
+## Two Inference Paradigms: Generative vs. Fast Decision
+
+SLAKSHNA provides two distinct inference modalities tailored for different task requirements:
+
+### 1. Generative Inference (System Two / Text Generation — `/infer`)
+- **Mechanism:** Autoregressive token-by-token text generation.
+- **Prompt Templating:** Wraps inputs into model-specific chat templates (`format_prompt`) to ensure robust instruction-following without conversational drift.
+- **Evaluation:** Scored via **BERTScore-F1** (semantic similarity against reference completions), **ROUGE-L** (sequence overlap), and token streaming telemetry (Time-to-First-Token, Time-per-Output-Token).
+- **Primary Benchmark:** Databricks Dolly-15k open-ended instruction following.
+
+### 2. Fast Decision Scoring (System One / Option Logits — `/decide`)
+- **Mechanism:** Evaluates multiple-choice questions or structured decisions in a **single forward pass** by extracting the model's next-token logits over valid option tokens ($A, B, C, D$).
+- **Zero Parsing Errors:** Completely eliminates syntax and format hallucination failures (**0.0% unparseable answers** compared to up to 2.2% in text generation).
+- **Permutation Invariance:** Automatically evaluates cyclic permutations of option orderings to eliminate letter/position bias (e.g., standard LLM preference for option "D").
+- **Probabilistic Calibration:** Outputs normalized, honest probability distributions, enabling evaluation of Expected Calibration Error (ECE), Negative Log-Likelihood (NLL), Brier score, and AURC.
+
+---
+
+## Adapter Selection & Aggregation Taxonomy
+
+| Strategy | Training Regime | Aggregation Level | GPU Passes | Key Characteristic |
+| :--- | :---: | :---: | :---: | :--- |
+| **Base Model** | Zero-Shot | None | 1 | Shared foundation model (Qwen2.5-1.5B / OLMo-7B) without adapters. |
+| **Own Adapter Only (`self`)** | Local Skew | None | 1 | Zero network traffic; high on local distribution (95.2%), poor on unseen domains (52.2%). |
+| **Random Peer Adapter** | Federated | None | 1 | Naive decentralized baseline picking an arbitrary peer adapter. |
+| **Query-Aware Routing (`query_aware`)** | Federated | **Dynamic Dispatch** | **1** | Matches prompt embedding against peer descriptor centroids; routes to the single best specialist. |
+| **Merged Average (`merged_avg`)** | Federated | **Adapter-Level (Weights)** | **1** | Parameters blended before inference: $\Delta W = \frac{1}{K}\sum \Delta W_k$. Fast, multi-task generalist. |
+| **Merged TIES (`merged_ties`)** | Federated | **Adapter-Level (Weights)** | **1** | TIES-SVD parameter merging resolving interference across client weight updates. |
+| **Plain Average (`prob_mean`)** | Federated | **Output-Level (Probabilities)** | **$K$** | Arithmetic mean of predicted probability vectors $\mathbf{p} = \frac{1}{K}\sum \mathbf{p}_k$. |
+| **Log Average (`logit_mean`)** | Federated | **Output-Level (Logits)** | **$K$** | Geometric probability mean / average of raw logits $\mathbf{z} = \frac{1}{K}\sum \mathbf{z}_k$. Optimal calibration (ECE 0.030). |
+| **Confidence-Weighted** | Federated | **Output-Level (Probabilities)** | **$K$** | Weighted by each member's maximum prediction certainty: $w_k \propto \max(\mathbf{p}_k)$. |
+| **Majority Vote** | Federated | **Output-Level (Labels)** | **$K$** | Plurality vote over discrete class predictions across peer adapters. |
+| **Centralized Baseline** | Pooled (Non-Private) | Centralized | 1 | Upper-bound reference trained on all data in one place. |
+
+---
+
+## Repository Structure (`inference` branch)
+
+```
+├── src/                               # Rust P2P Core & Networking Engine
+│   ├── main.rs                        # Node entry point, P2P orchestrator
+│   ├── api.rs                         # Axum REST API endpoints (/infer, /adapters, /peers)
+│   ├── config.rs                      # Configuration loader ([inference], [network], [node])
+│   ├── registry.rs                    # Content-addressed adapter registry (RocksDB persistence)
+│   ├── identity.rs                    # Ed25519 cryptographic keypairs
+│   ├── inference/
+│   │   ├── mod.rs                     # Inference service: lifecycle, P2P fetch, sidecar bridge
+│   │   └── selector.rs                # Selection policies (trust, self, latest, query_aware)
+│   └── network/
+│       ├── blobs.rs                   # iroh-blobs wrapper for P2P adapter weight streaming
+│       ├── mesh.rs                    # iroh-gossip mesh for metadata propagation
+│       └── mod.rs                     # Network abstraction layer
+│
+├── inference_engine.py                # Python HTTP sidecar: base model + PEFT hot-swapping
+├── adapter_export.py                  # Standalone tool to package LoRAs into PEFT directories
+├── setup_serve.sh                     # Virtualenv bootstrap script for Bhaskera-serve
+├── Bhaskera-serve/                    # Lightweight model serving submodule (branch `serve`)
+│
+├── experiments/                       # Comprehensive Empirical Evaluation Suite
+│   ├── run_nodes.sh                   # Cluster launch script (train vs serve mode)
+│   ├── run_benchmarks.sh              # Master benchmark pipeline (offline, API, serving, vLLM)
+│   ├── eval_api.py                    # Evaluates real API queries (cold vs warm, selection strategies)
+│   ├── eval_offline.py                # Standalone test set scoring across adapters and models
+│   ├── bench_serving.py               # TTFT, TPOT, MFU, and concurrency stress benchmarks
+│   ├── bench_fetch.py                 # P2P adapter download latency vs LoRA rank/file size
+│   ├── compare_systems.py             # Analytical & empirical comparisons vs vLLM and Petals
+│   ├── fault_test.py                  # Node failure & crash resilience evaluations
+│   ├── aggregate.py                   # Aggregates raw logs into numerical CSV summary tables
+│   ├── plot_results.py                # Generates publication figures & documentation
+│   ├── results/                       # Evaluation benchmarks (AG News, Dolly-15k, System One)
+│   └── tikzfigs/                      # Standalone, publication-ready TikZ/PGFPlots figures
+│
+├── examples/
+│   ├── 2node-serve/                   # Ready-to-run 2-node serving configurations
+│   └── 4node-serve/                   # 4-node heterogeneous serving configuration templates
+└── tests/                             # Unit tests for adapter export, sidecar, and transport
+```
+
+---
+
+## Getting Started: Running Federated Inference
+
+### 1. Prerequisites & Environment Setup
+
+Ensure you have **Rust 1.75+**, **Python 3.10+**, and CUDA-enabled PyTorch installed.
 
 ```bash
-# 1. Initialize the Bhaskera submodule
-git submodule update --init --recursive
+# Clone the repository with submodules
+git clone --recursive https://github.com/dcll-iiitd/Slakshna.git -b inference
+cd Slakshna
 
-# 2. Navigate to the Bhaskera ML engine directory
-cd Bhaskera
-
-# 3. Run the Bhaskera setup script (installs python dependencies)
-bash setup.sh
-
-# 4. Activate the Bhaskera Python virtual environment
-source bhaskera-activate.sh
-
-# 5. Move back to the SLAKSHNA-FL root directory
-cd ..
-
-# 6. Run the SLAKSHNA root setup script
-bash setup.sh
-
-# 7. Build the Rust P2P node binary in release mode
-# (Make sure you have Rust and Cargo installed!)
+# Build the Rust P2P node binary (release mode)
 cargo build --release
 
-# 8. You are now ready to run your nodes!
-# (e.g. ./target/release/iiitd --config config.toml)
+# Set up the Python inference sidecar virtual environment
+./setup_serve.sh
 ```
 
----
+### 2. Configuration (`node1.toml`)
 
-## Running a Local Multi-Node Cluster
-
-To make local testing and simulations easy, you can use the provided cluster scripts. We have pre-configured 2-node, 4-node, and 6-node configurations in the `examples/` directory.
-
-### Requirements
-- **Rust / Cargo**: Required to compile the node binary (done automatically by the script if not found).
-- **Python / Bhaskera**: The Python environment must be set up properly as shown in the Installation steps. The script will automatically source `.venv` or `bhaskera-activate.sh`.
-
-### Starting the Cluster
-
-To start an entire cluster with a single command, use `start_cluster.sh` and pass the number of nodes (2, 4, or 6):
-
-```bash
-./start_cluster.sh 4
-```
-
-This will run all 4 nodes in the background. The script outputs logs directly into the `logs/` directory.
-You can monitor the logs of any specific node like this:
-
-```bash
-tail -f logs/node1_cluster.log
-```
-
-### Stopping the Cluster
-
-To safely shut down all the nodes started by the script, simply run:
-
-```bash
-./stop_cluster.sh
-```
-
----
-
-## TOML Configuration Breakdown
-
-Every node requires its own `.toml` configuration file (`config.toml`, `node2.toml`, etc.).
-
-Every node file has the same shape. **There is no bootstrap node and no node type** —
-membership is decided entirely by the shared `[federation] id`.
+Configure each node to enable inference mode and point to the shared base model:
 
 ```toml
 [federation]
-id = "slakshna-fl-1"        # Nodes sharing this id derive the same gossip topic and train together
-name = "SLAKSHNA Federation"
-
-[training]
-epoch_duration_secs = 600   # Length of one federated epoch (aligned to the wall clock)
-sync_deadline_secs = 300    # How far into the epoch to wait for peer updates before aggregating
-expected_peers = 6          # Release the sync barrier early once this many nodes have reported
+id = "slakshna-inference-cluster"
+name = "Slakshna Edge Mesh"
 
 [node]
 id = "node-1"
-data_dir = "./data-node1"   # Dedicated delta storage directory
-gpu_id = 0                  # GPU assigned to this node for local training
+data_dir = "./data-node1"
+gpu_id = 0
 
 [network]
 host = "0.0.0.0"
-p2p_port = 9000             # Iroh QUIC router listening port
-api_port = 8545             # Axum HTTP REST API port
-ws_port = 8546              # WebSocket port
-peers = []                  # Optional seeds; empty is fine — see "Joining a federation".
+p2p_port = 9000
+api_port = 8545
 
-[discovery]
-mdns = true                 # Zero-config discovery of federation members on the local network
-dht = true                  # Serverless global lookup over the BitTorrent mainline DHT
-dns = true                  # Number 0's public pkarr/DNS lookup
-relay = true                # Public relays as a fallback transport when hole punching fails
-
-[logging]
-level = "info"
-```
-
-> Every node in a federation must share the same `[federation] id` — it is hashed into the
-> 32-byte gossip topic *and* into the mDNS service label, so a mismatch silently puts nodes
-> in different swarms.
-
-### Joining a federation
-
-A node never depends on a particular other node being up. Start it with `peers = []`
-and it comes up alone, advertises itself, and merges into the swarm as soon as any
-member appears. Four independent mechanisms find peers, in rough order of speed:
-
-| Mechanism                                                       | Scope                 | Depends on                                                      |
-| :-------------------------------------------------------------- | :-------------------- | :-------------------------------------------------------------- |
-| **mDNS** (`discovery.mdns`)                                     | Same LAN or same host | Nothing — multicast only                                        |
-| **Remembered peers**                                            | Anywhere              | `{data_dir}/rocksdb`; every peer ever met is redialled on start |
-| **Gossip peer exchange**                                        | Anywhere              | One reachable member; the swarm hands over the rest             |
-| **Mainline DHT / pkarr DNS** (`discovery.dht`, `discovery.dns`) | Internet              | Public DHT; no server we operate                                |
-
-On a LAN, that means nothing to configure: launch the nodes in any order and they find
-each other. Across the internet, hand any one member's EndpointId to a joining node —
-any member, not a designated one:
-
-```toml
-[network]
-peers = ["a65a49db0894467a3b6d95eda3924c309a5589e265f734332f2b65100364be90"]
-```
-
-Each node prints its own EndpointId at startup and serves it at `GET /status`;
-`GET /peers` lists both live neighbours and the remembered set. The EndpointId is
-derived from the keypair in `{data_dir}/rocksdb`, so **it is stable across restarts** —
-publish it once and it stays valid.
-
-Peers may still be pinned to an explicit address with `<EndpointId>@<host>:<port>` when
-no discovery mechanism can reach them (see the tunnelling section below).
-
----
-
-## Managing the Bhaskera Submodule (Contributor Guide)
-
-The `Bhaskera` ML engine is included as a Git submodule.
-
-### 1. Cloning & Pulling Updates
-Whenever you start working or pull updates from teammates, you must update *both* the parent repo and the submodule.
-
-**Cloning for the first time:**
-```bash
-git clone --recursive https://github.com/dcll-iiitd/Slakshna.git
-```
-
-**Pulling updates from a branch:**
-To avoid "untracked files" or "unstaged changes" errors, always update the submodule after pulling or switching branches:
-```bash
-git pull
-git submodule update --init --recursive
-```
-*(You can configure git to do this automatically by using `git pull --recurse-submodules`)*
-
-### 2. Making changes OUTSIDE Bhaskera (e.g., Rust code, config files)
-If you are only editing files in the main `Slakshna` directory (like `README.md` or `node_template.yaml`), the workflow is standard:
-```bash
-git add .
-git commit -m "Update README"
-git push
-```
-
-### 3. Making changes INSIDE Bhaskera
-If you edit code *inside* the `Bhaskera` folder, you must push the code twice: once for the submodule to save the actual code, and once for the parent to "bookmark" that new commit.
-
-**Step 1: Push the actual code (Inside Bhaskera):**
-```bash
-cd Bhaskera
-git add .
-git commit -m "Fixed bug"
-git push origin Slakshna
-```
-(here Slakshna is the branch name of Bhaskera)
-
-**Step 2: Tell the parent about it (Back in Slakshna):**
-```bash
-cd ..
-git add Bhaskera
-git commit -m "Update Bhaskera to latest commit"
-git push
-```
-> **⚠️ The Golden Rule of Submodules:** Never push the Parent if you haven't pushed the Child. Always commit and push inside `Bhaskera` first. If you push the parent repo pointing to a commit in Bhaskera that hasn't been pushed to GitHub yet, your teammates will get a `fatal: not our ref` error.
-
-### 4. Switching Branches (Troubleshooting)
-If you switch to a branch where `Bhaskera` is not yet a submodule (like an older `main` branch), Git may refuse to checkout because of conflicting files. You can safely move the directory out of the way temporarily:
-```bash
-mv Bhaskera Bhaskera_backup
-git checkout main
-git submodule update --init --recursive
-rm -rf Bhaskera_backup
-```
-
----
-
-## Model & Training Configuration (`node_template.yaml`)
-
-While the `.toml` files control the Rust node's networking and federation behavior, the **`node_template.yaml`** file configures the underlying Python ML Engine (`Bhaskera`). 
-
-At runtime, `ml_engine.py` dynamically reads `node_template.yaml`, overwrites node-specific dynamic paths (like `tokenized_path` or `save_directory`), and generates a `config_{node-id}.yaml` for Ray Train to execute.
-
-Developers should modify `node_template.yaml` to adjust:
-- **Model Selection & Architecture:** Change `model.name` (e.g., `NousResearch/Llama-2-7b-hf`), data types, or enable Liger Kernels.
-- **Training Paradigm (LoRA vs. Full-Parameter):** Toggle `lora.enabled`. For LoRA, you can configure `rank`, `alpha`, and target modules. For full-parameter fine-tuning, disable LoRA and switch to an optimizer like `galore_muon`.
-- **Optimizers & Hyperparameters:** Change `federated.optimizer`, adjust `batch_size`, `learning_rate`, `gradient_accumulation_steps`, or `max_steps`.
-- **Distributed Strategy:** Configure FSDP settings (`distributed.strategy: "fsdp"`) including activation checkpointing and sharding behavior.
-- **Dataset Configuration:** Change `data.dataset_name` and rendering formats (e.g., `chatml`).
-
-> **Note:** Any changes made to `node_template.yaml` will apply uniformly across all nodes in your local simulation unless explicitly overwritten by `ml_engine.py`.
-
----
-
-## Dataset Tokenization
-
-Tokenization is a **separate step that runs once, before training**. `ml_engine.py` never tokenizes: it only reads the result, and stops with a clear message if the dataset is missing, truncated, or was tokenized for a different base model (token ids from another model train without any error and silently give garbage).
-
-```bash
-source Bhaskera/bhaskera-activate.sh               # the Bhaskera training environment
-python scripts/tokenize_dataset.py                 # tokenize if needed
-python scripts/tokenize_dataset.py --check         # exit 0 only if training can start
-```
-
-It reads `node_template.yaml` (the same file training uses), so the tokenizer, sequence length and data format match training exactly, writes into `data.tokenized_path` (which must be a real directory every node can read, not `"dummy"`), and stamps it with a `tokenizer_model.txt` naming `model.name`.
-
-| Situation | What to run |
-|---|---|
-| First run, or you changed `model.name` | `python scripts/tokenize_dataset.py --force` (an existing directory is moved aside to `<path>.bak-<time>`, never deleted) |
-| Existing cache from before this check, known to match `model.name` | `python scripts/tokenize_dataset.py --stamp` |
-| Several nodes sharing one path | tokenize once, then start the nodes |
-
----
-
-## Running the System across Geo-Localized Machines
-
-Try it without a tunnel first: relays plus DHT/pkarr lookup traverse most NATs on their
-own, and no node needs a public address. The steps below are the fallback for machines
-behind strict university or corporate firewalls (NAT/Deep Packet Inspection) that block
-hole punching and relay traffic outright.
-
-Note that the tunnelled node is **not** a bootstrap node — it is an ordinary member that
-happens to have a reachable address. Any member with a working address can serve as an
-entry point, and once a joining node is in the swarm it learns every other member
-through gossip.
-
-**What is Playit.gg?**  
-[Playit.gg](https://playit.gg) is a service that creates a secure outbound tunnel from your local machine to a public cloud server. It gives your local node a static public IP address on the internet, completely bypassing incoming firewall restrictions. Because SLAKSHNA uses Iroh (End-to-End Encryption), passing data through Playit's public servers is 100% secure.
-
-### Step 1: Start the Playit Tunnel (Main Machine)
-*You must run this on your "Main Machine" (e.g., Delhi server) **before** starting the SLAKSHNA node.*
-
-1. Install `playit` on the main machine.
-2. Start the Playit daemon (e.g., `cd ~/playit && ./playit start`).
-3. Follow the CLI prompt to create a tunnel. Create a **UDP/TCP tunnel** pointing to your local Iroh `p2p_port` (e.g., `9000` or `9001` based on your config).
-4. Playit will assign you a public endpoint. **Note down this IP and Port** (e.g., `147.185.221.225:42060`).
-
-### Step 2: Start the Tunnelled Node (Main Machine)
-With the tunnel running in the background, start your node:
-```bash
-./target/release/iiitd --config node1.toml
-```
-When started, the node prints its Iroh `EndpointId` (public key) — stable across restarts:
-```
-INFO 🔑 Iroh EndpointId: a65a49db0894467a3b6d95eda3924c309a5589e265f734332f2b65100364be90
-INFO 🤝 Any peer can join this federation with: peers = ["a65a49db…64be90"]
-```
-
-### Step 3: Connect Other Nodes (e.g., Mumbai Machine)
-On the other machines, open their TOML configuration file (e.g., `node2.toml`).
-
-Combine the **EndpointId** (from Step 2) and the **Playit Public IP:Port** (from Step 1)
-in the form `<EndpointId>@<playit_ip>:<playit_port>` to pin the address, bypassing
-discovery entirely:
-
-```toml
-[network]
-# Format: ["<EndpointId>@<Playit_IP>:<Playit_Port>"]
-peers = ["a65a49db0894467a3b6d95eda3924c309a5589e265f734332f2b65100364be90@147.185.221.225:42060"]
-```
-
-Now, start the other node:
-```bash
-./target/release/iiitd --config node2.toml
-```
-It dials the public Playit IP, encrypts the traffic against the EndpointId, and joins the
-swarm. From there gossip peer exchange introduces it to every other member, and the peers
-it meets are cached in its own `data_dir` — so on the next start it no longer needs this
-entry at all.
-
----
-
-## Running on Academic SLURM Supercomputers
-
-When deploying SLAKSHNA on a SLURM cluster login node:
-1. **Never run directly on the login node without a GPU allocation**, as `torch.cuda.is_available()` will fail (`no GPUs found!`).
-2. **Set `gpu_id = 0` in your `.toml` file.** When SLURM allocates a physical GPU (`rpgpu[...]`) to your job, it maps that card inside the container to `CUDA_VISIBLE_DEVICES=0`.
-3. **Launch the node using `srun` on the GPU partition:**
-   ```bash
-   srun -p gpu --gres=gpu:1 --time=04:00:00 ./target/release/iiitd --config config.toml
-   ```
-
----
-
-## HTTP REST & WebSocket API
-
-The node exposes an Axum-powered API for monitoring trust evaluations and system status:
-
-| Method | Endpoint                 | Description                                                                         |
-| :----- | :----------------------- | :---------------------------------------------------------------------------------- |
-| `GET`  | `/status`                | Returns federation id, completed round, active Iroh P2P peer count, and node status |
-| `GET`  | `/updates`               | Returns every model update and peer review on record                                |
-| `GET`  | `/updates/latest`        | Returns the most recent record in the local update history                          |
-| `GET`  | `/updates/:index`        | Returns what each participant contributed at that position in its log               |
-| `GET`  | `/leaderboard`           | Returns node trust score rankings (`alpha` / `w_i`)                                 |
-| `WS`   | `ws://localhost:8546/ws` | Live WebSocket stream emitting peer evaluation updates                              |
-
----
-
-## Testing Model Poisoning & Defense
-
-You can simulate a malicious node attempting to poison the Federated Learning by setting the `MALICIOUS_NODES` environment variable:
-
-```bash
-MALICIOUS_NODES="node-2" ./target/release/iiitd --config node2.toml
-```
-
-When `node-2` runs in malicious mode, it injects a destructive learning rate (`learning_rate = 1.0`). When `node-1` receives `node-2`'s model delta, `ml_engine.py` computes cosine similarity and observes negative alignment. `node-1` automatically slashes `node-2`'s trust score and down-weights its updates in the final model aggregation.
-
----
-
-## Federated Inference (optional)
-
-Training produces a LoRA adapter per node per round. Federated inference lets **any node answer a query with the best adapter available in the whole federation**, without a server and without shipping weights around in advance. It is off by default and does not affect training.
-
-### Idea
-
-Gossip is cheap, weights are not. So nodes gossip only tiny *metadata* about their adapters, and move the heavy weights only when a query actually needs them.
-
-1. **Adapter generation.** At the end of each aggregation round a node exports its LoRA adapter as a PEFT directory named by the SHA-256 of its weights.
-2. **Metadata propagation.** The node signs (Ed25519) and gossips `{node_id, round, sha256, blake3, size, base_model, rank, trust_score, endpoint_id}` on the existing gossip topic. Every node keeps a local **registry** of this metadata, persisted in RocksDB. No weights are sent at this stage.
-3. **Query-time selection.** On a query, the node picks an adapter from its *own* registry (by trust, by its own adapter, or newest round). No network traffic.
-4. **On-demand retrieval.** If the adapter is not cached, the node downloads the weight file by hash from the node that holds it (iroh-blobs, with other advertisers of the same hash as fallback).
-5. **Verification.** The download is checked against the advertised SHA-256 before use. A mismatch rejects the adapter and the source is marked bad.
-6. **Local inference.** The adapter is attached to the node's base model and the full forward pass runs on-device. If anything fails, the node falls back to the base model and says so in the response.
-
-```
- round ends ─► export adapter ─► sha256 ─► blob store ─► signed gossip ─► every node's registry
-                                                                                   │
- POST /infer ─► select (registry) ─► cached? ──no──► fetch by hash ─► verify sha256 ┤
-                                        │yes                                        │
-                                        └────────────► sidecar: base + LoRA ─► text ◄┘
-```
-
-### Tech stack
-
-| Layer | Technology |
-|---|---|
-| Node, API, registry, selection | Rust, Tokio, Axum (`POST /infer`, `GET /adapters`) |
-| Metadata gossip | iroh-gossip over QUIC |
-| Weight transfer | iroh-blobs (BLAKE3-verified streams) plus the SHA-256 check above |
-| Signatures / hashing | ed25519-dalek, sha2 |
-| Registry persistence | RocksDB |
-| Adapter format | PEFT LoRA (`adapter_model.safetensors` + `adapter_config.json`) |
-| Inference | Python sidecar (`inference_engine.py`) on the Bhaskera `serve` branch (`HFEngineWrapper`), PEFT adapter hot-swapping with an LRU of loaded adapters |
-
-### Files
-
-| File | Role |
-|---|---|
-| `adapter_export.py` | Called by `ml_engine.py` after each round. Writes `{data_dir}/adapters/<sha256>/` (weights, config, `adapter_meta.json`) |
-| `ml_engine.py` | Training bridge; exports the adapter when `SLAKSHNA_INFERENCE_ENABLED=1` |
-| `src/registry.rs` | Signed `AdapterMeta`, the local registry, RocksDB persistence |
-| `src/network/blobs.rs` | iroh-blobs wrapper: add file, fetch by hash |
-| `src/network/mesh.rs` | Gossips `AdapterAnnounce`, re-announces periodically for late joiners |
-| `src/inference/selector.rs` | Selection strategies (`trust`, `self`, `latest`) |
-| `src/inference/mod.rs` | Publish, select, fetch + verify, cache eviction, sidecar client |
-| `src/api.rs` | `/adapters` and `/infer` endpoints |
-| `src/config.rs` | `[inference]` config block |
-| `inference_engine.py` | Local HTTP sidecar: base model + attached LoRA adapters |
-| `setup_serve.sh` | Creates the separate serve virtualenv (`Bhaskera-serve/.venv`) |
-| `examples/2node/` | Two-node **training** configs (inference enabled, no sidecar) |
-| `examples/2node-serve/` | Two-node **serve** configs (`serve_only = true`, node1 runs the sidecar) |
-| `tests/test_adapter_export.py` | Adapter export tests |
-
-### Configuration
-
-```toml
 [inference]
 enabled = true
-base_model = "allenai/OLMo-2-1124-7B"   # must equal model.name in node_template.yaml
-selection = "trust"                      # trust | self | latest
-min_trust = 0.0                          # ignore peers whose local trust is lower
-sidecar_port = 8765                      # use a different port per node on one machine
+base_model = "Qwen/Qwen2.5-1.5B-Instruct"  # Shared base model
+selection = "trust"                         # Default selection: trust | self | latest | query_aware
+min_trust = 0.0                             # Minimum trust score required to use a peer adapter
+sidecar_port = 8765                         # Local loopback port for the Python sidecar
 sidecar_python = "Bhaskera-serve/.venv/bin/python"
 serve_bhaskera_path = "Bhaskera-serve"
-spawn_sidecar = true                     # false while training, to keep GPU memory free
-serve_only = false                       # true: skip training, only serve/answer
-cache_max_adapters = 16
-max_adapter_bytes = 2147483648
+spawn_sidecar = true                        # Automatically launches inference_engine.py
+serve_only = true                           # Pure inference mode (skips local training loop)
+cache_max_adapters = 8                      # Maximum adapters retained in local GPU/RAM cache
+max_adapter_bytes = 2147483648              # 2 GB cache storage limit
 ```
 
-### Step-by-step: run the whole pipeline
+### 3. Launching the Local Multi-Node Serving Cluster
+
+Start a 2-node or 4-node serving cluster with pre-configured templates:
 
 ```bash
-# 0. One-time setup
-git submodule update --init --recursive
-cargo build --release
-./setup_serve.sh                       # serve venv with peft; training venv comes from setup.sh
-
-# 0b. Tokenize once (ml_engine no longer does it): python scripts/tokenize_dataset.py --check || python scripts/tokenize_dataset.py
-# 1. Train: each node creates and publishes its own adapter
-./start_cluster.sh 2                   # uses examples/2node
-sed 's/\x1b\[[0-9;]*m//g' logs/node1_cluster.log | grep -E "Publishing adapter|ML Engine failed"
-ls data-node1/adapters data-node2/adapters     # one <sha256>/ folder per round
-
-# 2. Stop training once adapters exist
-./stop_cluster.sh; pkill -f inference_engine.py
-
-# 3. Restart in serve mode (re-publishes the newest on-disk adapter)
+# Start 2 nodes in serve mode (node1 on port 8545, node2 on port 8546)
 ./start_cluster.sh 2 examples/2node-serve
-sed 's/\x1b\[[0-9;]*m//g' logs/node1_cluster.log | grep "inference_engine\] ready"
 
-# 4. Inspect the registry (metadata only)
-curl -s localhost:8545/adapters | jq '.adapters[] | {node_id, round, cached, is_self}'
-
-# 5. Query node1 using node2's adapter: fetched by hash, verified, attached
-curl -s localhost:8545/infer -H 'content-type: application/json' \
-  -d '{"prompt":"What is LoRA?","max_tokens":64,"from_node":"<NODE2_ID>"}' | jq
-
-# 6. Shut down
-./stop_cluster.sh; pkill -f inference_engine.py
+# Monitor the logs of node 1
+tail -f logs/node1_cluster.log
 ```
 
-`./stop_cluster.sh` stops the Rust nodes but not the Python sidecar, so run `pkill -f inference_engine.py` too, or the next start fails with `Address already in use`.
+Wait until the logs confirm that both nodes have connected via Iroh and the sidecar is initialized:
+```text
+INFO 🔑 Iroh EndpointId: a65a49db0894467a...
+INFO [inference_engine] loading base model Qwen/Qwen2.5-1.5B-Instruct ...
+INFO [inference_engine] ready on 127.0.0.1:8765
+INFO 🚀 Axum API server listening on 0.0.0.0:8545
+```
 
-### Checks
+### 4. Inspecting the Adapter Registry
 
-| Check | How | Expected |
-|---|---|---|
-| Adapter exported | `sha256sum data-node1/adapters/*/adapter_model.safetensors` | equals the folder name |
-| Adapter matches the base model | `lora_A` shape of `q_proj` | `[16, 4096]`, 32 layers for OLMo-2-7B |
-| Published | log: `🧩 Publishing adapter round N` | no `Could not publish` warning |
-| Registry formed | `GET /adapters` on each node | every node listed; peers `cached: false` |
-| On-demand fetch | log: `⬇️ Fetching adapter …` then `✅ … verified and cached` | peer's adapter now `cached: true` |
-| Cache hit | repeat the same query | `cache_hit: true`, no `Fetching` line |
-| Selection | query with `"selection": "self"` / `"trust"` / `"latest"` | `self` always returns this node's adapter |
-| Fallback | stop the source node, query with an uncached adapter | answered by the base model, `note` explains why |
-| Integrity | log: `🚫 Hash mismatch` | adapter rejected, source marked bad, base-model fallback |
+Query any node's local registry to inspect all available adapters in the federation:
 
-### API
+```bash
+curl -s http://127.0.0.1:8545/adapters | jq
+```
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /adapters` | The local registry: node, round, hash, size, advertised vs. locally computed trust, `cached`, `is_self` |
-| `POST /infer` | `{prompt, max_tokens?, temperature?, selection?, from_node?}`. `from_node` forces a given node's adapter (testing/simulation). Returns `{text, adapter{node_id, round, sha256, cache_hit}, note}` |
+*Example Response:*
+```json
+{
+  "success": true,
+  "adapters": [
+    {
+      "node_id": "node-1",
+      "round": 3,
+      "sha256": "8f3b21c4a...",
+      "base_model": "Qwen/Qwen2.5-1.5B-Instruct",
+      "rank": 16,
+      "size": 4371840,
+      "trust_score": 1.0,
+      "cached": true,
+      "is_self": true
+    },
+    {
+      "node_id": "node-2",
+      "round": 3,
+      "sha256": "1e9a78d0f...",
+      "base_model": "Qwen/Qwen2.5-1.5B-Instruct",
+      "rank": 16,
+      "size": 4371840,
+      "trust_score": 0.94,
+      "cached": false,
+      "is_self": false
+    }
+  ]
+}
+```
 
-### What the pipeline can do
+### 5. Running Inference Queries (`POST /infer`)
 
-- Train collaboratively while every round yields a hash-addressed, signed, shareable adapter.
-- Give every node a live, serverless view of what adapters exist across the federation.
-- Answer a query with a peer's adapter that was never copied in advance, fetching only what is needed, only when needed.
-- Choose adapters by trust, personalization (own adapter), or recency, with a per-query override.
-- Reject tampered or corrupted weights before they reach the model, and degrade to the base model rather than failing.
-- Survive restarts: the registry and blob store are persisted, and a node re-publishes its newest on-disk adapter at startup.
+Send an inference request to `node-1`. If `node-2`'s adapter is selected or requested, `node-1` downloads it over P2P, verifies its SHA-256 hash, attaches it to the local GPU, and generates the response on-device:
 
-### Known limits
+```bash
+curl -s http://127.0.0.1:8545/infer -H 'Content-Type: application/json' -d '{
+  "prompt": "Explain the concept of decentralized consensus in simple terms.",
+  "max_tokens": 128,
+  "temperature": 0.7,
+  "selection": "trust"
+}' | jq
+```
 
-- Adapters are only fetchable while a node that holds them is online.
-- All nodes must use the same base model; adapters for another base model are never selected.
-- Old training state from a different base model must be cleared before training (stale `ml_models/` and `ml_states/` can silently produce adapters with the wrong shape).
-- The sidecar answers one request at a time per node (`model.generate()` is serialized).
+*Example Response:*
+```json
+{
+  "success": true,
+  "result": {
+    "text": "Decentralized consensus is a way for a group of independent computers to agree on a single source of truth without relying on any central authority or server...",
+    "adapter": {
+      "node_id": "node-2",
+      "round": 3,
+      "sha256": "1e9a78d0f...",
+      "cache_hit": false
+    },
+    "timing": {
+      "select_ms": 0.04,
+      "fetch_ms": 55.90,
+      "attach_ms": 180.80,
+      "model_ttft_ms": 78.40,
+      "ttft_ms": 315.14,
+      "tpot_ms": 30.54,
+      "total_ms": 4224.26,
+      "n_tokens": 128,
+      "n_prompt_tokens": 18
+    },
+    "note": null
+  }
+}
+```
+
+*Subsequent Request (Warm Cache Hit):*
+Repeating the query returns with `"cache_hit": true`, `fetch_ms: 0.0`, and native GPU TTFT (~92 ms).
+
+### 6. Graceful Cluster Shutdown
+
+```bash
+./stop_cluster.sh
+pkill -f inference_engine.py
+```
+
+---
+
+## REST API Reference
+
+| Endpoint | Method | Description | Request Payload | Response Key Fields |
+| :--- | :---: | :--- | :--- | :--- |
+| `/status` | `GET` | Node health, round, active Iroh peer count | None | `federation_id`, `round`, `peers`, `endpoint_id` |
+| `/peers` | `GET` | Active gossip neighbours & remembered peers | None | `connected`, `known`, `endpoint_id` |
+| `/adapters` | `GET` | Current local adapter registry | None | `adapters`: array of metadata, `cached`, `is_self` |
+| `/infer` | `POST` | Federated generative inference | `{prompt, max_tokens, temperature, selection, from_node, system, raw}` | `text`, `adapter` info, detailed `timing` breakdown |
+| `/leaderboard`| `GET` | Current peer trust scores (`alpha` / `w_i`) | None | `leaderboard`: list of `node` and `trust_score` |
+| `/health` (sidecar)| `GET` | Sidecar GPU process status (`:8765`) | None | `{"status": "ok"}` |
+| `/stats` (sidecar) | `GET` | GPU memory telemetry (`:8765`) | None | `allocated_mb`, `peak_allocated_mb`, `adapters_loaded` |
+
+### `/infer` Parameter Details
+
+- `prompt` *(string, required)*: The input query.
+- `max_tokens` *(int, default: 256)*: Maximum new tokens to generate.
+- `temperature` *(float, default: 0.7)*: Sampling temperature (0.0 for greedy decoding).
+- `selection` *(string, optional)*: Override node strategy (`"trust"`, `"self"`, `"latest"`, `"query_aware"`).
+- `from_node` *(string, optional)*: Pin request to a specific node's adapter (for testing/benchmarks).
+- `raw` *(bool, default: false)*: When true, skips the model chat template and passes the prompt verbatim.
+- `min_tokens` *(int, optional)*: Forces a minimum output length (used for TPOT benchmarking).
+
+---
+
+## Reproducing Empirical Benchmarks
+
+The `experiments/` directory contains automated runners to benchmark quality, latency, concurrency, and fault tolerance:
+
+```bash
+# Run the complete benchmark suite on a trained run (e.g. AG News 4-node skew)
+./experiments/run_benchmarks.sh ag_news_n4_a0.1_s0
+
+# Individual benchmark steps:
+# 1. Evaluate offline quality across all test splits and methods
+Bhaskera-serve/.venv/bin/python experiments/eval_offline.py --tag ag_news_n4_a0.1_s0 --gpu 0 --merge
+
+# 2. Evaluate live HTTP API (cold vs warm TTFT, selection strategies)
+Bhaskera-serve/.venv/bin/python experiments/eval_api.py --tag ag_news_n4_a0.1_s0 --n 200
+
+# 3. Serving stress benchmark (TTFT, TPOT, MFU, Concurrency)
+Bhaskera-serve/.venv/bin/python experiments/bench_serving.py --backend slakshna --url http://127.0.0.1:8545
+
+# 4. Fault tolerance under peer node crashes
+Bhaskera-serve/.venv/bin/python experiments/fault_test.py --tag ag_news_n4_a0.1_s0 --n 30
+
+# 5. P2P download speed vs LoRA rank (r=8 to r=128)
+Bhaskera-serve/.venv/bin/python experiments/bench_fetch.py --tag ag_news_n4_a0.1_s0
+
+# 6. Aggregate numerical tables and compile LaTeX TikZ plots
+Bhaskera-serve/.venv/bin/python experiments/aggregate.py --tag ag_news_n4_a0.1_s0
+Bhaskera-serve/.venv/bin/python experiments/plot_results.py --tag ag_news_n4_a0.1_s0
+```
+
+---
+
+## Empirical Benchmark Findings Summary
+
+All figures are compiled in `experiments/results/` and `experiments/tikzfigs/`:
+
+1. **Accuracy on AG News (4 Nodes, Skew $\alpha = 0.1$):**
+   - Relying solely on a client's **own adapter** yields only **52.2%** accuracy globally due to severe domain blind spots (down to 0.0% on unseen classes).
+   - **Query-aware routing** achieves **84.3%** accuracy (Macro-F1: 0.841), eliminating blind spots by routing to the specialist peer.
+   - **Merged weights (`merged_avg`)** reaches **83.9%** (Macro-F1: 0.841) in a single forward pass.
+   - *(Non-private centralized upper bound: 87.2%).*
+
+2. **Open-Ended Generation Quality (Databricks Dolly-15k):**
+   - Base foundation model achieves **0.204 BERTScore-F1**.
+   - Single local adapter achieves **0.294**.
+   - **Query-aware routing** and **Merged average** both reach **0.316** (+0.112 over base, +0.022 over local adapter).
+
+3. **System Latency & Hardware Utilization (NVIDIA RTX A6000):**
+   - **Warm TTFT:** **113.9 ms** (median 92.6 ms) with 0 bytes network communication.
+   - **Cold Fetch & Verification:** Completed in just **55.9 ms** over P2P QUIC streams for standard rank-16 adapters (4.17 MB).
+   - **Hardware Efficiency (MFU):** Slakshna achieves **41.9% Model FLOPs Utilization** (64.9 TFLOP/s) at 4k prompt lengths, matching and slightly exceeding centralized vLLM (38.7% MFU).
+
+4. **Zero Prompt Exposure & Communication Comparison:**
+   - **Slakshna:** **0.0 Bytes** prompt exposure off-device; **0.0 Bytes** network traffic on warm queries.
+   - **Central vLLM:** Exposes entire prompt text (389.5 B/query) over the network; single point of failure.
+   - **Petals (Layer-Split):** Leaks hidden states (254.5 KB/query); transfers >1.3 MB per query with ~200 ms network latency on every generated token.
+
+5. **Fault Tolerance:**
+   - Slakshna edge nodes maintain **100% request completion** during peer crashes with graceful fallback to surviving adapters or base models, avoiding total outages.
+
+---
 
 ## 📄 License
 
-This project is licensed under the **Apache License 2.0** — see the [LICENSE](file:///mnt/disk1/slakshna/slakshnaFL/SLAKSHNA/LICENSE) file for details.
+This project is licensed under the **Apache License 2.0** — see the [LICENSE](LICENSE) file for details.

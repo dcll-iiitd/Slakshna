@@ -3,6 +3,18 @@ import json
 import os
 import hashlib
 import socket
+import tempfile
+
+# This process talks to the Rust node over pipes. On Windows the default pipe
+# encoding is the ANSI code page, so the emoji in our log lines would raise
+# UnicodeEncodeError. Force UTF-8 (and make child processes do the same).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+os.environ.setdefault("PYTHONUTF8", "1")
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 try:
     import setproctitle
@@ -13,12 +25,14 @@ except ImportError:
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.environ["HF_HOME"] = os.path.join(BASE_DIR, "hf_cache")
 os.environ["XDG_CACHE_HOME"] = os.path.join(BASE_DIR, "cache")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
+_SYS_TMP = tempfile.gettempdir()  # /tmp on Linux, %TEMP% on Windows
 
 if len(sys.argv) > 1 and sys.argv[1] != "--help":
     my_id_arg = sys.argv[1]
     short_id = my_id_arg[-6:] if len(my_id_arg) > 6 else my_id_arg
-    node_tmp = f"/tmp/sl_t_{short_id}"
+    node_tmp = os.path.join(_SYS_TMP, f"sl_t_{short_id}")
     os.makedirs(node_tmp, exist_ok=True)
     os.environ["RAY_TMPDIR"] = node_tmp
     os.environ["TMPDIR"] = node_tmp
@@ -31,9 +45,10 @@ if len(sys.argv) > 1 and sys.argv[1] != "--help":
     os.environ["RAY_NODE_MANAGER_PORT"] = str(13000 + port_offset)
     os.environ["RAY_OBJECT_MANAGER_PORT"] = str(14000 + port_offset)
 else:
-    os.makedirs("/tmp/sl_t_shared", exist_ok=True)
-    os.environ["RAY_TMPDIR"] = "/tmp/sl_t_shared"
-    os.environ["TMPDIR"] = "/tmp/sl_t_shared"
+    _shared_tmp = os.path.join(_SYS_TMP, "sl_t_shared")
+    os.makedirs(_shared_tmp, exist_ok=True)
+    os.environ["RAY_TMPDIR"] = _shared_tmp
+    os.environ["TMPDIR"] = _shared_tmp
 
 import torch
 import numpy as np
@@ -76,10 +91,134 @@ from federated_communication import (
 )
 
 
+def _env_int(name, default=0):
+    try:
+        return int(os.environ.get(name, "") or default)
+    except ValueError:
+        return default
+
+
+def resolve_device_kind():
+    """
+    "cpu" or "cuda".
+
+    Controlled by $SLAKSHNA_DEVICE (set from `[node] device` in the node TOML):
+      * "cpu"  - always CPU (laptops, CI, GPU-less servers)
+      * "cuda" - require a GPU; fail loudly instead of silently being 100x slower
+      * "auto" / unset - CUDA if torch can see a GPU, otherwise CPU
+    """
+    pref = os.environ.get("SLAKSHNA_DEVICE", "auto").strip().lower() or "auto"
+    if pref == "cpu":
+        return "cpu"
+    if pref in ("cuda", "gpu"):
+        if not torch.cuda.is_available():
+            print("ERROR: [node] device = \"cuda\" but torch.cuda.is_available() is False. "
+                  "Use device = \"cpu\" (or \"auto\") on machines without a GPU.", file=sys.stderr)
+            sys.exit(3)
+        return "cuda"
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+DEVICE_KIND = resolve_device_kind()
+IS_CPU = DEVICE_KIND == "cpu"
+
+# CPU runs log to their own file so they never mix with the committed GPU results.
+LOSS_CSV = os.path.join(LOG_DIR, "epoch_loss_tracking_cpu.csv" if IS_CPU else "epoch_loss_tracking_muon.csv")
+
+# CPU mode uses its own, smaller template (small model, short sequences, AdamW, LoRA).
+_cpu_template = os.path.join(BASE_DIR, "node_template.cpu.yaml")
+TEMPLATE_PATH = (
+    os.environ.get("SLAKSHNA_TEMPLATE")
+    or (_cpu_template if IS_CPU and os.path.exists(_cpu_template)
+        else os.path.join(BASE_DIR, "node_template.yaml"))
+)
+
+
+def _abs(path):
+    """Resolve a template path against the repo root (child processes run from other cwds)."""
+    if not path or path == "dummy" or os.path.isabs(path):
+        return path
+    return os.path.abspath(os.path.join(BASE_DIR, path))
+
+
+def cpu_thread_budget(num_nodes):
+    """
+    Intra-op threads for this node's training process.
+
+    Several simulated nodes share one machine, so give each its own slice of the
+    cores instead of letting N processes each spawn `cpu_count` threads (which
+    thrashes badly: 6 x 16 threads on 16 logical cores is far slower than 6 x 2).
+    """
+    explicit = _env_int("SLAKSHNA_CPU_THREADS", 0)
+    if explicit > 0:
+        return explicit
+    cores = os.cpu_count() or 1
+    return max(1, cores // max(1, num_nodes))
+
+
+def assign_shard_index(my_id, all_nodes, num_nodes):
+    """
+    Which of `num_nodes` data slices this node owns.
+
+    Round 1 knows no peers yet (Rust passes none), so the index cannot come from the
+    peer list. Instead: honour an explicit $SLAKSHNA_DATA_SHARD_INDEX, else use the
+    trailing number of the node id ("node-3" -> slice 2), else a stable hash of the id.
+    """
+    import re
+    explicit = os.environ.get("SLAKSHNA_DATA_SHARD_INDEX", "").strip()
+    if explicit.isdigit():
+        return int(explicit) % num_nodes
+    # The Rust node passes the TOML `[node] id` ("node-3"); `my_id` may be a long identity string.
+    name = os.environ.get("SLAKSHNA_NODE_NAME") or my_id
+    m = re.search(r"(\d+)$", name)
+    if m:
+        return (int(m.group(1)) - 1) % num_nodes
+    return int(hashlib.md5(my_id.encode()).hexdigest()[:8], 16) % num_nodes
+
+
+class _FileLock:
+    """Tiny cross-platform advisory lock (exclusive-create) so concurrent nodes
+    tokenize a *shared* cache once instead of racing on it."""
+
+    def __init__(self, path, timeout=3600, poll=2.0):
+        self.path, self.timeout, self.poll = path, timeout, poll
+
+    def __enter__(self):
+        import time
+        deadline = time.time() + self.timeout
+        while True:
+            try:
+                fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(fd, str(os.getpid()).encode())
+                os.close(fd)
+                return self
+            except FileExistsError:
+                # A crashed holder must not wedge everyone: break stale locks.
+                try:
+                    if time.time() - os.path.getmtime(self.path) > self.timeout:
+                        os.remove(self.path)
+                        continue
+                except OSError:
+                    pass
+                if time.time() > deadline:
+                    raise TimeoutError(f"Timed out waiting for lock {self.path}")
+                time.sleep(self.poll)
+
+    def __exit__(self, *exc):
+        try:
+            os.remove(self.path)
+        except OSError:
+            pass
+
+
 def get_device(my_id):
     """
-    Map each node to a dedicated GPU.
+    Map each node to a dedicated GPU (or the CPU).
     """
+    if IS_CPU:
+        print(f"[{my_id}] Running on CPU ({os.cpu_count()} logical cores)", file=sys.stderr)
+        return torch.device("cpu")
+
     if not torch.cuda.is_available():
         print(f"[{my_id}] WARNING: CUDA not available – running on CPU", file=sys.stderr)
         return torch.device("cpu")
@@ -102,24 +241,46 @@ def get_device(my_id):
     return device
 
 
+def ensure_csv_header(path, header):
+    """
+    Create `path` with its header row exactly once, atomically.
+
+    Nodes started together all used to see "file missing" and each wrote a header, so a
+    header could land in the middle of the data and corrupt the file for every reader.
+    O_EXCL makes exactly one process the creator.
+    """
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return
+    with os.fdopen(fd, "w", newline="") as f:
+        csv.writer(f).writerow(header)
+
+
 def log_trust_scores(my_id, weights):
-    file_exists = os.path.isfile(TRUST_CSV)
+    ensure_csv_header(TRUST_CSV, ["timestamp", "observer_node", "peer_node", "weight"])
     with open(TRUST_CSV, "a", newline="") as f:
         writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(["timestamp", "observer_node", "peer_node", "weight"])
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for peer_id, weight in weights.items():
             writer.writerow([timestamp, my_id, peer_id, weight])
 
 
 
-def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", state=None):
-    with open(os.path.join(BASE_DIR, "node_template.yaml"), "r") as f:
+def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", state=None,
+                            shard=None, num_nodes=1):
+    with open(TEMPLATE_PATH, "r") as f:
         config = yaml.safe_load(f)
 
     node_data_dir = os.path.join(DATA_DIR, f"data_{my_id}")
-    
+
+    # Child processes (tokenizer / trainer) run from other working directories,
+    # so every path from the template must be absolute.
+    config.setdefault("data", {})
+    for _k in ("train_path", "val_path", "path", "tokenized_path", "val_tokenized_path"):
+        if config["data"].get(_k):
+            config["data"][_k] = _abs(config["data"][_k])
+
     if config.get("data", {}).get("tokenized_path") and config["data"]["tokenized_path"] != "dummy":
         node_cache_dir = config["data"]["tokenized_path"]
     else:
@@ -203,6 +364,27 @@ def prepare_bhaskera_config(my_id, is_malicious, training_mode="finetuning", sta
             "kwargs": user_kwargs
         }
 
+    if IS_CPU:
+        # CPU overlay. Muon/GaLore plugins and 8-bit optimizer states need CUDA kernels;
+        # the Ray/FSDP/NCCL stack is not used at all (see bhaskera.launcher.train_cpu).
+        if opt_name != "adamw":
+            print(f"[{my_id}] optimizer '{opt_name}' needs a GPU - using AdamW on CPU.", file=sys.stderr)
+            config.setdefault("plugins", {})["optimizers"] = []
+            config.setdefault("training", {})["optimizer"] = {"backend": "default", "kwargs": {}}
+        config.setdefault("model", {})["dtype"] = "float32"
+        config["model"]["use_liger_kernel"] = False
+        config["monitoring"]["dashboard"] = False
+        config.setdefault("logging", {})["tracker"] = None   # no wandb/ray tracker on a laptop
+        cpu = config.get("cpu") or {}   # an all-comments `cpu:` block parses as None
+        config["cpu"] = cpu
+        cpu["threads"] = cpu.get("threads") or cpu_thread_budget(num_nodes)
+        if shard and not cpu.get("data_shard"):
+            cpu["data_shard"] = shard
+        if not cpu.get("max_train_seconds"):
+            deadline = _env_int("SLAKSHNA_SYNC_DEADLINE_SECS", 0)
+            if deadline > 0:
+                cpu["max_train_seconds"] = max(30, int(deadline * 0.7))
+
     if training_mode == "pretraining":
         config.setdefault("lora", {})["enabled"] = False
         # Point to local directory containing the aggregated base model
@@ -259,20 +441,30 @@ def get_adapter_path(ckpt_dir):
                     
     return best_path
 
-def extract_training_metrics(ckpt_dir):
+def extract_training_metrics(ckpt_dir, node_id=None):
     """Instead of relying on trainer_state.json, we now read the last loss directly from our real-time tracking CSV!"""
     import csv
-    loss_csv_path = os.path.join(LOG_DIR, "epoch_loss_tracking_muon.csv")
-    
+    loss_csv_path = LOSS_CSV
+
     final_loss = None
+    fallback_loss = None
     if os.path.exists(loss_csv_path):
         try:
             with open(loss_csv_path, "r") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    # We just grab the last loss value parsed for this node (or any node, as a fallback)
+                    try:
+                        float(row.get("loss") or "")
+                    except ValueError:
+                        continue  # stray header / malformed row
                     if row.get("loss"):
-                        final_loss = float(row["loss"])
+                        fallback_loss = float(row["loss"])
+                        # Several nodes append to this file (always, when simulated on one
+                        # machine): prefer this node's own last row over whoever wrote last.
+                        if node_id is None or row.get("node_id") == node_id:
+                            final_loss = float(row["loss"])
+            if final_loss is None:
+                final_loss = fallback_loss
         except Exception:
             pass
             
@@ -292,9 +484,17 @@ def main():
     all_nodes = sorted([my_id] + neighbors)
 
     device = get_device(my_id)
-    
-    with open(os.path.join(BASE_DIR, "node_template.yaml"), "r") as f:
+
+    with open(TEMPLATE_PATH, "r") as f:
         template_config = yaml.safe_load(f)
+    print(f"[{my_id}] Device: {DEVICE_KIND} | template: {os.path.basename(TEMPLATE_PATH)}", file=sys.stderr)
+
+    if IS_CPU:
+        if not template_config.get("lora", {}).get("enabled", True):
+            print(f"[{my_id}] ERROR: CPU mode supports LoRA fine-tuning only (lora.enabled: true). "
+                  "Full-parameter training needs the GPU path.", file=sys.stderr)
+            sys.exit(4)
+        torch.set_num_threads(1)  # this process only aggregates; training runs in a child with its own budget
     
     TRAINING_MODE = template_config.get("federated", {}).get("mode", "finetuning")
     # If lora is explicitly disabled, we are doing full-parameter fine-tuning which follows the pretraining logic
@@ -351,7 +551,7 @@ def main():
         try:
             with open(my_state_path, "r") as f:
                 loaded_state = json.load(f)
-                for key in state:
+                for key in list(state) + ["shard"]:
                     if key in loaded_state:
                         state[key] = loaded_state[key]
         except:
@@ -376,7 +576,19 @@ def main():
     log_trust_scores(my_id, w_i)
 
     # 1. Bhaskera config preparation
-    config_path, tokenized_path, ckpt_dir = prepare_bhaskera_config(my_id, is_malicious, TRAINING_MODE)
+    # Simulated nodes on one machine would otherwise all train on identical data.
+    # Pin a stable, disjoint slice per node: the index is fixed on the first round
+    # (and persisted in the node state) so it never shifts if discovery order changes.
+    num_nodes = max(len(all_nodes), _env_int("SLAKSHNA_EXPECTED_PEERS", 1))
+    shard = None
+    if IS_CPU and template_config.get("data", {}).get("partition", True) and num_nodes > 1:
+        if "shard" not in state:
+            state["shard"] = [assign_shard_index(my_id, all_nodes, num_nodes), num_nodes]
+        shard = f"{state['shard'][0]}/{state['shard'][1]}"
+        print(f"[{my_id}] Data shard {shard} (rows[i::n] of the shared tokenized cache)", file=sys.stderr)
+    config_path, tokenized_path, ckpt_dir = prepare_bhaskera_config(
+        my_id, is_malicious, TRAINING_MODE, shard=shard, num_nodes=num_nodes
+    )
 
     try:
         # 2. Tokenize dataset once if not present
@@ -402,7 +614,17 @@ def main():
             has_parquets = False
 
         if not has_parquets:
-            subprocess.run([sys.executable, "-m", "bhaskera.launcher.tokenize", "--config", config_path], check=True)
+            if IS_CPU:
+                # Ray-free tokenizer. Lock so nodes sharing one cache tokenize it once.
+                os.makedirs(tokenized_path, exist_ok=True)
+                with _FileLock(os.path.join(tokenized_path, ".tokenize.lock")):
+                    if not any(f.endswith(".parquet") for _, _, fs in os.walk(tokenized_path) for f in fs):
+                        subprocess.run(
+                            [sys.executable, "-m", "bhaskera.launcher.tokenize_cpu", "--config", config_path],
+                            check=True, env=os.environ.copy(),
+                        )
+            else:
+                subprocess.run([sys.executable, "-m", "bhaskera.launcher.tokenize", "--config", config_path], check=True)
 
         if os.path.exists(tokenized_path):
             subfolders = [f.path for f in os.scandir(tokenized_path) if f.is_dir() and not f.name.startswith('.')]
@@ -414,32 +636,36 @@ def main():
                 with open(config_path, "w") as f:
                     yaml.dump(cfg, f)
 
-        # Initialize a long-lived private Ray cluster strictly for Training
-        import ray
-        dash_port = 8265 + (int(hashlib.md5(my_id.encode()).hexdigest()[:8], 16) % 1000)
-        
-        print(f"[{my_id}] Starting private Ray cluster...", file=sys.stderr)
         num_gpus = int(os.environ.get("SLAKSHNA_NUM_GPUS", "1"))
-        import tempfile
-        ray_temp_dir = os.path.join(tempfile.gettempdir(), f"ray_{my_id[:8]}")
-        os.makedirs(ray_temp_dir, exist_ok=True)
-        
-        context = ray.init(
-            _temp_dir=ray_temp_dir,
-            dashboard_port=dash_port,
-            num_gpus=num_gpus,
-            include_dashboard=False,
-            ignore_reinit_error=True
-        )
-        # LOCK the Ray Address in environment so Bhaskera subprocesses NEVER scan the machine
-        os.environ["RAY_ADDRESS"] = context.address_info["address"]
+        if IS_CPU:
+            # CPU mode: single-process trainer, no Ray cluster (see bhaskera.launcher.train_cpu).
+            log_runtime(my_id, "cpu_trainer", threads=str(cpu_thread_budget(num_nodes)),
+                        shard=str(shard))
+        else:
+            # Initialize a long-lived private Ray cluster strictly for Training
+            import ray
+            dash_port = 8265 + (int(hashlib.md5(my_id.encode()).hexdigest()[:8], 16) % 1000)
 
-        log_runtime(
-        my_id,
-        "ray_started",
-        ray_address=context.address_info.get("address", ""),
-        dashboard_port=str(dash_port),
-        )
+            print(f"[{my_id}] Starting private Ray cluster...", file=sys.stderr)
+            ray_temp_dir = os.path.join(tempfile.gettempdir(), f"ray_{my_id[:8]}")
+            os.makedirs(ray_temp_dir, exist_ok=True)
+
+            context = ray.init(
+                _temp_dir=ray_temp_dir,
+                dashboard_port=dash_port,
+                num_gpus=num_gpus,
+                include_dashboard=False,
+                ignore_reinit_error=True
+            )
+            # LOCK the Ray Address in environment so Bhaskera subprocesses NEVER scan the machine
+            os.environ["RAY_ADDRESS"] = context.address_info["address"]
+
+            log_runtime(
+            my_id,
+            "ray_started",
+            ray_address=context.address_info.get("address", ""),
+            dashboard_port=str(dash_port),
+            )
 
         # 3. Distributed Training with Bhaskera (LoRA fine-tuning)
         print(f"[{my_id}] Starting Bhaskera LLM Training...", file=sys.stderr)
@@ -460,13 +686,11 @@ def main():
                     else:
                         old_sd = torch.load(old_adapter_path, map_location=device, weights_only=True)
         
-        loss_csv_path = os.path.join(LOG_DIR, "epoch_loss_tracking_muon.csv")
-        csv_exists = os.path.isfile(loss_csv_path)
-        
+        loss_csv_path = LOSS_CSV
+        ensure_csv_header(loss_csv_path, ["timestamp", "node_id", "epoch", "step", "loss", "perplexity", "samples", "tokens"])
+
         with open(loss_csv_path, "a", newline="") as f:
             writer = csv.writer(f)
-            if not csv_exists:
-                writer.writerow(["timestamp", "node_id", "epoch", "step", "loss", "perplexity", "samples", "tokens"])
                 
             # Delete any .complete sentinels so Bhaskera doesn't resume its own DCP checkpoints
             for root, dirs, files in os.walk(ckpt_dir):
@@ -500,7 +724,10 @@ def main():
                                 pass
             current_epoch += 1
 
-            cmd = [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", str(num_gpus)]
+            if IS_CPU:
+                cmd = [sys.executable, "-m", "bhaskera.launcher.train_cpu", "--config", config_path]
+            else:
+                cmd = [sys.executable, "-m", "bhaskera.launcher.train", "--config", config_path, "--num-workers", str(num_gpus)]
             if last_samples > 0:
                 cmd.extend(["--resume-samples", str(last_samples)])
             if last_tokens > 0:
@@ -511,7 +738,10 @@ def main():
                 cwd=ckpt_dir, 
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                text=True
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},
             )
             
             import re
@@ -520,7 +750,7 @@ def main():
 
             steps_taken_in_this_round = 0
             crash_log_path = os.path.join(LOG_DIR, f"{my_id}_bhaskera_crash.log")
-            with open(crash_log_path, "w") as crash_log:
+            with open(crash_log_path, "w", encoding="utf-8", errors="replace") as crash_log:
                 for line in process.stdout:
                     sys.stderr.write(line)
                     sys.stderr.flush()
@@ -549,7 +779,7 @@ def main():
                 raise subprocess.CalledProcessError(process.returncode, process.args)
 
         # 3b. Log Training Performance (Loss & Perplexity)
-        loss, perplexity = extract_training_metrics(ckpt_dir)
+        loss, perplexity = extract_training_metrics(ckpt_dir, my_id)
         if loss is not None:
             print(f"[{my_id}] Epoch Performance -> Loss: {loss:.4f} | Perplexity: {perplexity:.4f}", file=sys.stderr)
     finally:

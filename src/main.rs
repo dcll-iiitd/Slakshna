@@ -184,7 +184,9 @@ async fn main() -> Result<(), BoxError> {
                 }
             }
 
-            let mut cmd = tokio::process::Command::new("python");
+            // SLAKSHNA_PYTHON lets you point at a venv interpreter (e.g. .venv\Scripts\python.exe on Windows).
+            let python_exe = std::env::var("SLAKSHNA_PYTHON").unwrap_or_else(|_| "python".to_string());
+            let mut cmd = tokio::process::Command::new(python_exe);
             cmd.args(&python_args).current_dir(".");
 
             // CRITICAL: Pass the data_dir to Python so it reads delta files from the correct path
@@ -196,11 +198,32 @@ async fn main() -> Result<(), BoxError> {
             cmd.env("SLAKSHNA_MAX_DELTA_PAYLOAD_BYTES", config_loop.compression.max_payload_bytes.to_string());
             cmd.env("SLAKSHNA_MAX_DELTA_TENSOR_ELEMENTS", config_loop.compression.max_tensor_elements.to_string());
 
+            // Cluster shape, used by the ML engine to size CPU threads / time budgets / data shards.
+            cmd.env("SLAKSHNA_EXPECTED_PEERS", expected_peers.to_string());
+            cmd.env("SLAKSHNA_SYNC_DEADLINE_SECS", sync_deadline.to_string());
+
+            let device_pref = config_loop
+                .node
+                .device
+                .clone()
+                .unwrap_or_else(|| "auto".to_string())
+                .to_lowercase();
+            cmd.env("SLAKSHNA_DEVICE", &device_pref);
+            // The human-chosen `[node] id` (e.g. "node-3"); the ML engine derives a stable data shard from it.
+            cmd.env("SLAKSHNA_NODE_NAME", &config_loop.node.id);
+            if let Some(threads) = config_loop.node.cpu_threads {
+                cmd.env("SLAKSHNA_CPU_THREADS", threads.to_string());
+            }
+
             // Multi-GPU Support
             let num_gpus = config_loop.node.num_gpus.unwrap_or(1);
             cmd.env("SLAKSHNA_NUM_GPUS", num_gpus.to_string());
-            
-            if let Some(gid) = gpu_id_loop {
+
+            if device_pref == "cpu" {
+                // Hide any GPUs so nothing initialises CUDA by accident.
+                cmd.env("CUDA_VISIBLE_DEVICES", "");
+                tracing::info!("🖥️  CPU mode: ML Engine will train on the CPU (no GPU required)");
+            } else if let Some(gid) = gpu_id_loop {
                 if num_gpus > 1 {
                     let devices: Vec<String> = (gid..gid+num_gpus).map(|id| id.to_string()).collect();
                     let devices_str = devices.join(",");

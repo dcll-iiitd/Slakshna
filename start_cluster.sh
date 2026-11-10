@@ -2,18 +2,21 @@
 set -e
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 <number_of_nodes> (2, 4, or 6)"
+    echo "Usage: $0 <number_of_nodes> [cpu]   (nodes: 2-6, whichever examples/ has; 'cpu' = laptop configs, no GPU needed)"
     exit 1
 fi
 
 NUM_NODES=$1
 
-if [ "$NUM_NODES" != "2" ] && [ "$NUM_NODES" != "4" ] && [ "$NUM_NODES" != "6" ]; then
-    echo "Error: Only 2, 4, or 6 node configurations are supported."
-    exit 1
-fi
+case "$NUM_NODES" in
+    ""|*[!0-9]*) echo "Error: number of nodes must be a number."; exit 1 ;;
+esac
 
-CONFIG_DIR="examples/${NUM_NODES}node"
+if [ "${2:-}" = "cpu" ]; then
+    CONFIG_DIR="examples/cpu/${NUM_NODES}node"
+else
+    CONFIG_DIR="examples/${NUM_NODES}node"
+fi
 
 if [ ! -d "$CONFIG_DIR" ]; then
     echo "Error: Configuration directory $CONFIG_DIR not found."
@@ -33,10 +36,16 @@ elif [ -d "$SCRIPT_DIR/../../Bhaskera" ]; then
     BASE_DIR=$(realpath "$SCRIPT_DIR/../..")
 fi
 
-if [ -f "$BASE_DIR/Bhaskera/bhaskera-activate.sh" ]; then
+if [ "${2:-}" = "cpu" ] && [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate    # CPU venv from setup_cpu.sh (no Ray/CUDA)
+elif [ "${2:-}" = "cpu" ] && [ -f ".venv/Scripts/activate" ]; then
+    source .venv/Scripts/activate
+elif [ -f "$BASE_DIR/Bhaskera/bhaskera-activate.sh" ]; then
     source "$BASE_DIR/Bhaskera/bhaskera-activate.sh"
 elif [ -f ".venv/bin/activate" ]; then
     source .venv/bin/activate
+elif [ -f ".venv/Scripts/activate" ]; then   # Git-Bash on Windows
+    source .venv/Scripts/activate
 fi
 
 # Build if needed

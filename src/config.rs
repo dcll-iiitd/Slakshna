@@ -107,6 +107,15 @@ pub struct NodeConfig {
     pub gpu_id: Option<u32>,
     #[serde(default)]
     pub num_gpus: Option<u32>,
+    /// Compute device for local training: "cpu", "cuda", or "auto" (the default —
+    /// CUDA if PyTorch can see a GPU, otherwise CPU). With "cpu", `gpu_id` and
+    /// `num_gpus` are ignored and no GPU / Ray stack is needed.
+    #[serde(default)]
+    pub device: Option<String>,
+    /// CPU threads for this node's training process (CPU mode only). Default: the
+    /// machine's logical cores divided by `[training] expected_peers`.
+    #[serde(default)]
+    pub cpu_threads: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

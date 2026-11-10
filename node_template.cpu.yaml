@@ -1,0 +1,77 @@
+# ===========================================================================
+# CPU / laptop template — used automatically by ml_engine.py when no GPU is
+# used (`[node] device = "cpu"`, or "auto" on a machine without CUDA).
+# The GPU template (node_template.yaml) is untouched.
+#
+# Everything here is sized so a federated round finishes in a few minutes on a
+# laptop CPU while still being a *real* LoRA fine-tune of a real LLM.
+# ===========================================================================
+federated:
+  mode: "finetuning"      # CPU supports LoRA fine-tuning only (full-parameter needs the GPU path)
+  optimizer: "adamw"      # Muon / GaLore need CUDA kernels; ml_engine falls back to adamw anyway
+  trust_beta: 0.1
+  total_epochs: 8         # federated rounds to run (0 / omitted = run forever)
+
+plugins:
+  optimizers: []
+
+# ---------------------------------------------------------------------------
+# Model — pick ONE. Measured on an i7-13620H (10 cores / 16 threads), fp32,
+# seq_len 256, LoRA r=16 on q_proj+v_proj:
+#
+#   HuggingFaceTB/SmolLM2-135M-Instruct   135M  ~0.5 GB RAM   ~80-250 tok/s   <- default, use for 4-6 nodes
+#   HuggingFaceTB/SmolLM2-360M-Instruct   360M  ~1.5 GB RAM   ~3x slower      <- ok for 2 nodes
+#   Qwen/Qwen2.5-0.5B-Instruct            500M  ~2.5 GB RAM   ~4x slower      <- 2 nodes, patient
+#
+# All three use ChatML (matches data.format below). If you switch model, delete
+# ./data_cpu_cache and re-run the prepare step: the tokenizer cache is per-model.
+# ---------------------------------------------------------------------------
+model:
+  name: "HuggingFaceTB/SmolLM2-135M-Instruct"
+  dtype: "float32"        # fp32 is fastest & most stable on CPUs without AMX/bf16 units
+  trust_remote_code: false
+  use_liger_kernel: false # Triton kernels are GPU-only
+
+data:
+  name: "local"
+  format: "chatml"
+  train_path: "Bhaskera/dataset/South_Asia.jsonl"
+  # Shared by all nodes on this machine; filled once by `prepare_cpu.py` (or lazily, under a lock).
+  tokenized_path: "data_cpu_cache"
+  seq_len: 256            # 70% of this dataset's conversations are < 130 tokens; the ~25% that are
+                          # 700-950 tokens (document-grounded) are dropped on CPU - see tokenize_cpu.py
+  pack_sequences: true
+  max_train_samples: 8000 # raw rows to tokenize (~1400 packed rows). Raise for more data.
+  tokenize_batch_size: 64
+  partition: true         # node i of N trains on rows[i::N] so simulated clients hold different data
+
+lora:
+  enabled: true
+  rank: 16                # `rank` is read by ml_engine.py, `r` by Bhaskera: keep them equal
+  r: 16
+  alpha: 32
+  dropout: 0.0
+  target_modules: ["q_proj", "v_proj"]
+
+training:
+  batch_size: 2
+  gradient_accumulation_steps: 4   # 8 packed rows = 2048 tokens per optimizer step
+  learning_rate: 3e-4
+  warmup_steps: 0
+  max_steps: 10                    # optimizer steps per federated round (~20k tokens)
+  distributed:
+    strategy: "ddp"                # irrelevant on CPU (single process); kept for config parity
+
+checkpoint:
+  save_directory: "dummy"
+  local_interval: 1
+  sync_interval: 1
+  retention: 1
+
+logging:
+  tracker: null                    # no wandb / Ray dashboard on a laptop
+
+cpu:
+  # threads: 4                     # default: logical_cores // number_of_nodes
+  # max_train_seconds: 240         # default: 70% of the TOML's sync_deadline_secs
+  # data_shard: "0/2"              # default: assigned automatically per node

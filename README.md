@@ -100,6 +100,9 @@ SLAKSHNA is built from the ground up to operate securely over untrusted public n
 | `setup.sh`                 | Main installation script for system dependencies and virtual environments                                                       |
 | `Bhaskera/`                | Submodule / embedded repository containing the distributed LLM training framework                                               |
 | `node_template.yaml`       | Base YAML template for HuggingFace / Ray / PEFT training arguments                                                              |
+| `node_template.cpu.yaml`   | CPU/laptop template (small model, short sequences, AdamW + LoRA) — picked automatically on CPU                                  |
+| `examples/cpu/`            | 2/4/6-node configs for CPU-only machines                                                                                        |
+| `scripts/simulate_cpu_cluster.py` | Runs the federation's ML side on one machine without the Rust node                                                      |
 | `node1.toml`               | Node-1 configuration file                                                                                                       |
 | `node2.toml`, `node3.toml` | Peer node configuration files                                                                                                   |
 | `logs/`                    | Directory containing runtime communication logs and real-time epoch loss tracking CSVs                                          |
@@ -162,6 +165,11 @@ cargo build --release
 
 To make local testing and simulations easy, you can use the provided cluster scripts. We have pre-configured 2-node, 4-node, and 6-node configurations in the `examples/` directory.
 
+> **No GPU? Running on a laptop CPU:** use the `examples/cpu/` configs (`./start_cluster.sh 4 cpu`, or
+> `.\start_cluster.ps1 -Nodes 4` on Windows). They use `[node] device = "cpu"`, a small model
+> (SmolLM2-135M-Instruct) and a Ray-free trainer. Setup, model choices and a Rust-free simulator are in
+> **[CPU_QUICKSTART.md](CPU_QUICKSTART.md)**.
+
 ### Requirements
 - **Rust / Cargo**: Required to compile the node binary (done automatically by the script if not found).
 - **Python / Bhaskera**: The Python environment must be set up properly as shown in the Installation steps. The script will automatically source `.venv` or `bhaskera-activate.sh`.
@@ -212,6 +220,8 @@ expected_peers = 6          # Release the sync barrier early once this many node
 id = "node-1"
 data_dir = "./data-node1"   # Dedicated delta storage directory
 gpu_id = 0                  # GPU assigned to this node for local training
+# device = "cpu"           # "cpu" | "cuda" | "auto" (default). CPU needs no GPU; see CPU_QUICKSTART.md
+# cpu_threads = 4           # CPU mode only: threads for this node's training process
 
 [network]
 host = "0.0.0.0"

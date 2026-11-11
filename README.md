@@ -30,6 +30,9 @@ A **Peer-to-Peer Federated Learning Framework** built in **Rust** and integrated
 - **Sparsification and Compression**  
   Before broadcasting over the P2P network, local weight updates are sparsified to retain only the most significant weights (e.g., `sparsity=0.01`). The sparse tensors are encoded (e.g., `fp16`, `fp8`) and base64 compressed, reducing network bandwidth requirements by over 98%.
 
+- **Post-training RL (GRPO)**  
+  Besides SFT, a node can improve the shared LoRA adapter with reinforcement learning against a verifiable reward (e.g., a correct final answer). Only the sparse LoRA delta is shared. See [Post-training RL](#post-training-rl-grpo--branch-rl).
+
 - **Differential Privacy (DP)**  
   L2 norm clipping, Gaussian noise etc. augmented to ensure Differential Privacy for local gradients protected against membership inference and model inversion attacks. Our differential privacy component also allows integrating `opacus` (`PrivacyEngine`) and `opt-einsum`.
 
@@ -104,6 +107,10 @@ SLAKSHNA is built from the ground up to operate securely over untrusted public n
 | `node2.toml`, `node3.toml` | Peer node configuration files                                                                                                   |
 | `logs/`                    | Directory containing runtime communication logs and real-time epoch loss tracking CSVs                                          |
 | `plots_script/`            | Python scripts for visualizing training metrics, trust scores, and system performance                                           |
+| `examples/2node-rl/`       | Two-node federated RL (GRPO) demo configs; `examples/4node-sft-olmo/` holds the 4-node OLMo-2 SFT configs                       |
+| `experiments/`             | `fed_sim.py` multi-node simulator and `run_experiments.py` job runner for the RL/SFT federation experiments                     |
+| `slakshna_eval.py`         | Held-out NLL / perplexity / bits-per-byte for chat fine-tuning                                  |
+| `tests/`                   | RL integration, simulator, norm-policy and evaluation tests                                                                     |
 | `results/`                 | Output directory containing generated plots and evaluation metric graphs                                                        |
 ---
 
@@ -304,7 +311,7 @@ git add .
 git commit -m "Fixed bug"
 git push origin Slakshna
 ```
-(here Slakshna is the branch name of Bhaskera)
+(here `Slakshna` is the branch name of Bhaskera; the RL work lives on Bhaskera's `slakshna-rl` branch, so on the `RL` branch of this repo push `git push origin slakshna-rl` instead)
 
 **Step 2: Tell the parent about it (Back in Slakshna):**
 ```bash
@@ -460,11 +467,141 @@ When `node-2` runs in malicious mode, it injects a destructive learning rate (`l
 
 ---
 
-## Post-training RL (optional)
+## Post-training RL (GRPO) — branch `RL`
 
-Instead of supervised fine-tuning, a node can improve the shared LoRA adapter with reinforcement learning (GRPO) against a **verifiable reward**, such as "is the final `\boxed{}` answer correct". Prompts, answers, the checker, and all generated text stay on the node; only the usual sparse LoRA delta is shared, so gossip, trust-weighted aggregation, and adapter export are unchanged.
+This branch adds **reinforcement-learning post-training** as a second training mode next to supervised fine-tuning (SFT). Each node improves the shared LoRA adapter with **GRPO** (Group Relative Policy Optimization) against a **verifiable reward** — a plain function that checks the answer, not a learned reward model. Everything after local training is unchanged: the node produces a sparse int8 LoRA delta, gossips it, and aggregates peer deltas with trust weights.
 
-Enable it with `federated.mode: "rl"` and an `rl:` block in `node_template.yaml`. See [docs/rl_training.md](docs/rl_training.md) for the configuration and Bhaskera's `src/bhaskera/rl/README.md` for the trainer. Tests: `pytest tests/test_rl_integration.py`.
+```
+local prompts + checker ─► GRPO (Bhaskera) ─► LoRA delta ─► clip / sparsify / int8 ─► gossip ─► trust-weighted sum
+```
+
+### What was built
+
+| Component | Where | What it does |
+| :-- | :-- | :-- |
+| GRPO trainer | `Bhaskera/src/bhaskera/rl/` (Bhaskera branch `slakshna-rl`) | Samples `group_size` completions per prompt, scores them with the reward function, computes group-relative advantages, and takes a PPO-clipped policy step with an optional KL penalty to the base model. No value network, no reward model; the base model is frozen and only LoRA weights train. |
+| Reward | `bhaskera/rl/rewards.py` | Built-in `math_boxed`: 1.0 if the last `\boxed{...}` equals the gold answer (exact fraction comparison), else 0.0. New rewards are added with `@register_reward`. |
+| CLI | `bhaskera-rl --config <yaml>` | Standalone single-GPU RL run, no Slakshna needed. |
+| Slakshna integration | `ml_engine.py`, `federated_communication/` | `federated.mode: "rl"` runs the RL trainer instead of SFT each federated round; resumes from the aggregated adapter; continues the prompt stream across rounds; reports mean reward in the update metadata. |
+| Poisoned-delta screening | `federated_communication/` | A peer delta is rejected if non-finite, above `SLAKSHNA_MAX_DELTA_NORM` (default 100, +5% headroom), or more than `SLAKSHNA_MAX_PEER_NORM_RATIO` (default 5) times this node's own delta norm. Rejections are logged as `peer_delta_rejected` in `logs/runtime_comm.log`. |
+| Example config | `examples/2node-rl/` | Two-node federated RL demo on GSM8K with disjoint data shards. |
+| Experiments | `experiments/fed_sim.py`, `experiments/run_experiments.py`, `plots_script/analyze_fed_sim.py` | Multi-node simulator, job runner and analysis used for the federated results below. |
+| Tests | `tests/test_rl_integration.py`, `tests/test_fed_sim.py`, `tests/test_norm_policy.py`, `tests/test_slakshna_eval.py`; `Bhaskera/src/bhaskera/rl/tests/` | Unit and integration tests (see "Run the tests"). |
+
+**Privacy:** prompts, gold answers, the reward function and all generated text stay on the node. Only the sparse LoRA delta leaves, exactly as in SFT mode.
+
+### Commands
+
+All commands run from the Slakshna root unless stated. Complete the *Installation & Build* steps above first (the Bhaskera submodule must be on the commit recorded by this branch: `git submodule update --init --recursive`).
+
+**1. Prepare GSM8K prompts** (downloads `openai/gsm8k` from Hugging Face; `--num-shards 2` gives each of 2 nodes a disjoint training shard):
+
+```bash
+source Bhaskera/bhaskera-activate.sh
+python Bhaskera/scripts/prepare_gsm8k_rl.py --out-dir data/gsm8k --num-shards 2
+# writes data/gsm8k/train.jsonl (7,473), test.jsonl (1,319), train_0.jsonl, train_1.jsonl
+```
+
+**2. Single-node RL, no federation** (one GPU; `Qwen2.5-0.5B-Instruct`, 100 GRPO steps by default):
+
+```bash
+cd Bhaskera
+bhaskera-rl --config configs/rl_gsm8k.yaml
+```
+
+Output is one line per step, e.g. `[epoch 0][step 7] loss=… reward=0.3828 kl=0.02002 …`, plus periodic greedy `[eval][step N] eval_reward=…` on the held-out test file. LoRA checkpoints are written to `checkpoint.save_dir`.
+
+**3. Federated RL across two real Slakshna nodes** (node 1 on GPU 0, node 2 on GPU 1; each trains on its own shard):
+
+```bash
+cargo build --release
+./start_cluster.sh 2 examples/2node-rl      # per-node configs: node{1,2}.toml + node{1,2}.yaml
+tail -f logs/node1_cluster.log
+./stop_cluster.sh
+```
+
+The example is a short demo: 3 federated rounds of 6 GRPO steps each (`federated.total_epochs`, `training.max_steps` in `node*.yaml`); each node exits after its last round. Peers discover each other by mDNS on the same host/LAN; no addresses need configuring.
+
+**4. Enable RL in your own config** — in `node_template.yaml` (or a per-node yaml):
+
+```yaml
+federated:
+  mode: "rl"            # was "finetuning"
+lora:
+  enabled: true         # required; RL trains only the adapter
+training:
+  learning_rate: 5.0e-5
+  max_steps: 20         # GRPO steps per federated round
+rl:
+  train_path: data/gsm8k/train_0.jsonl     # {"prompt": ..., "answer": ...} per line
+  eval_path: data/gsm8k/test.jsonl         # optional
+  reward: math_boxed
+  group_size: 8
+  prompts_per_step: 16
+  max_new_tokens: 320
+  kl_coef: 0.04
+```
+
+Relative `rl.*_path` values resolve against the Slakshna directory. All `rl:` options: `Bhaskera/src/bhaskera/rl/README.md`; integration details: [docs/rl_training.md](docs/rl_training.md).
+
+**5. Reproduce the multi-node experiments** (single-process simulator that reuses the real trainer and delta pipeline; needs GPUs):
+
+```bash
+python experiments/run_experiments.py --dry-run        # list the jobs
+python experiments/run_experiments.py --gpus 0,2,3 --slots 3 --seeds 0,1,2 --out results/fed_sim
+python plots_script/analyze_fed_sim.py results/fed_sim   # tables, paired tests, figures
+```
+
+**6. Run the tests:**
+
+```bash
+pytest tests/test_rl_integration.py tests/test_fed_sim.py tests/test_norm_policy.py tests/test_slakshna_eval.py -v
+cd Bhaskera && pytest src/bhaskera/rl/tests src/bhaskera/tests -v      # trainer unit tests
+```
+
+`test_rl_integration.py` runs the real `ml_engine.py` on a tiny model: round 1 (reward rises, delta is non-zero and valid), round 2 (resumes the adapter and the sample counter), and a second node that verifies and aggregates the first node's RL delta. `pytest` is a dev extra; install it into the Bhaskera environment first.
+
+### Measured results
+
+Task: GSM8K, reward = final `\boxed{}` answer correct, evaluation = greedy decoding on the **full 1,319-problem test set**. Raw logs, configs and figures are in `results/rl_long_run_2026-10-22/` and `results/fed_sim/`.
+
+**Single node, 240 GRPO steps** (16 prompts × 8 completions per step, `max_new_tokens` 512, one run per configuration, so no seed variance is available):
+
+| Model | LR | KL coef | Accuracy step 0 | step 80 | step 160 | step 240 |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| Qwen2.5-0.5B-Instruct | 5e-5 | 0.04 | 44.1% | 48.3% | 49.1% | 49.6% |
+| Qwen2.5-0.5B-Instruct | 1e-4 | 0 | 44.1% | 45.3% | 47.7% | 49.1% |
+| Qwen2.5-1.5B-Instruct | 2e-5 | 0.04 | 68.8% | 71.0% | 73.6% | 73.5% |
+| Qwen2.5-1.5B-Instruct | 5e-5 | 0.04 | 68.8% | 71.0% | 73.2% | 73.6% |
+| Qwen2.5-1.5B-Instruct | 5e-5 | 0 | 68.8% | 74.8% | 75.8% | 74.7% |
+
+RL gives roughly +5 points over the untrained model for both sizes. With one run per row, differences *between* configurations (about 1 point) are within noise; the gain over step 0 is the finding.
+
+**Federated vs. isolated vs. centralized** (`experiments/fed_sim.py`, Qwen2.5-0.5B-Instruct, N = 4 simulated nodes, 8 rounds × 10 steps, 5 seeds IID / 3 seeds non-IID; untrained model = 34.9%):
+
+| Method | IID accuracy (mean ± std) | Non-IID accuracy | MB sent per run |
+| :-- | :-- | :-- | :-- |
+| Isolated RL (no sharing) | 40.8 ± 0.6 | 42.4 ± 0.8 | 0 |
+| **Federated RL (Slakshna delta pipeline)** | **41.6 ± 0.7** | **41.6 ± 2.0** | 147 |
+| Centralized RL (upper reference) | 42.6 ± 1.6 | — | 0 |
+| Federated SFT | 31.6 ± 1.2 | 30.1 ± 2.1 | 147 |
+
+What this does and does not show:
+
+* **Supported:** federated RL beats federated SFT on this task by about 10 points (IID: +10.0, McNemar p = 1.6e-13; non-IID: +11.5). SFT on GSM8K solutions made the model *worse* than untrained (31.6% vs 34.9%) while RL improved it. Federated RL also reduces the disagreement between nodes' adapters (consensus gap 0.62 vs 1.90 for isolated, IID).
+* **Not supported:** that federation improves accuracy over each node training alone. Federated RL vs isolated RL is +0.8 points IID (McNemar p = 0.84, seed t-test p = 0.14) and −0.7 points non-IID (p = 0.47). Federated RL is about 1 point below centralized RL (McNemar p = 0.003; seed t-test p = 0.18). Full statistics: `results/fed_sim/analysis.md`.
+* **Simulator, not the network:** `fed_sim.py` runs nodes sequentially in one process with the real trainer and delta/aggregation code; it does not exercise the Rust network, gossip or discovery. Its absolute accuracies are not comparable with the single-node table above (different protocol).
+
+**Real 2-node Rust run** (`results/rl_long_run_2026-10-22/federated_2node/`): two nodes, 6 federated rounds × 20 GRPO steps, disjoint data shards, `max_new_tokens` 320, evaluated on only the first 200 test problems (about ±3.4 points of noise). It demonstrates that the full pipeline — RL training, sparse delta exchange over gossip, trust-weighted aggregation, resume — runs end to end on real nodes. The evaluation set is too small to claim an accuracy improvement from this run.
+
+### Known limits
+
+* Peer trust is cosine similarity between deltas. Nodes training on very different private tasks may look dissimilar; scoring a peer's delta by held-out reward is not implemented.
+* Per-node record signatures are placeholders in `src/main.rs`, so authorship of an update is not cryptographically proven. The norm screening stops oversized poisoning but not a poisoned delta of normal size (sign flip, backdoor); cosine trust weighting is the only defense against those, and robustness experiments (E3 in `run_experiments.py`) have no results yet.
+* RL is single-GPU per node, and rollouts use plain Hugging Face `generate` (correct, not fast).
+* `validation_score` in the node's JSON is still the last logged loss, which is not a quality measure for GRPO; use `reward` in `metadata`.
+* Only a verifiable-answer reward (`math_boxed`) is provided. Rewards that execute generated code are not included (they need a sandbox).
+* Results are on one task (GSM8K) with Qwen2.5 0.5B/1.5B models.
 
 ---
 

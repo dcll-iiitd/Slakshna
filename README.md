@@ -1,317 +1,255 @@
-# SLAKSHNA — Decentralized, Serverless Federated Inference on the Edge
+# SLAKSHNA: Serverless Federated Inference on the Edge
 
-A **Peer-to-Peer Federated Inference Framework** built in **Rust** (Iroh QUIC mesh, gossip metadata dissemination, BLAKE3 blob transfer) and integrated with a high-performance Python inference sidecar (**Bhaskera-serve** + Hugging Face / PEFT). 
+SLAKSHNA is a peer-to-peer federated learning system written in **Rust** (Iroh QUIC mesh, gossip, BLAKE3 blob transfer). Each node trains a LoRA adapter on its own data.
 
-**SLAKSHNA** enables decentralized, privacy-preserving, collaborative inference across heterogeneous edge nodes without centralized multi-LoRA servers, cloud coordinators, or prompt leakage. Any participating node can answer complex user queries with the most capable specialist adapter across the entire federation—fetching weights on demand, caching locally, or ensembling multi-node posteriors with zero central infrastructure.
+This branch (`inference`) adds **federated inference**. Any node can answer a prompt with an adapter trained by another node, with no central server:
 
----
+- Nodes announce their adapters with small signed messages over gossip.
+- A node picks an adapter from its **local** registry, downloads it from a peer **only if it is not already cached**, checks its SHA-256 hash, attaches it to a shared base model and generates the answer **on its own GPU**.
+- The prompt never leaves the node. Only adapter files move between nodes.
 
-## Key Highlights & Architectural Innovations
+Generation runs in a Python sidecar built on **Bhaskera-serve** and Hugging Face **PEFT**.
 
-- **100% Prompt Privacy by Design (Zero Prompt Leakage)**  
-  Traditional cloud and multi-tenant servers (e.g., vLLM multi-LoRA) require clients to transmit sensitive user queries across the internet. In SLAKSHNA, **prompts never leave the local node (0 bytes transferred)**. Instead of sending data to the model, SLAKSHNA routes and fetches lightweight LoRA adapters to the edge device holding the prompt.
-
-- **Separation of Metadata Gossip vs. Weight Transfer**  
-  Metadata is lightweight; model weights are not. Nodes continuously sign (Ed25519) and broadcast tiny adapter announcements (~100 bytes) over `iroh-gossip`. Large LoRA weights (~4–33 MB) are never broadcast: they are fetched point-to-point via `iroh-blobs` over encrypted QUIC streams **strictly on demand** when a query actually requests that adapter.
-
-- **Content-Addressed In-Memory LRU Caching**  
-  Peer adapters are verified against advertised cryptographic SHA-256 hashes before GPU attachment and cached in an on-device LRU pool. The network fetch penalty is paid **only once** (~55.9 ms over 1 Gbps LAN). All subsequent warm queries execute at native GPU speed with zero network traffic.
-
-- **Dynamic Query-Aware Semantic Routing**  
-  Under non-IID client distributions, individual client adapters specialize in narrow sub-domains (e.g., Business vs. Sci/Tech), suffering catastrophic accuracy drops on unfamiliar topics. SLAKSHNA matches prompt embeddings against peer descriptor centroids, dynamically routing queries to the best specialist adapter and recovering full multi-domain accuracy (84.3% on AG News, matching centralized upper bounds).
-
-- **Weight-Level vs. Output-Level Collaborative Ensembling**  
-  Supports both **Adapter-Level Merging** (averaging parameter matrices $\Delta W_{\text{merged}} = \frac{1}{K}\sum \Delta W_k$ in a single forward pass) and **Output-Level Federated Mixes** (arithmetic probability averaging, log-probability averaging, confidence weighting, and majority voting).
-
-- **High Availability & Graceful Byzantine Fallback**  
-  No single point of failure. If a peer node crashes or goes offline, SLAKSHNA automatically falls through to the next best peer adapter or the local base model (retaining **100% query availability**). Cryptographic hash mismatches or corrupt weights are rejected immediately before reaching the model.
+> **Scope.** This branch serves **one adapter per query** (`POST /infer`, free-text generation). Mixing several adapters into a typed probability answer (`POST /decide`, "System One") lives on the `system-one` branch.
 
 ---
 
-## System Architecture
+## Key ideas
+
+- **Prompt privacy.** The prompt is only sent to the node's own loopback sidecar (`127.0.0.1`). In our comparison a central server receives the full prompt (389 B per query in the measured request) and a layer-split design sends hidden states (about 254 KB per query, analytical estimate). SLAKSHNA sends 0 bytes of prompt data off the node.
+- **Metadata over gossip, weights point-to-point.** Each announcement (`AdapterMeta`) is signed with Ed25519 and measured about 1 KB per adapter. It includes the adapter's PEFT config. Weights are never broadcast. They are fetched over `iroh-blobs` (encrypted QUIC) when a query needs them.
+- **Content addressing.** An adapter is identified by the SHA-256 of its `adapter_model.safetensors`. A downloaded file is checked against the announced hash before it is used. A peer that serves a wrong file is marked rejected, and the node tries another holder of the same hash.
+- **Cache.** Fetched adapters are kept on disk at `{data_dir}/adapters/<sha256>/` (default: 16, least recently used removed first, your own never). The sidecar keeps a few of them attached to the GPU model (default 4). The network cost is paid once per adapter.
+- **Fallback.** If the chosen adapter is unavailable (down, timed out, wrong hash), the node tries the next best adapter (up to 3 in total), then answers with the base model. The response `note` says what happened.
+
+---
+
+## How a query is answered
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                             Client Application / API                             │
-│                      POST /infer   |   POST /decide   |   GET /adapters          │
-└────────────────────────────────────────┬─────────────────────────────────────────┘
-                                         │
-┌────────────────────────────────────────▼─────────────────────────────────────────┐
-│                          Axum REST & WebSocket Server                            │
-│                     (Authorization, Routing, Status Telemetry)                   │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│                          Rust P2P Engine (`src/`)                                │
-│                                                                                  │
-│   • Adapter Registry (RocksDB)       • Strategy Selector (`src/inference/`)      │
-│     - Tracks peer adapter metadata     - self (personalized local adapter)       │
-│     - Validates Ed25519 signatures     - trust (highest peer trust score)        │
-│     - Resolves hashes & availability   - latest (newest training round)          │
-│                                        - query_aware (semantic centroid match)   │
-│                                                                                  │
-│   • Iroh QUIC & Gossip Protocol (`src/network/`)                                 │
-│     - `iroh-gossip`: Tiny signed metadata announcements over QUIC                │
-│     - `iroh-blobs`: On-demand P2P weight downloads (BLAKE3 verified)             │
-│     - SHA-256 Integrity Verification: Rejects tampered weights                   │
-│     - Local Disk Cache: `{data_dir}/adapters/<sha256>/`                          │
-└────────────────────────────────────────┬─────────────────────────────────────────┘
-                                         │ Loopback HTTP (127.0.0.1:8765)
-┌────────────────────────────────────────▼─────────────────────────────────────────┐
-│                    Python Inference Sidecar (`inference_engine.py`)              │
-│                           (Bhaskera-serve + HF PEFT)                             │
-│                                                                                  │
-│   • Shared Base Model loaded once in GPU memory (e.g., Qwen2.5-1.5B / OLMo-7B)   │
-│   • In-Memory PEFT LoRA Hot-Swapping (LRU Cache of active adapters)              │
-│   • Generation Engine (Token streaming, TTFT/TPOT telemetry, Chat Templates)     │
-│   • Option-Logits Scoring (System One single forward pass, Option Permutations)  │
-└──────────────────────────────────────────────────────────────────────────────────┘
+  Training round ends
+   1. Export     adapter saved as a PEFT dir named by its SHA-256
+   2. Publish    blob added to iroh-blobs (BLAKE3), signed AdapterMeta gossiped
+   3. Registry   every node keeps the latest announcements (RocksDB)
+
+  POST /infer
+   4. Select     rank adapters from the local registry (trust | self | latest). No network
+   5. Fetch      cached?  yes -> use it
+                          no  -> download from the advertiser (or another holder),
+                                 verify SHA-256, cache it
+   6. Generate   sidecar attaches the adapter and generates on the local GPU
 ```
+
+```
+Client ── POST /infer · GET /adapters · ...
+          │
+┌─────────▼───────────────────────────────────────────────────┐
+│ Rust node (target/release/iiitd)                            │
+│  src/api.rs         Axum REST API                           │
+│  src/inference/     rank, fetch + verify, call the sidecar  │
+│  src/registry.rs    signed adapter registry (RocksDB)       │
+│  src/network/       iroh-gossip (metadata), iroh-blobs      │
+│  src/history.rs     peer reviews -> local trust scores      │
+└─────────┬───────────────────────────────────────────────────┘
+          │ loopback HTTP 127.0.0.1:<sidecar_port> (default 8765)
+┌─────────▼───────────────────────────────────────────────────┐
+│ Python sidecar (inference_engine.py)                        │
+│  Bhaskera-serve HFEngineWrapper + PEFT                      │
+│  Base model loaded once; LoRA adapters hot-swapped          │
+│  Streaming generation with TTFT / TPOT timing               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Adapter selection (`selection`)
+
+The node ranks the adapters in its local registry and tries them in order. Only adapters for the node's `base_model` are used. Peers must reach `min_trust` (your own adapter is always allowed).
+
+| Strategy | Order |
+|---|---|
+| `trust` (default) | Highest **local** trust score first, then newest round, then your own adapter |
+| `self` | Only your own adapter, newest round first |
+| `latest` | Newest round first, then trust, then your own adapter |
+
+Trust is computed locally from peer reviews made during training (`rank_trust` in `src/history.rs`). It is not taken from the announcement, which is informational only. Until trust scores separate the adapters, `trust` effectively picks the newest round and the response `note` says so.
+
+### Methods compared in the evaluation
+
+The result tables also contain methods that the node does **not** implement. They are computed offline by `experiments/eval_offline.py` and `experiments/aggregate.py` to show what is possible:
+
+| Method | What it is | In the node? |
+|---|---|---|
+| Own adapter | The node's own adapter | yes (`self`) |
+| Random peer | A random node's adapter | no (offline) |
+| Query-aware | Choose the node whose training-data centroid (mean sentence embedding) is closest to the question | no. Computed offline. The centroid is "the descriptor a node could advertise" |
+| Merged average / TIES | All adapters merged into one adapter with PEFT (`add_weighted_adapter`) | no (offline) |
+| Majority vote | Plurality over all adapters' predictions | no (offline) |
+| Oracle | Best adapter per question | no (upper bound) |
+| Centralised | Training on pooled data | reference, not private |
 
 ---
 
-## Inference Execution Pipeline
-
-Federated inference executes in six coordinated stages:
+## Repository layout
 
 ```
-  1. Adapter Export ──► 2. Signed Gossip ──► 3. Local Registry ──► 4. Strategy Selection
-     (PEFT weights)       (Metadata only)      (RocksDB storage)     (Query / Trust / Self)
-                                                                            │
-                                         ┌──────────────────────────────────┴───────────────┐
-                                         │ Is selected adapter in local cache?              │
-                                         └───────────────┬──────────────────┬───────────────┘
-                                                    No   │                  │ Yes
-                                                         ▼                  │
-                                              5. On-Demand P2P Fetch        │
-                                                 (iroh-blobs via QUIC)      │
-                                                         │                  │
-                                                         ▼                  │
-                                                 SHA-256 Check OK?          │
-                                                         │                  │
-                                                         ▼                  ▼
-                                              6. Sidecar Local Forward Pass
-                                                 (Attach LoRA -> Generate / Score on GPU)
-```
-
-1. **Export & Hashing:** When an adapter is trained, it is saved into a content-addressed directory named by its SHA-256 hash (`{data_dir}/adapters/<sha256>/`).
-2. **Metadata Gossip:** The node announces `{node_id, round, sha256, blake3, size, base_model, rank, trust_score}` via `iroh-gossip`. No weights are broadcast.
-3. **Registry Maintenance:** Every node maintains an on-disk RocksDB table of all active adapters in the swarm (`GET /adapters`).
-4. **Query-Time Selection:** Upon receiving a query, the node selects an adapter locally based on the configured strategy (`trust`, `self`, `latest`, or `query_aware`).
-5. **On-Demand Retrieval & Verification:** If the adapter is not in the local cache, it is retrieved directly from the peer over QUIC using `iroh-blobs`. The downloaded file is checked against the announced SHA-256 hash. Corrupted files trigger graceful fallback to the base model.
-6. **On-Device Forward Pass:** The Python sidecar hot-swaps the verified adapter onto the shared base model and performs the forward pass locally on the node's GPU.
-
----
-
-## Two Inference Paradigms: Generative vs. Fast Decision
-
-SLAKSHNA provides two distinct inference modalities tailored for different task requirements:
-
-### 1. Generative Inference (System Two / Text Generation — `/infer`)
-- **Mechanism:** Autoregressive token-by-token text generation.
-- **Prompt Templating:** Wraps inputs into model-specific chat templates (`format_prompt`) to ensure robust instruction-following without conversational drift.
-- **Evaluation:** Scored via **BERTScore-F1** (semantic similarity against reference completions), **ROUGE-L** (sequence overlap), and token streaming telemetry (Time-to-First-Token, Time-per-Output-Token).
-- **Primary Benchmark:** Databricks Dolly-15k open-ended instruction following.
-
-### 2. Fast Decision Scoring (System One / Option Logits — `/decide`)
-- **Mechanism:** Evaluates multiple-choice questions or structured decisions in a **single forward pass** by extracting the model's next-token logits over valid option tokens ($A, B, C, D$).
-- **Zero Parsing Errors:** Completely eliminates syntax and format hallucination failures (**0.0% unparseable answers** compared to up to 2.2% in text generation).
-- **Permutation Invariance:** Automatically evaluates cyclic permutations of option orderings to eliminate letter/position bias (e.g., standard LLM preference for option "D").
-- **Probabilistic Calibration:** Outputs normalized, honest probability distributions, enabling evaluation of Expected Calibration Error (ECE), Negative Log-Likelihood (NLL), Brier score, and AURC.
-
----
-
-## Adapter Selection & Aggregation Taxonomy
-
-| Strategy | Training Regime | Aggregation Level | GPU Passes | Key Characteristic |
-| :--- | :---: | :---: | :---: | :--- |
-| **Base Model** | Zero-Shot | None | 1 | Shared foundation model (Qwen2.5-1.5B / OLMo-7B) without adapters. |
-| **Own Adapter Only (`self`)** | Local Skew | None | 1 | Zero network traffic; high on local distribution (95.2%), poor on unseen domains (52.2%). |
-| **Random Peer Adapter** | Federated | None | 1 | Naive decentralized baseline picking an arbitrary peer adapter. |
-| **Query-Aware Routing (`query_aware`)** | Federated | **Dynamic Dispatch** | **1** | Matches prompt embedding against peer descriptor centroids; routes to the single best specialist. |
-| **Merged Average (`merged_avg`)** | Federated | **Adapter-Level (Weights)** | **1** | Parameters blended before inference: $\Delta W = \frac{1}{K}\sum \Delta W_k$. Fast, multi-task generalist. |
-| **Merged TIES (`merged_ties`)** | Federated | **Adapter-Level (Weights)** | **1** | TIES-SVD parameter merging resolving interference across client weight updates. |
-| **Plain Average (`prob_mean`)** | Federated | **Output-Level (Probabilities)** | **$K$** | Arithmetic mean of predicted probability vectors $\mathbf{p} = \frac{1}{K}\sum \mathbf{p}_k$. |
-| **Log Average (`logit_mean`)** | Federated | **Output-Level (Logits)** | **$K$** | Geometric probability mean / average of raw logits $\mathbf{z} = \frac{1}{K}\sum \mathbf{z}_k$. Optimal calibration (ECE 0.030). |
-| **Confidence-Weighted** | Federated | **Output-Level (Probabilities)** | **$K$** | Weighted by each member's maximum prediction certainty: $w_k \propto \max(\mathbf{p}_k)$. |
-| **Majority Vote** | Federated | **Output-Level (Labels)** | **$K$** | Plurality vote over discrete class predictions across peer adapters. |
-| **Centralized Baseline** | Pooled (Non-Private) | Centralized | 1 | Upper-bound reference trained on all data in one place. |
-
----
-
-## Repository Structure (`inference` branch)
-
-```
-├── src/                               # Rust P2P Core & Networking Engine
-│   ├── main.rs                        # Node entry point, P2P orchestrator
-│   ├── api.rs                         # Axum REST API endpoints (/infer, /adapters, /peers)
-│   ├── config.rs                      # Configuration loader ([inference], [network], [node])
-│   ├── registry.rs                    # Content-addressed adapter registry (RocksDB persistence)
-│   ├── identity.rs                    # Ed25519 cryptographic keypairs
+.
+├── src/
+│   ├── main.rs, config.rs, state.rs, identity.rs
+│   ├── api.rs                 # REST routes (/infer, /adapters, /status, /peers, ...)
+│   ├── registry.rs            # signed AdapterMeta + registry (RocksDB-backed)
+│   ├── history.rs             # peer reviews and local trust (rank_trust)
 │   ├── inference/
-│   │   ├── mod.rs                     # Inference service: lifecycle, P2P fetch, sidecar bridge
-│   │   └── selector.rs                # Selection policies (trust, self, latest, query_aware)
-│   └── network/
-│       ├── blobs.rs                   # iroh-blobs wrapper for P2P adapter weight streaming
-│       ├── mesh.rs                    # iroh-gossip mesh for metadata propagation
-│       └── mod.rs                     # Network abstraction layer
-│
-├── inference_engine.py                # Python HTTP sidecar: base model + PEFT hot-swapping
-├── adapter_export.py                  # Standalone tool to package LoRAs into PEFT directories
-├── setup_serve.sh                     # Virtualenv bootstrap script for Bhaskera-serve
-├── Bhaskera-serve/                    # Lightweight model serving submodule (branch `serve`)
-│
-├── experiments/                       # Comprehensive Empirical Evaluation Suite
-│   ├── run_nodes.sh                   # Cluster launch script (train vs serve mode)
-│   ├── run_benchmarks.sh              # Master benchmark pipeline (offline, API, serving, vLLM)
-│   ├── eval_api.py                    # Evaluates real API queries (cold vs warm, selection strategies)
-│   ├── eval_offline.py                # Standalone test set scoring across adapters and models
-│   ├── bench_serving.py               # TTFT, TPOT, MFU, and concurrency stress benchmarks
-│   ├── bench_fetch.py                 # P2P adapter download latency vs LoRA rank/file size
-│   ├── compare_systems.py             # Analytical & empirical comparisons vs vLLM and Petals
-│   ├── fault_test.py                  # Node failure & crash resilience evaluations
-│   ├── aggregate.py                   # Aggregates raw logs into numerical CSV summary tables
-│   ├── plot_results.py                # Generates publication figures & documentation
-│   ├── results/                       # Evaluation benchmarks (AG News, Dolly-15k, System One)
-│   └── tikzfigs/                      # Standalone, publication-ready TikZ/PGFPlots figures
-│
+│   │   ├── mod.rs             # publish, fetch + verify, sidecar launch, infer()
+│   │   └── selector.rs        # rank(): trust / self / latest
+│   └── network/               # blobs.rs (iroh-blobs), mesh.rs (iroh-gossip)
+├── inference_engine.py        # Python sidecar: /health, /stats, /generate
+├── adapter_export.py          # used by ml_engine.py: saves an adapter as a PEFT dir named by SHA-256
+├── setup.sh                   # training environment
+├── setup_serve.sh             # serve environment (Bhaskera-serve virtualenv with PEFT)
+├── start_cluster.sh           # ./start_cluster.sh <2|4|6> [config_dir]
+├── stop_cluster.sh
+├── Bhaskera/                  # training submodule
+├── Bhaskera-serve/            # serving submodule (branch `serve`)
 ├── examples/
-│   ├── 2node-serve/                   # Ready-to-run 2-node serving configurations
-│   └── 4node-serve/                   # 4-node heterogeneous serving configuration templates
-└── tests/                             # Unit tests for adapter export, sidecar, and transport
+│   ├── 2node/ 4node/ 6node/   # training configs
+│   └── 2node-serve/           # serve-only configs (node1 = query node, node2 = adapter host)
+├── experiments/               # evaluation suite (see "Reproducing the benchmarks")
+│   ├── setup_run.py, run_nodes.sh, wait_training.sh, run_benchmarks.sh
+│   ├── eval_offline.py, eval_api.py, bench_serving.py, bench_fetch.py, fault_test.py
+│   ├── aggregate.py, plot_results.py, compare_systems.py, run_vllm.sh
+│   ├── results/               # ag_news_n4_a0.1_s0, dolly_n4_a0.1_s0 (tables, figures, raw)
+│   └── tikzfigs/              # TikZ/PGFPlots figures
+└── tests/                     # incl. test_inference_engine.py, test_adapter_export.py
 ```
 
 ---
 
-## Getting Started: Running Federated Inference
+## Quickstart
 
-### 1. Prerequisites & Environment Setup
+### Requirements
+- Linux with NVIDIA GPU(s), a recent stable Rust toolchain (the Docker image uses 1.93), Python 3.
+- Submodules: `git submodule update --init` (`Bhaskera` for training, `Bhaskera-serve` for inference).
+- The base model must be identical on every node.
 
-Ensure you have **Rust 1.75+**, **Python 3.10+**, and CUDA-enabled PyTorch installed.
-
+### 1. Build and set up
 ```bash
-# Clone the repository with submodules
 git clone --recursive https://github.com/dcll-iiitd/Slakshna.git -b inference
 cd Slakshna
 
-# Build the Rust P2P node binary (release mode)
-cargo build --release
-
-# Set up the Python inference sidecar virtual environment
-./setup_serve.sh
+cargo build --release     # builds target/release/iiitd
+./setup.sh                # training environment
+./setup_serve.sh          # serve environment (Bhaskera-serve/.venv with PEFT)
 ```
 
-### 2. Configuration (`node1.toml`)
-
-Configure each node to enable inference mode and point to the shared base model:
-
-```toml
-[federation]
-id = "slakshna-inference-cluster"
-name = "Slakshna Edge Mesh"
-
-[node]
-id = "node-1"
-data_dir = "./data-node1"
-gpu_id = 0
-
-[network]
-host = "0.0.0.0"
-p2p_port = 9000
-api_port = 8545
-
-[inference]
-enabled = true
-base_model = "Qwen/Qwen2.5-1.5B-Instruct"  # Shared base model
-selection = "trust"                         # Default selection: trust | self | latest | query_aware
-min_trust = 0.0                             # Minimum trust score required to use a peer adapter
-sidecar_port = 8765                         # Local loopback port for the Python sidecar
-sidecar_python = "Bhaskera-serve/.venv/bin/python"
-serve_bhaskera_path = "Bhaskera-serve"
-spawn_sidecar = true                        # Automatically launches inference_engine.py
-serve_only = true                           # Pure inference mode (skips local training loop)
-cache_max_adapters = 8                      # Maximum adapters retained in local GPU/RAM cache
-max_adapter_bytes = 2147483648              # 2 GB cache storage limit
-```
-
-### 3. Launching the Local Multi-Node Serving Cluster
-
-Start a 2-node or 4-node serving cluster with pre-configured templates:
-
+### 2. Get adapters by training
+A node can only serve adapters that exist in `{data_dir}/adapters/`. Train once with a config that has `[inference] enabled = true`, then stop the cluster:
 ```bash
-# Start 2 nodes in serve mode (node1 on port 8545, node2 on port 8546)
-./start_cluster.sh 2 examples/2node-serve
+./start_cluster.sh 2 examples/2node     # nodes train and publish an adapter each round
+./stop_cluster.sh
+```
+Training and serving must use the same `data_dir` (`./data-node1`, `./data-node2`).
 
-# Monitor the logs of node 1
+### 3. Serve and query
+```bash
+./start_cluster.sh 2 examples/2node-serve
 tail -f logs/node1_cluster.log
 ```
+`examples/2node-serve` sets `serve_only = true`: no training, the nodes publish their newest on-disk adapter and answer queries. Node 1 (API port 8545) runs a sidecar (`spawn_sidecar = true`). Node 2 (API port 8555) only hosts its adapter.
 
-Wait until the logs confirm that both nodes have connected via Iroh and the sidecar is initialized:
-```text
-INFO 🔑 Iroh EndpointId: a65a49db0894467a...
-INFO [inference_engine] loading base model Qwen/Qwen2.5-1.5B-Instruct ...
-INFO [inference_engine] ready on 127.0.0.1:8765
-INFO 🚀 Axum API server listening on 0.0.0.0:8545
+Wait for the sidecar line in the log:
+```
+[inference_engine] ready on 127.0.0.1:8765
 ```
 
-### 4. Inspecting the Adapter Registry
-
-Query any node's local registry to inspect all available adapters in the federation:
-
+List the adapters node 1 knows:
 ```bash
 curl -s http://127.0.0.1:8545/adapters | jq
 ```
-
-*Example Response:*
-```json
-{
-  "success": true,
-  "adapters": [
-    {
-      "node_id": "node-1",
-      "round": 3,
-      "sha256": "8f3b21c4a...",
-      "base_model": "Qwen/Qwen2.5-1.5B-Instruct",
-      "rank": 16,
-      "size": 4371840,
-      "trust_score": 1.0,
-      "cached": true,
-      "is_self": true
-    },
-    {
-      "node_id": "node-2",
-      "round": 3,
-      "sha256": "1e9a78d0f...",
-      "base_model": "Qwen/Qwen2.5-1.5B-Instruct",
-      "rank": 16,
-      "size": 4371840,
-      "trust_score": 0.94,
-      "cached": false,
-      "is_self": false
-    }
-  ]
-}
-```
-
-### 5. Running Inference Queries (`POST /infer`)
-
-Send an inference request to `node-1`. If `node-2`'s adapter is selected or requested, `node-1` downloads it over P2P, verifies its SHA-256 hash, attaches it to the local GPU, and generates the response on-device:
-
+Ask a question:
 ```bash
 curl -s http://127.0.0.1:8545/infer -H 'Content-Type: application/json' -d '{
   "prompt": "Explain the concept of decentralized consensus in simple terms.",
   "max_tokens": 128,
-  "temperature": 0.7,
   "selection": "trust"
 }' | jq
 ```
 
-*Example Response:*
+### 4. Stop
+```bash
+./stop_cluster.sh
+pkill -f inference_engine.py    # only if a sidecar is left running
+```
+
+---
+
+## Configuration (`[inference]`)
+
+Inference is **off by default**. See `examples/2node-serve/node1.toml` for a complete file (the example uses `allenai/OLMo-2-1124-7B`; the benchmark runs used `Qwen/Qwen2.5-1.5B-Instruct`).
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `false` | Turn federated inference on |
+| `base_model` | required when enabled | Base model the sidecar loads. Adapters for other base models are ignored. Must match `model.name` in `node_template.yaml` |
+| `selection` | `"trust"` | Default strategy: `trust`, `self` or `latest` |
+| `min_trust` | `0.0` | Peers below this local trust are ignored (your own adapter is always allowed) |
+| `sidecar_port` | `8765` | Loopback port of the sidecar |
+| `sidecar_python` | `"python"` | Python of the serve virtualenv, e.g. `Bhaskera-serve/.venv/bin/python` |
+| `serve_bhaskera_path` | `"Bhaskera-serve"` | Path to the `Bhaskera-serve` checkout |
+| `spawn_sidecar` | `true` | Start the sidecar with the node. `false` = run it yourself, or make the node an adapter host only |
+| `serve_only` | `false` | Skip the training loop. Only publish existing adapters and answer queries |
+| `cache_max_adapters` | `16` | Fetched adapters kept **on disk** (oldest used removed first, your own never) |
+| `max_adapter_bytes` | 2 GiB | Refuse to download any single adapter larger than this |
+| `fetch_timeout_secs` | `30` | Wait this long for a missing adapter, then try the next candidate |
+| `request_timeout_secs` | `300` | Wait this long for the sidecar to answer |
+| `max_new_tokens_limit` | `1024` | Hard cap on generated tokens per query |
+| `max_prompt_chars` | `32768` | Longest accepted prompt |
+| `chat_template` | `true` | Wrap prompts in the model's chat template (the adapters were trained on chat-formatted data) |
+| `api_token` | unset | If set, `POST /infer` requires `Authorization: Bearer <token>` |
+
+**Sidecar environment variables** (export before starting the node): `SLAKSHNA_INFER_MAX_ADAPTERS` (adapters kept attached at once, default 4) and `SLAKSHNA_INFER_MAX_NEW_TOKENS` (default 2048).
+
+The API listens on `network.host` (usually `0.0.0.0`) and every query costs GPU time. Set `api_token` if the node is reachable by others.
+
+---
+
+## REST API
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/infer` | `POST` | Generate text with a federated adapter |
+| `/adapters` | `GET` | Local adapter registry |
+| `/status` | `GET` | `federation_id`, `federation_name`, `round`, `peers`, `browsers`, `endpoint_id` |
+| `/peers` | `GET` | Connected gossip neighbours and every peer ever reached |
+| `/leaderboard` | `GET` | This node's local trust score per peer (`node`, `trust_score`) |
+| `/updates`, `/updates/latest`, `/updates/:index` | `GET` | Training update history |
+| `/ws` | `GET` | WebSocket (welcome message only) |
+
+Sidecar (loopback only, default `:8765`): `GET /health`, `GET /stats` (GPU memory and adapters loaded), `GET /stats/reset`, `POST /generate`. The Rust node calls `/generate`. Clients should call the node.
+
+`POST /infer` and `GET /adapters` return `503 inference_disabled` if `[inference] enabled = false`.
+
+### `POST /infer`
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `prompt` | yes | — | The query. Must be non-empty and at most `max_prompt_chars` |
+| `max_tokens` | no | 256 | Capped by `max_new_tokens_limit` (the response `note` says when it was reduced) |
+| `temperature` | no | 0.7 | Between 0 and 2. `0` = greedy |
+| `selection` | no | `selection` | `trust`, `self` or `latest` |
+| `from_node` | no | — | Use only this node's adapter (tests and benchmarks). Falls back to normal selection if that node has none |
+| `system` | no | — | System message for the chat template |
+| `raw` | no | `false` | Skip the chat template and send the prompt as is |
+| `min_tokens` | no | — | Force a minimum output length (benchmarks) |
+
+Errors: `400 invalid_request` (bad input), `401 unauthorized` (bad or missing token), `502 inference_failed` (node or sidecar failure), `503 inference_disabled`.
+
+Response (values illustrative):
 ```json
 {
   "success": true,
   "result": {
-    "text": "Decentralized consensus is a way for a group of independent computers to agree on a single source of truth without relying on any central authority or server...",
+    "text": "Decentralized consensus is a way for a group of independent computers to agree...",
     "adapter": {
-      "node_id": "node-2",
+      "node_id": "slakshna1...",
       "round": 3,
       "sha256": "1e9a78d0f...",
       "cache_hit": false
@@ -332,103 +270,123 @@ curl -s http://127.0.0.1:8545/infer -H 'Content-Type: application/json' -d '{
 }
 ```
 
-*Subsequent Request (Warm Cache Hit):*
-Repeating the query returns with `"cache_hit": true`, `fetch_ms: 0.0`, and native GPU TTFT (~92 ms).
+- `adapter` is `null` when the base model answered. `note` explains fallbacks and dropped adapters.
+- `ttft_ms` = `select_ms` + `fetch_ms` + `attach_ms` + `model_ttft_ms`, the delay before the first token.
+- Repeating the query gives `cache_hit: true` and `fetch_ms` near 0.
 
-### 6. Graceful Cluster Shutdown
-
-```bash
-./stop_cluster.sh
-pkill -f inference_engine.py
+### `GET /adapters`
+The newest adapter announced by each node (the registry keeps the last 3 rounds per node).
+```json
+{
+  "success": true,
+  "adapters": [
+    {
+      "node_id": "slakshna1...",
+      "round": 3,
+      "sha256": "8f3b21c4a...",
+      "size": 4373040,
+      "base_model": "Qwen/Qwen2.5-1.5B-Instruct",
+      "rank": 16,
+      "advertised_trust": 0.0,
+      "local_trust": 0.0,
+      "cached": true,
+      "is_self": true
+    }
+  ]
+}
 ```
+`advertised_trust` is the owner's own claim. `local_trust` is this node's score and is the one used for ranking.
 
 ---
 
-## REST API Reference
+## Reproducing the benchmarks
 
-| Endpoint | Method | Description | Request Payload | Response Key Fields |
-| :--- | :---: | :--- | :--- | :--- |
-| `/status` | `GET` | Node health, round, active Iroh peer count | None | `federation_id`, `round`, `peers`, `endpoint_id` |
-| `/peers` | `GET` | Active gossip neighbours & remembered peers | None | `connected`, `known`, `endpoint_id` |
-| `/adapters` | `GET` | Current local adapter registry | None | `adapters`: array of metadata, `cached`, `is_self` |
-| `/infer` | `POST` | Federated generative inference | `{prompt, max_tokens, temperature, selection, from_node, system, raw}` | `text`, `adapter` info, detailed `timing` breakdown |
-| `/leaderboard`| `GET` | Current peer trust scores (`alpha` / `w_i`) | None | `leaderboard`: list of `node` and `trust_score` |
-| `/health` (sidecar)| `GET` | Sidecar GPU process status (`:8765`) | None | `{"status": "ok"}` |
-| `/stats` (sidecar) | `GET` | GPU memory telemetry (`:8765`) | None | `allocated_mb`, `peak_allocated_mb`, `adapters_loaded` |
-
-### `/infer` Parameter Details
-
-- `prompt` *(string, required)*: The input query.
-- `max_tokens` *(int, default: 256)*: Maximum new tokens to generate.
-- `temperature` *(float, default: 0.7)*: Sampling temperature (0.0 for greedy decoding).
-- `selection` *(string, optional)*: Override node strategy (`"trust"`, `"self"`, `"latest"`, `"query_aware"`).
-- `from_node` *(string, optional)*: Pin request to a specific node's adapter (for testing/benchmarks).
-- `raw` *(bool, default: false)*: When true, skips the model chat template and passes the prompt verbatim.
-- `min_tokens` *(int, optional)*: Forces a minimum output length (used for TPOT benchmarking).
-
----
-
-## Reproducing Empirical Benchmarks
-
-The `experiments/` directory contains automated runners to benchmark quality, latency, concurrency, and fault tolerance:
+Everything lives in `experiments/`. A run is identified by a tag such as `ag_news_n4_a0.1_s0` (dataset, 4 nodes, Dirichlet label skew α = 0.1, seed 0).
 
 ```bash
-# Run the complete benchmark suite on a trained run (e.g. AG News 4-node skew)
+# 1. Prepare data and configs for the run (tokenises each node's data, writes train/ and serve/ configs)
+python experiments/prepare_data.py --dataset ag_news --nodes 4 --alpha 0.1 --seed 0
+python experiments/setup_run.py --tag ag_news_n4_a0.1_s0 --model Qwen/Qwen2.5-1.5B-Instruct --rounds 3
+
+# 2. Train, then wait until every node published the last round
+./experiments/run_nodes.sh ag_news_n4_a0.1_s0 train
+./experiments/wait_training.sh ag_news_n4_a0.1_s0 3 4
+./experiments/stop_nodes.sh ag_news_n4_a0.1_s0 train
+
+# 3. All evaluation steps (offline, api, serving, vllm, fault, fetch, tables)
 ./experiments/run_benchmarks.sh ag_news_n4_a0.1_s0
-
-# Individual benchmark steps:
-# 1. Evaluate offline quality across all test splits and methods
-Bhaskera-serve/.venv/bin/python experiments/eval_offline.py --tag ag_news_n4_a0.1_s0 --gpu 0 --merge
-
-# 2. Evaluate live HTTP API (cold vs warm TTFT, selection strategies)
-Bhaskera-serve/.venv/bin/python experiments/eval_api.py --tag ag_news_n4_a0.1_s0 --n 200
-
-# 3. Serving stress benchmark (TTFT, TPOT, MFU, Concurrency)
-Bhaskera-serve/.venv/bin/python experiments/bench_serving.py --backend slakshna --url http://127.0.0.1:8545
-
-# 4. Fault tolerance under peer node crashes
-Bhaskera-serve/.venv/bin/python experiments/fault_test.py --tag ag_news_n4_a0.1_s0 --n 30
-
-# 5. P2P download speed vs LoRA rank (r=8 to r=128)
-Bhaskera-serve/.venv/bin/python experiments/bench_fetch.py --tag ag_news_n4_a0.1_s0
-
-# 6. Aggregate numerical tables and compile LaTeX TikZ plots
-Bhaskera-serve/.venv/bin/python experiments/aggregate.py --tag ag_news_n4_a0.1_s0
-Bhaskera-serve/.venv/bin/python experiments/plot_results.py --tag ag_news_n4_a0.1_s0
 ```
 
----
-
-## Empirical Benchmark Findings Summary
-
-All figures are compiled in `experiments/results/` and `experiments/tikzfigs/`:
-
-1. **Accuracy on AG News (4 Nodes, Skew $\alpha = 0.1$):**
-   - Relying solely on a client's **own adapter** yields only **52.2%** accuracy globally due to severe domain blind spots (down to 0.0% on unseen classes).
-   - **Query-aware routing** achieves **84.3%** accuracy (Macro-F1: 0.841), eliminating blind spots by routing to the specialist peer.
-   - **Merged weights (`merged_avg`)** reaches **83.9%** (Macro-F1: 0.841) in a single forward pass.
-   - *(Non-private centralized upper bound: 87.2%).*
-
-2. **Open-Ended Generation Quality (Databricks Dolly-15k):**
-   - Base foundation model achieves **0.204 BERTScore-F1**.
-   - Single local adapter achieves **0.294**.
-   - **Query-aware routing** and **Merged average** both reach **0.316** (+0.112 over base, +0.022 over local adapter).
-
-3. **System Latency & Hardware Utilization (NVIDIA RTX A6000):**
-   - **Warm TTFT:** **113.9 ms** (median 92.6 ms) with 0 bytes network communication.
-   - **Cold Fetch & Verification:** Completed in just **55.9 ms** over P2P QUIC streams for standard rank-16 adapters (4.17 MB).
-   - **Hardware Efficiency (MFU):** Slakshna achieves **41.9% Model FLOPs Utilization** (64.9 TFLOP/s) at 4k prompt lengths, matching and slightly exceeding centralized vLLM (38.7% MFU).
-
-4. **Zero Prompt Exposure & Communication Comparison:**
-   - **Slakshna:** **0.0 Bytes** prompt exposure off-device; **0.0 Bytes** network traffic on warm queries.
-   - **Central vLLM:** Exposes entire prompt text (389.5 B/query) over the network; single point of failure.
-   - **Petals (Layer-Split):** Leaks hidden states (254.5 KB/query); transfers >1.3 MB per query with ~200 ms network latency on every generated token.
-
-5. **Fault Tolerance:**
-   - Slakshna edge nodes maintain **100% request completion** during peer crashes with graceful fallback to surviving adapters or base models, avoiding total outages.
+Individual steps (run with `Bhaskera-serve/.venv/bin/python`):
+```bash
+python experiments/eval_offline.py --tag ag_news_n4_a0.1_s0 --gpu 0 --merge   # every adapter on every test set
+python experiments/eval_api.py     --tag ag_news_n4_a0.1_s0 --n 200            # live /infer: strategies, cold vs warm
+python experiments/bench_serving.py --backend slakshna --url http://127.0.0.1:8545   # TTFT, TPOT, MFU, concurrency
+python experiments/fault_test.py   --tag ag_news_n4_a0.1_s0 --n 30             # peers down
+python experiments/bench_fetch.py  --tag ag_news_n4_a0.1_s0                    # fetch time vs LoRA rank
+python experiments/aggregate.py    --tag ag_news_n4_a0.1_s0                    # CSV tables
+python experiments/plot_results.py --tag ag_news_n4_a0.1_s0                    # figures
+```
+The vLLM comparison needs its own environment (`experiments/run_vllm.sh`, `experiments/.venv-vllm`).
 
 ---
 
-## 📄 License
+## Results
 
-This project is licensed under the **Apache License 2.0** — see the [LICENSE](LICENSE) file for details.
+Setup: Qwen2.5-1.5B-Instruct, 4 nodes, Dirichlet label skew α = 0.1, seed 0, 3 training rounds, one GPU per node (NVIDIA RTX A6000 for the speed numbers). One run, so treat small differences with care. Full tables, figures and explanations: [`experiments/results/`](experiments/results).
+
+### 1. AG News accuracy (4 topics, 1,000 balanced test questions)
+In AG News the answer is parsed from the generated text. "Own adapter" is the mean over the 4 nodes.
+
+| Method | Accuracy | In the node? |
+|---|---|---|
+| Base model, no adapter | 71.3% | — |
+| Own adapter only | 52.4% | yes (`self`) |
+| Majority vote of all adapters | 70.5% | no (offline) |
+| Merged adapters, TIES | 73.9% | no (offline) |
+| Merged adapters, average | 83.9% | no (offline) |
+| Query-aware choice | 84.3% | no (offline) |
+| Centralised training (not private) | 87.2% | reference |
+| Oracle (best adapter per question) | 98.7% | upper bound |
+
+Under label skew each adapter is an expert on its own topics (it reaches 90.8% to 99.6% on its own local test set) but collapses on topics it never saw (0.0% on some). Combining peers' knowledge recovers most of the gap, but the node itself currently serves a single adapter per query.
+
+### 2. Dolly-15k open-ended generation (BERTScore-F1, 200 questions)
+
+| Method | BERTScore-F1 |
+|---|---|
+| Base model | 0.204 |
+| Own adapter only | 0.294 |
+| Merged average | 0.316 |
+| Query-aware choice | 0.316 |
+| Merged TIES | 0.319 |
+
+### 3. Latency (AG News run, time to first token)
+
+| Case | Mean | Median |
+|---|---|---|
+| Warm (adapter cached) | 113.9 ms | 92.6 ms |
+| Cold (adapter fetched first) | 550.4 ms | 300.6 ms |
+
+A cold query adds about 55.9 ms to fetch and verify a rank-16 adapter (4.17 MB) over a local network, plus 180.8 ms to attach it to the GPU model. Choosing the adapter takes under 0.05 ms. Fetch time grows with adapter size: 39 ms at rank 8 (2.1 MB) up to 344 ms at rank 128 (33.3 MB).
+
+### 4. Speed compared with a central vLLM multi-LoRA server
+
+| | SLAKSHNA sidecar | vLLM |
+|---|---|---|
+| TTFT, short prompts (128 to 512 tokens) | 55.0 ms | 27.2 ms |
+| Model FLOPs utilisation at 4,096 tokens | 41.9% | 38.7% |
+| Decode speed | 30.5 ms/token | 7.3 ms/token |
+| Throughput, 16 concurrent requests | about 33 tokens/s | 1,692 tokens/s |
+
+The sidecar handles one request at a time. Under heavy concurrency vLLM is far faster, because it batches. The design assumes each node serves its own local user.
+
+### 5. Fault tolerance (30 queries per case)
+With 1 or 2 peers killed, 100% of queries were still answered. With `trust` the node fell back to a surviving peer's adapter, at about 1.16 s latency (instead of about 0.19 s) while the dead peer's fetch failed. With `self` nothing changed (about 0.12 s). Note that fallback changes which adapter answers, so accuracy can change too.
+
+
+---
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).

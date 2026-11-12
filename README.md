@@ -1,263 +1,259 @@
-# SLAKSHNA — System One: Fast, Federated Decision Scoring on the Edge
+# SLAKSHNA System One: Fast Federated Decisions on the Edge
 
-A **Peer-to-Peer Federated Decision Framework** built in **Rust** (Iroh QUIC mesh, gossip metadata, BLAKE3 blob transfer) and integrated with a high-performance Python inference sidecar (**Bhaskera-serve** + PyTorch / PEFT).
+SLAKSHNA is a peer-to-peer federated learning system written in **Rust** (Iroh QUIC mesh, gossip, BLAKE3 blob transfer). Each node trains a LoRA adapter on its own data.
 
-**SLAKSHNA System One** introduces fast, deterministic, closed-set probabilistic decision-making on the edge. Rather than relying on slow, autoregressive generative decoding with high variance and unparseable outputs (System Two), System One extracts next-token logits over closed option labels in a **single forward pass** ($O(1)$ decoding steps). Peer nodes collaboratively ensemble their local specialist LoRA adapters via cryptographic peer-to-peer weight transfers, cyclic option debiasing, and trust-weighted posterior mixing—all with **zero prompt leakage**.
+**System One** is the inference side. Given a situation and a **closed list of allowed answers**, it returns a probability for every answer. It does not generate text. Each node scores the options locally with several peers' LoRA adapters and mixes the results with trust weights.
+
+- The query (state, question, options) **never leaves the node**. Only adapter files move between nodes.
+- Every decision is a valid, typed answer. Nothing has to be parsed.
+- Each decision also reports confidence, margin, entropy and how many adapters agreed.
 
 ---
 
-## System One vs. System Two: Dual-Process Collaborative AI
+## System One vs. System Two
 
-| Dimension | System One (Fast, Typed Decision) | System Two (Slow, Generative Decoding) |
+| | System One (`POST /decide`) | System Two (`POST /infer`) |
 |---|---|---|
-| **Paradigm** | Closed-set probability distribution over options | Open-ended autoregressive token generation |
-| **Decoding Steps** | **1 forward pass** ($O(1)$ next-token logit extraction) | $N$ sequential forward passes ($O(N)$ autoregressive tokens) |
-| **Output Type** | Structured probabilities, confidence, margin, entropy | Unstructured free-form text or JSON string |
-| **Unparseable Rate** | **0.0%** (mathematically impossible to fail format) | **0.6% – 1.9%** (syntax errors, malformed tags, hallucinations) |
-| **Option Order Bias** | **0.0%** (fully cancelled via cyclic permutations) | High (10.7% – 21.5% flip rate under option reordering) |
-| **Consensus Signal** | Exact posterior agreement $\sum_{k} w_k \mathbb{I}(\hat{y}_k = \hat{y})$ | Approximate semantic clustering (BLEU / BERTScore) |
-| **Escalation Path** | Resolves high-confidence routine queries instantly; triggers System Two on low agreement | Invoked only when System One uncertainty / margin demands deep chain-of-thought |
+| Task | Pick one of 2–255 given options | Generate free text |
+| Output | Probabilities over the options | Text |
+| Decoding | Reads next-token logits once per forward pass. No token loop | Normal autoregressive generation |
+| Adapters used | Up to `k` peers' adapters, mixed | One adapter |
+| Can fail to parse | No | Yes (0.6% – 1.9% in our runs) |
+
+`/infer` does **not** run automatically when System One is unsure. The client decides whether to escalate, for example when `agreement` or `margin` is low.
 
 ---
 
-## Key Highlights & Architectural Innovations
+## How a decision works
 
-- **100% Prompt Privacy (Zero Prompt Leakage)**  
-  User prompts never leave the local edge node (**0 bytes transmitted**). When ensembling across the federation, client nodes fetch lightweight peer LoRA adapters (~4–33 MB) on-demand over encrypted QUIC streams, executing all scoring passes entirely on local hardware.
+1. **Publish.** After each training round the node exports its aggregated LoRA adapter, hashes it (SHA-256), registers it in iroh-blobs (BLAKE3) and gossips a small **signed** announcement (`AdapterMeta`). No weights travel over gossip.
+2. **Registry.** Every node keeps the latest announcements of all nodes (last 3 rounds per node, stored in RocksDB, so it survives restarts).
+3. **Select.** On `POST /decide` the node picks up to `k` adapters from its local registry. Selection uses only local data and no network:
+   - only adapters for the same `base_model`;
+   - peers must reach `min_trust`;
+   - **the node's own adapter is always included**;
+   - identical weights from two nodes count once;
+   - weight = softmax(local trust / `weight_temperature`).
+4. **Fetch and verify.** Missing adapters are downloaded in parallel by hash from the advertising node (or any other node holding the same hash). The SHA-256 is checked before use. A slow, failed or tampered adapter is dropped (`fetch_timeout_secs`, default 30 s). A node that serves a wrong file is marked rejected. If no adapter is available, the base model decides.
+5. **Score locally.** The Python sidecar loads the base model once and swaps LoRA adapters in and out. For each adapter it builds a prompt where options are labelled ` A`, ` B`, ..., runs a forward pass, and takes the next-token logits of the label tokens. A softmax over them gives the probabilities.
+6. **Debias.** The options are rotated (cyclic shifts) and scored once per rotation. Probabilities are mapped back and averaged, which cancels letter and position bias.
+7. **Mix.** The adapters' distributions are combined with their trust weights (`prob_mean` or `logit_mean`).
+8. **More options than labels.** A two-stage tournament is used (see below).
 
-- **Option-Logit Scoring (Zero Token Generation)**  
-  Given program state and a closed set of candidate choices, System One restricts the model's vocabulary logits to single-token option labels (`" A"`, `" B"`, `" C"`, `" D"`). Softmax over these candidate tokens yields a rigorous, typed probability distribution without running multi-token autoregressive generation.
-
-- **0.0% Unparseable Format Failures**  
-  Generative models frequently fail downstream execution pipelines by outputting invalid JSON, preamble conversational filler ("Sure, the answer is..."), or unparseable labels. System One constrains the output space directly at the logit layer, guaranteeing **100% valid, typed decisions**.
-
-- **Cyclic Permutations & Letter Debiasing**  
-  LLMs exhibit strong positional and letter biases (e.g. disproportionately preferring option "D" or earlier-listed items). System One automatically evaluates options under evenly spread cyclic shifts:
-  $$\text{order}_p = [(i + s_p) \bmod n]$$
-  Probabilities are mapped back to option identities and averaged. This completely cancels positional bias (reducing flip rate under reordering from 21.5% to **0.0%**).
-
-- **Two-Stage Chunked Tournament Scaling (up to 255 Options)**  
-  Single-token label sets are bounded by tokenizer vocabularies (e.g. 26 Latin letters A–Z). For massive closed option sets (e.g., Banking77 with 77 customer intent classes), System One automatically executes a two-stage tournament:
-  1. *Stage 1 (Chunking):* Options are partitioned into chunks of size $\le 26$. The federation scores each chunk and retains the top candidates.
-  2. *Stage 2 (Finalist Pass):* Finalists from all chunks compete in a decisive final forward pass.
-
-- **Trust-Weighted Byzantine Defense**  
-  Peer distributions are mixed using trust scores derived from historical validation:
-  $$w_k = \frac{\exp(\alpha_k / T_{\text{trust}})}{\sum_j \exp(\alpha_j / T_{\text{trust}})}$$
-  Under an active Byzantine attack where 2 of 4 nodes submit poisoned adapters (97% probability on incorrect options), trust-weighted mixing maintains **79.9% accuracy**, whereas naive averaging collapses to **24.1%**.
-
-- **Consensus Agreement as Unsupervised Confidence & Escalation Trigger**  
-  The agreement metric—the weighted fraction of peer adapters whose individual top choice matches the ensemble decision—acts as an intrinsic, unsupervised confidence metric. When 4 of 4 peers agree, accuracy reaches **96.6%**. Queries with low agreement or narrow margin ($p_{(1)} - p_{(2)} < 0.15$) can be seamlessly escalated to System Two generative reasoning.
-
----
-
-## System Architecture
+### Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│                                 Client Application                                      │
-│                POST /decide        |        POST /infer        |      GET /adapters     │
-└────────────────────────────────────────────┬────────────────────────────────────────────┘
-                                             │
-┌────────────────────────────────────────────▼────────────────────────────────────────────┐
-│                              Axum REST Server (`src/api.rs`)                            │
-│                         (Request validation, JSON serialization)                        │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│                             Rust Core Engine (`src/inference/`)                         │
-│                                                                                         │
-│   • Top-k Selector (`selector.rs`):                                                     │
-│     - Ranks peer adapters by local trust score: w_k ∝ exp(α_k / T_trust)               │
-│     - Limits ensembling to top-k peers (default: k=3)                                   │
-│                                                                                         │
-│   • Peer-to-Peer QUIC Networking (`src/network/`):                                      │
-│     - `iroh-gossip`: Receives signed Ed25519 adapter announcements (~100 B)             │
-│     - `iroh-blobs`: Fetches missing weights point-to-point on demand                    │
-│     - Cryptographic SHA-256 verification against announced digest                       │
-│     - Local Disk Cache: `{data_dir}/adapters/<sha256>/`                                 │
-└────────────────────────────────────────────┬────────────────────────────────────────────┘
-                                             │ Loopback HTTP (127.0.0.1:8765)
-┌────────────────────────────────────────────▼────────────────────────────────────────────┐
-│                       Python Inference Sidecar (`inference_engine.py`)                  │
-│                                 (Bhaskera-serve + HF PEFT)                              │
-│                                                                                         │
-│   • Shared Base Model loaded in GPU VRAM (e.g., Qwen2.5-1.5B / Qwen2.5-7B)              │
-│   • In-Memory LoRA Cache & Fast Adapter Swapping                                        │
-│   • System One Decision Engine (`federated_inference/system_one.py`):                   │
-│     1. Label Tokenizer Mapping: Single-token label vocabulary (spaced: " A", " B"...)   │
-│     2. Prompt Formatting: Program state + Question + Option List + "Answer:"            │
-│     3. Cyclic Permutations: Rotates options across passes to cancel letter bias         │
-│     4. Next-Token Logit Restriction: Softmax over candidate label IDs                   │
-│     5. Two-Stage Tournament: Chunked tournament when options > 26 (e.g. Banking77)      │
-│     6. Posterior Mixing: Arithmetic (`prob_mean`) or Geometric (`logit_mean`) ensembling│
-│     7. Uncertainty Metrics: Confidence, Margin, Entropy, Format Mass, Member Agreement  │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
+Client ── POST /decide · POST /infer · GET /adapters
+            │
+┌───────────▼─────────────────────────────────────────────┐
+│ Rust node (iiitd)                                       │
+│  src/api.rs            Axum REST API                    │
+│  src/inference/        select adapters, fetch + verify, │
+│                        call the sidecar                 │
+│  src/registry.rs       signed adapter registry          │
+│  src/network/          iroh gossip (metadata) +         │
+│                        iroh-blobs (adapter weights)     │
+│  src/history.rs        peer reviews → local trust       │
+└───────────┬─────────────────────────────────────────────┘
+            │ loopback HTTP 127.0.0.1:<sidecar_port> (default 8765)
+┌───────────▼─────────────────────────────────────────────┐
+│ Python sidecar (inference_engine.py)                    │
+│  Bhaskera-serve HFEngineWrapper + HF PEFT               │
+│  Base model loaded once; LoRA adapters kept in a small  │
+│  LRU (SLAKSHNA_INFER_MAX_ADAPTERS, default 4)           │
+│  federated_inference/system_one.py: labels, prompt,     │
+│  cyclic debiasing, two-stage tournament, mixing, metrics│
+└─────────────────────────────────────────────────────────┘
 ```
+
+### Where trust comes from
+
+Trust is **local**. Each node scores its peers' model updates during training (peer reviews). `rank_trust` in `src/history.rs` turns the reviews into one score per peer:
+
+- a node's review of itself is ignored;
+- older rounds count less (decay 0.9 per round);
+- each reviewer gets one vote.
+
+The `trust_score` inside an announcement is only informational. Receivers use their own scores. Peer reviews are saved in RocksDB, so trust survives a restart.
 
 ---
 
-## Mathematical Formulation
+## Method details
 
-### 1. Label Extraction & Option Logit Restriction
-Let $\mathcal{V}$ denote the model's vocabulary and $\mathcal{L} = \{l_1, l_2, \dots, l_n\} \subset \mathcal{V}$ be the single-token representation of labels (e.g., `[" A", " B", " C", " D"]`). Given prompt context $x$, the model computes next-token logits $\mathbf{z} \in \mathbb{R}^{|\mathcal{V}|}$.
+### 1. Option logits and probabilities
+Let `l_1..l_n` be the single-token labels (for example ` A`, ` B`, ` C`, ` D`) and `z` the next-token logits. With calibration temperature `T_cal`:
 
-The option-restricted logits are scaled by calibration temperature $T_{\text{cal}}$:
-$$\tilde{z}_i = \frac{z_{l_i}}{T_{\text{cal}}}, \quad i \in \{1, \dots, n\}$$
+$$p(y=i \mid x) = \frac{\exp(z_{l_i}/T_{\text{cal}})}{\sum_{j=1}^{n}\exp(z_{l_j}/T_{\text{cal}})}$$
 
-The normalized probability vector over candidate options for a single prompt ordering is:
-$$p(y = i \mid x) = \frac{\exp(\tilde{z}_i)}{\sum_{j=1}^n \exp(\tilde{z}_j)}$$
+Label set: the tokenizer's single-token labels from `A–Z a–z 0–9`, in the spaced form (` A`) when it offers at least 26 of them. Qwen offers 52 spaced labels, so up to 52 options fit in one stage.
 
-### 2. Format Mass Integrity Check
-To verify that the base model is adhering to the decision prompt format rather than allocating probability mass to conversational drift, System One computes the **format mass**:
-$$\text{format\_mass} = \frac{\sum_{i=1}^n \exp(z_{l_i})}{\sum_{v \in \mathcal{V}} \exp(z_v)}$$
-If $\text{format\_mass}$ falls below a safe threshold (e.g. $< 0.80$), the decision is flagged as low format integrity.
+### 2. Format mass
+The share of the full next-token probability that sits on the label tokens (before restricting):
 
-### 3. Cyclic Option Debiasing
-To eliminate positional bias, System One generates $P$ cyclic index shifts $s \in \mathcal{S}$:
-$$\text{order}_s = \Big( (i + s) \bmod n \Big)_{i=0}^{n-1}$$
-For each permutation, candidate options are shuffled into $\text{order}_s$, evaluated, and the resulting probabilities are mapped back to their canonical option index:
-$$p_{\text{debiased}}(y = i) = \frac{1}{|\mathcal{S}|} \sum_{s \in \mathcal{S}} p^{(s)}(y = i)$$
+$$\text{format\_mass} = \frac{\sum_{i}\exp(z_{l_i})}{\sum_{v\in\mathcal{V}}\exp(z_v)}$$
 
-### 4. Federated Posterior Mixing Rules
-Given $K$ peer adapters with normalized trust weights $\mathbf{w} = (w_1, \dots, w_K)^T$ where $\sum_k w_k = 1$:
+A low value means the model was not following the answer format. The response reports `min_format_mass`. If it is below 0.5, the node adds a warning to `note`.
 
-- **Arithmetic Mean (`prob_mean`, Default):**
-  $$p_{\text{ens}}(y = i) = \sum_{k=1}^K w_k p_k(y = i)$$
-  *Robustness property:* The influence of an adversarial or corrupted adapter is strictly bounded by its weight $w_k$.
+### 3. Cyclic debiasing
+For `n` options and shifts `s`, position `j` shows option `(j + s) mod n`. The probabilities of all rotations are mapped back and averaged.
 
-- **Log-Probability / Geometric Mean (`logit_mean`):**
-  $$\log \tilde{p}_{\text{ens}}(y = i) = \sum_{k=1}^K w_k \log \max(p_k(y = i), \epsilon)$$
-  $$p_{\text{ens}}(y = i) = \frac{\exp(\log \tilde{p}_{\text{ens}}(y = i))}{\sum_j \exp(\log \tilde{p}_{\text{ens}}(y = j))}$$
-  *Sharpness property:* Highly confident peer consensus dominates unconfident peers.
+- `permutations = 0` (auto): **every** shift when `n ≤ 6`, otherwise 6 evenly spread shifts.
+- `permutations = 1`: one pass, no debiasing.
+- Maximum is 8.
+- Cost: one forward pass per adapter per rotation.
 
-### 5. Two-Stage Tournament for Large Option Spaces ($N > 26$)
-When the number of options $N$ exceeds single-token label capacity $L = |\mathcal{L}| \approx 26$:
-1. **Partitioning:** Partition options into $C = \lceil N / L \rceil$ interleaved chunks $\mathcal{C}_1, \dots, \mathcal{C}_C$.
-2. **Chunk Elimination:** Evaluate each chunk independently across all $K$ adapters. The ensemble selects the top $M = \max(1, \lfloor L / C \rfloor)$ candidates from each chunk.
-3. **Finalist Round:** Pool finalists $\mathcal{F} = \bigcup_{c} \text{top}(\mathcal{C}_c)$ into a final option set ($|\mathcal{F}| \le L$) and execute a decisive scoring pass.
+With every shift used, each option visits every position equally often, so the answer no longer depends on the option order. With more than 6 options the cancellation is only partial.
 
-### 6. Uncertainty & Agreement Telemetry
-For ensemble decision $\hat{y} = \arg\max_i p_{\text{ens}}(y = i)$:
-- **Confidence:** $c = p_{\text{ens}}(\hat{y})$
-- **Margin:** $m = p_{\text{ens}}(\hat{y}) - \max_{j \ne \hat{y}} p_{\text{ens}}(j)$
-- **Entropy (nats):** $H = -\sum_{i=1}^n p_{\text{ens}}(i) \ln p_{\text{ens}}(i)$
-- **Peer Agreement:**
-  $$A = \sum_{k=1}^K w_k \cdot \mathbb{I}\left(\arg\max_j p_k(j) = \hat{y}\right)$$
+### 4. Mixing rules
+With normalised weights `w_k` (`Σ w_k = 1`):
+
+- **`prob_mean`** (default): $p(i)=\sum_k w_k\,p_k(i)$. A bad adapter's influence is limited by its weight.
+- **`logit_mean`**: $p(i)\propto\exp\big(\sum_k w_k \log\max(p_k(i),10^{-12})\big)$. A confident adapter can dominate.
+
+### 5. Two-stage tournament (more options than labels)
+Let `L` be the number of labels (52 for Qwen) and `N > L` the number of options.
+
+1. Split the options into `C = ceil(N / L)` interleaved chunks.
+2. Score every chunk with all adapters and mix. Keep the top `max(1, floor(L / C))` options of each chunk.
+3. Score the finalists in one more round and take the final decision.
+
+Example, Banking77 (77 options, Qwen): 2 chunks, 26 finalists from each, 52 in the final round. That is (2 chunks + 1 final) × 6 rotations = 18 forward passes per adapter, or 72 for 4 adapters.
+
+### 6. Reported metrics
+For the final distribution `p` and choice `ŷ = argmax p`:
+
+- `confidence = p(ŷ)`
+- `margin = p(ŷ) − (second-highest probability)`
+- `entropy = −Σ p ln p` (nats)
+- `agreement = Σ_k w_k · 1[argmax p_k = ŷ]`, the weight share of adapters whose own top choice matches
 
 ---
 
-## Repository Structure (System One Focus)
+## Repository layout (System One)
 
 ```
-slakshna/
+.
 ├── federated_inference/
-│   ├── __init__.py
-│   └── system_one.py             # Pure-PyTorch System One implementation:
-│                                 # label extraction, prompt building, cyclic debiasing,
-│                                 # two-stage tournament chunking, mixing rules (prob/logit mean)
+│   ├── system_one.py          # labels, prompt, debiasing, tournament, mixing, metrics
+│   └── adapter_export.py      # saves the aggregated adapter as a PEFT dir named by SHA-256
+├── inference_engine.py        # Python sidecar: /health, /generate, /decide
 ├── src/
-│   ├── api.rs                    # Axum REST routes: POST /decide, POST /infer, GET /adapters
-│   ├── config.rs                 # [inference] configuration parser & validation
+│   ├── api.rs                 # REST routes (/decide, /infer, /adapters, ...)
+│   ├── config.rs              # [inference] settings and validation
+│   ├── registry.rs            # signed AdapterMeta + registry (RocksDB-backed)
+│   ├── history.rs             # peer reviews and local trust (rank_trust)
+│   ├── network/               # iroh gossip + iroh-blobs
 │   └── inference/
-│       ├── mod.rs                # P2P inference service: adapter fetching, verification,
-│       │                         # sidecar lifecycle, DecideRequest/Response orchestration
-│       └── selector.rs           # Top-k selection, trust-weight softmax, query routing
-├── inference_engine.py           # Loopback HTTP sidecar (port 8765):
-│                                 # Loads shared base model, manages PEFT LoRA hot-swapping,
-│                                 # executes system_one.decide(...)
-├── experiments/
-│   └── results/system_one/       # Benchmark figures, tables, and empirical evaluations:
-│       ├── ag_news_n4_a0.1_s0_s1/     # AG News 4-class evaluation
-│       └── banking77_n4_a0.1_s0_s1/   # Banking77 77-class two-stage tournament
+│       ├── mod.rs             # publish, fetch + verify, sidecar launch, decide()/infer()
+│       └── selector.rs        # strategy selection and top-k trust weights
+├── tests/test_system_one.py   # unit tests for system_one.py
 ├── examples/
-│   └── 2node-serve/              # Cluster TOML configurations for federated serving
-│       ├── node1.toml
-│       └── node2.toml
-├── setup_serve.sh                # Automated environment setup (venv, torch, PEFT, transformers)
-├── start_cluster.sh              # Multi-node local cluster launcher
-└── stop_cluster.sh               # Cluster shutdown script
+│   ├── 2node/ 4node/ 6node/   # training configs
+│   └── 2node-serve/           # serve-only configs (no training)
+├── experiments/               # evaluation scripts; results/system_one/ holds tables and figures
+├── scripts/setup_serve.sh     # sets up the serve virtualenv (Bhaskera-serve)
+├── setup.sh                   # sets up the training environment
+├── start_cluster.sh           # starts N local nodes: ./start_cluster.sh <2|4|6> [config_dir]
+└── stop_cluster.sh            # stops them
 ```
 
 ---
 
-## Quickstart Guide
+## Quickstart
 
-### 1. Environment Setup
-Install the Python inference environment (`Bhaskera-serve`):
+### Requirements
+- Linux with NVIDIA GPU(s), Rust (`cargo`), Python 3.
+- Git submodules `Bhaskera` (training) and `Bhaskera-serve` (inference): `git submodule update --init`.
+- The base model must be the same on every node. The example configs use `Qwen/Qwen2.5-7B-Instruct`.
+
+### 1. Build and set up
 ```bash
-# Clone and build the Rust engine
-cargo build --release
-
-# Set up the Python sidecar virtual environment
-./setup_serve.sh
+cargo build --release        # builds target/release/iiitd
+./setup.sh                   # training environment
+./scripts/setup_serve.sh     # serve environment: Bhaskera-serve/.venv with PEFT
 ```
 
-### 2. Configure Node Serving
-Configure each node's `TOML` configuration (e.g. `examples/2node-serve/node1.toml`):
-```toml
-[federation]
-id = "slakshna-fl-1"
-name = "SLAKSHNA Federation"
-
-[node]
-id = "node-1"
-data_dir = "./data-node1"
-gpu_id = 0
-
-[network]
-p2p_port = 9000
-ws_port = 8546
-api_port = 8545
-
-[inference]
-enabled = true
-base_model = "Qwen/Qwen2.5-1.5B-Instruct"
-selection = "trust"                      # trust | self | latest
-decision_k = 3                           # number of peer adapters to mix
-combine = "prob_mean"                    # prob_mean | logit_mean
-weight_temperature = 0.1                 # trust-to-weight softmax sharpness
-permutations = 0                         # 0 = auto cyclic shifts, 1 = single pass
-calibration_temperature = 1.0            # logit scaling before softmax
-sidecar_port = 8765
-sidecar_python = "Bhaskera-serve/.venv/bin/python"
-serve_bhaskera_path = "Bhaskera-serve"
-spawn_sidecar = true
-serve_only = true                        # serve saved adapters without training
+### 2. Get adapters
+Nodes publish the adapters found in `<data_dir>/adapters/`. Create them by training with an example config that has `[inference] enabled = true`, and stop the cluster when training is done:
+```bash
+./start_cluster.sh 2 examples/2node
+./stop_cluster.sh
 ```
+Training and serving use the same `data_dir` (`./data-node1`, `./data-node2`).
 
-### 3. Launch Cluster
-Start a 2-node local federation:
+### 3. Serve and query
 ```bash
 ./start_cluster.sh 2 examples/2node-serve
 ```
-Wait until the sidecar reports readiness in `logs/node1_cluster.log`:
+`examples/2node-serve` sets `serve_only = true`. The nodes skip training, publish their newest adapter on disk and answer queries. Node 1 starts a sidecar (`spawn_sidecar = true`, port 8765). Node 2 only hosts its adapter.
+
+Wait for the sidecar to print this in `logs/node1_cluster.log`:
 ```
-[inference_engine] ready on http://127.0.0.1:8765
+[inference_engine] ready on 127.0.0.1:8765
 ```
 
-### 4. Inspect Local Adapter Registry
-Query node 1's live view of advertised peer adapters across the mesh:
+List the adapters node 1 knows about:
 ```bash
-curl -s http://localhost:8545/adapters | jq '.adapters[] | {node_id, round, cached, is_self, trust_score}'
+curl -s http://localhost:8545/adapters | jq '.adapters[] | {node_id, round, cached, is_self, local_trust}'
 ```
+
+Ask for a decision:
+```bash
+curl -s http://localhost:8545/decide -H 'Content-Type: application/json' -d '{
+  "state": "Pending transaction: $150 at AWS.",
+  "question": "What is the primary topic of this transaction?",
+  "options": ["Personal Electronics", "Cloud Computing Services", "Dining and Groceries", "Travel and Transport"]
+}' | jq
+```
+
+### 4. Stop
+```bash
+./stop_cluster.sh
+```
+This stops the nodes. If a sidecar is left running, stop it with `pkill -f inference_engine.py`.
 
 ---
 
-## REST API Reference
+## Configuration (`[inference]`)
+
+Put this section in each node's TOML. See `examples/2node-serve/node1.toml` for a full file. Inference is **off by default**.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `false` | Turn federated inference on |
+| `base_model` | — (required when enabled) | Base model for the sidecar. Adapters for other base models are ignored |
+| `selection` | `"trust"` | Strategy for `/infer`: `trust`, `self` or `latest` |
+| `min_trust` | `0.0` | Peers below this local trust are ignored. Your own adapter is always allowed |
+| `decision_k` | `3` | Adapters mixed per decision (1–16) |
+| `combine` | `"prob_mean"` | `prob_mean` or `logit_mean` |
+| `weight_temperature` | `0.1` | Sharpness of the trust-to-weight softmax. Lower = more weight on the most trusted |
+| `permutations` | `0` | Option rotations. `0` = auto, `1` = single pass, max `8` |
+| `calibration_temperature` | `1.0` | Divides the label logits before the softmax. `> 1` softens an over-confident model |
+| `fetch_timeout_secs` | `30` | How long to wait for a missing adapter before dropping it |
+| `max_adapter_bytes` | 2 GiB | Refuse to download larger adapters |
+| `cache_max_adapters` | `16` | Downloaded adapters kept on disk (oldest used evicted first, your own never) |
+| `sidecar_port` | `8765` | Loopback port of the Python sidecar |
+| `sidecar_python` | `"python"` | Python of the serve virtualenv, e.g. `Bhaskera-serve/.venv/bin/python` |
+| `serve_bhaskera_path` | `"Bhaskera-serve"` | Path to the `Bhaskera-serve` checkout |
+| `spawn_sidecar` | `true` | Start the sidecar with the node. Set `false` to run it yourself or to make the node an adapter host only |
+| `serve_only` | `false` | Skip the training loop. Only publish existing adapters and answer queries |
+
+**Sidecar environment variable.** `SLAKSHNA_INFER_MAX_ADAPTERS` (default `4`) is how many adapters the sidecar keeps loaded. A `/decide` that mixes more adapters than this fails. Export a larger value before starting the node if you use `k > 4`.
+
+---
+
+## REST API
+
+All inference endpoints return `503 inference_disabled` when `[inference] enabled = false`, and `502` (`{"success": false, "error": ..., "message": ...}`) when a decision or generation fails.
 
 ### `POST /decide`
-Executes a System One closed-set probabilistic decision.
 
-#### Request Schema
+Request:
 ```json
 {
-  "state": "User profile: Software Engineer. Current account balance: $4,200. Pending transaction: $150 at AWS.",
+  "state": "Pending transaction: $150 at AWS.",
   "question": "What is the primary topic of this transaction?",
-  "options": [
-    "Personal Electronics",
-    "Cloud Computing Services",
-    "Dining and Groceries",
-    "Travel and Transport"
-  ],
+  "options": ["Personal Electronics", "Cloud Computing Services", "Dining and Groceries", "Travel and Transport"],
   "k": 3,
   "combine": "prob_mean",
   "permutations": 0,
@@ -266,18 +262,18 @@ Executes a System One closed-set probabilistic decision.
 }
 ```
 
-| Parameter | Type | Required | Default | Description |
+| Field | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `state` | string | No | `""` | Background context, database record, sensor state, or chat history. |
-| `question` | string | **Yes** | — | The decision query to be answered. |
-| `options` | array[string] | **Yes** | — | Closed list of 2 to 255 distinct, non-empty options. |
-| `k` | integer | No | `decision_k` (3) | Number of top peer adapters to ensemble. |
-| `combine` | string | No | `"prob_mean"` | Posterior mixing rule: `"prob_mean"` (arithmetic) or `"logit_mean"` (geometric). |
-| `permutations` | integer | No | `0` | Cyclic debiasing passes: `0` (auto, up to 6), `1` (single pass), or max `8`. |
-| `calibration_temperature`| float | No | `1.0` | Softmax temperature dividing candidate logits prior to probability extraction. |
-| `from_nodes` | array[string] | No | `null` | Optional list of specific node IDs to restrict adapter selection to (benchmarks/testing). |
+| `question` | string | yes | — | The question to answer |
+| `options` | string[] | yes | — | 2–255 options. Whitespace is normalised. They must be distinct and non-empty |
+| `state` | string | no | `""` | Context: a record, log, message, history |
+| `k` | integer | no | `decision_k` | Adapters to mix (clamped to 1–16) |
+| `combine` | string | no | `combine` | `prob_mean` or `logit_mean` |
+| `permutations` | integer | no | `permutations` | `0` auto, `1` single pass, max `8` |
+| `calibration_temperature` | float | no | `calibration_temperature` | Must be finite and positive |
+| `from_nodes` | string[] | no | `null` | Only use adapters from these node IDs (for tests and benchmarks). Your own adapter is always kept |
 
-#### Response Schema
+Response (shortened; values are illustrative):
 ```json
 {
   "success": true,
@@ -285,12 +281,7 @@ Executes a System One closed-set probabilistic decision.
     "decision": {
       "choice": 1,
       "label": "Cloud Computing Services",
-      "probabilities": [
-        0.0124,
-        0.9632,
-        0.0141,
-        0.0103
-      ],
+      "probabilities": [0.0124, 0.9632, 0.0141, 0.0103],
       "confidence": 0.9632,
       "margin": 0.9491,
       "entropy": 0.1874,
@@ -299,187 +290,139 @@ Executes a System One closed-set probabilistic decision.
       "finalists": [],
       "min_format_mass": 0.9841,
       "members": [
-        {
-          "name": "c20df84b25f4625b...",
-          "weight": 0.45,
-          "probabilities": [0.008, 0.975, 0.010, 0.007],
-          "format_mass": 0.988
-        },
-        {
-          "name": "a89e13f419b8813a...",
-          "weight": 0.35,
-          "probabilities": [0.015, 0.958, 0.017, 0.010],
-          "format_mass": 0.982
-        },
-        {
-          "name": "74f1b8c08272ea29...",
-          "weight": 0.20,
-          "probabilities": [0.019, 0.946, 0.021, 0.014],
-          "format_mass": 0.981
-        }
+        {"name": "c20df84b25f4625b...", "weight": 0.45, "probabilities": [0.008, 0.975, 0.010, 0.007], "format_mass": 0.988}
       ],
       "forward_passes": 12,
       "model_ms": 178.4
     },
-    "timing": {
-      "select_ms": 0.42,
-      "fetch_ms": 0.0,
-      "sidecar_ms": 182.5,
-      "model_ms": 178.4,
-      "forward_passes": 12,
-      "total_ms": 183.2
-    },
+    "timing": {"select_ms": 0.42, "fetch_ms": 0.0, "sidecar_ms": 182.5, "model_ms": 178.4, "forward_passes": 12, "total_ms": 183.2},
     "sources": [
-      {
-        "node_id": "node-1",
-        "round": 10,
-        "sha256": "c20df84b25f4625b...",
-        "weight": 0.45,
-        "cache_hit": true
-      },
-      {
-        "node_id": "node-2",
-        "round": 10,
-        "sha256": "a89e13f419b8813a...",
-        "weight": 0.35,
-        "cache_hit": true
-      },
-      {
-        "node_id": "node-3",
-        "round": 10,
-        "sha256": "74f1b8c08272ea29...",
-        "weight": 0.20,
-        "cache_hit": true
-      }
+      {"node_id": "slakshna1...", "round": 10, "sha256": "c20df84b25f4625b...", "weight": 0.45, "cache_hit": true}
     ],
     "note": null
   }
 }
 ```
 
----
+- `choice` is the index into `options`. `label` is the cleaned option text.
+- `members[i].name` is the adapter's SHA-256. `sources[i]` is the node that adapter came from (same order). The weights are re-normalised over the adapters that were actually available.
+- `forward_passes` = adapters × rotations (× the extra stages for two-stage decisions).
+- `finalists` lists the option indices that reached the final round (two-stage only).
+- `note` reports dropped adapters, base-model fallback or low format mass.
 
 ### `GET /adapters`
-Returns the active adapter registry on this node:
+The node's registry: the newest adapter announced by each node.
 ```bash
 curl -s http://localhost:8545/adapters | jq
 ```
+Each entry has `node_id`, `round`, `sha256`, `size`, `base_model`, `rank`, `advertised_trust` (the node's own claim), `local_trust` (this node's score, used for weights), `cached` and `is_self`.
 
----
-
-### `POST /infer` (Generative System Two Fallback)
-For tasks requiring open-ended text or reasoning when System One agreement is low:
+### `POST /infer` (System Two, free text)
+Generates text with one adapter chosen by `selection`. If no adapter fits or the fetch fails, the base model answers and `note` says so.
 ```bash
 curl -s http://localhost:8545/infer -H 'Content-Type: application/json' -d '{
-  "prompt": "Explain why AWS charges are categorized as cloud computing:",
+  "prompt": "Explain why AWS charges are cloud computing costs:",
   "max_tokens": 128,
   "selection": "trust"
 }' | jq
 ```
 
----
-
-## Empirical Benchmarks & Evaluation
-
-Evaluated across distributed edge clusters running **Qwen2.5-1.5B-Instruct** under Dirichlet non-IID label skew ($\alpha = 0.1$, seed 0).
-
-### 1. Decision Accuracy across Selection Strategies (AG News, 4 Classes)
-
-| Selection Method | All Topics (Global Test) | Node's Own Topic Mix (Local Test) | Operational Property |
+| Field | Required | Default | Description |
 |---|---|---|---|
-| **Own Adapter Only** | 75.8% | **94.2%** | High local fidelity, severely overfits narrow domain |
-| **Random Peer Adapter** | 52.4% | 52.6% | Fails when peer specializes in divergent topic |
-| **Base Model (Zero-Shot)** | 87.2% | 64.6% | General capability, unspecialized |
-| **Majority Vote** | 70.5% | 69.9% | Hard label voting discards confidence information |
-| **Local-Only Training** | 55.1% | 95.2% | Non-federated baseline; vulnerable to drift |
-| **Merged Average (Weights)** | 83.9% | 84.4% | Parameter matrix averaging: single forward pass |
-| **Query-Aware Semantic Routing** | 88.4% | 88.7% | Routes query to specialist adapter centroid |
-| **Federated Mix (`prob_mean`, ours)** | **88.7%** | 87.4% | Robust arithmetic mean of posteriors |
-| *Centralized (Upper Bound)* | *89.4%* | *87.6%* | Non-private pooled training reference |
+| `prompt` | yes | — | Text to complete |
+| `max_tokens` | no | 256 | Maximum new tokens |
+| `temperature` | no | 0.7 | Sampling temperature |
+| `selection` | no | `selection` | `trust`, `self` or `latest` |
+| `from_node` | no | — | Force the adapter from this node (tests) |
 
 ---
 
-### 2. Decision Probability Quality & Calibration
+## Evaluation results
 
-System One decisions provide trustworthy confidence values. Evaluated across standard calibration metrics:
+Setup: Qwen2.5-1.5B-Instruct, 4 nodes, Dirichlet label skew α = 0.1, seed 0, adapters trained for 3 rounds on the System One prompt. All numbers come from a single run (one seed, one skew level).
 
-| Method | Calibration (ECE $\downarrow$) | Prob Error (Brier $\downarrow$) | Confident Mistakes (NLL $\downarrow$) | Ranking Quality (AURC $\downarrow$) |
-|---|---|---|---|---|
-| **Local-Only** | 0.180 | 0.440 | 1.060 | 0.140 |
-| **Own Adapter** | 0.152 | 0.390 | 0.893 | 0.125 |
-| **Base Model** | 0.086 | 0.220 | 0.724 | 0.065 |
-| **Merged Average** | 0.058 | 0.200 | 0.430 | 0.048 |
-| **Fed Mix (`prob_mean`)** | 0.138 | 0.215 | 0.417 | **0.040** |
-| **Fed Mix (`logit_mean`)** | **0.030** | 0.200 | 0.370 | 0.043 |
-| **Fed Mix (Query-Aware)** | 0.033 | **0.190** | **0.360** | 0.041 |
-| *Centralized** | *0.086* | *0.180* | *0.360* | *0.034* |
+Full tables, figures and per-figure explanations: [`experiments/results/system_one/`](experiments/results/system_one/README.md) ([AG News](experiments/results/system_one/ag_news_n4_a0.1_s0_s1/README.md), [Banking77](experiments/results/system_one/banking77_n4_a0.1_s0_s1/README.md)).
 
-- **Logit Mean (`logit_mean`)** achieves an ultra-low **ECE of 0.030**, yielding near-perfect calibration.
-- **AURC of 0.040** proves that confidence scores accurately separate correct answers from incorrect ones, enabling effective selective prediction.
+### 1. Accuracy
+Plain-average (`prob_mean`) mixing with equal weights on every adapter. "Own adapter" is the mean over the 4 nodes.
 
----
-
-### 3. Agreement vs. Accuracy: Unsupervised Escalation
-
-The fraction of peer adapters that agree on top-1 choice serves as an unsupervised confidence signal:
-
-| Consensus Agreement | Distribution of Decisions | Empirical Accuracy | Recommended Action |
-|---|---|---|---|
-| **1 of 4 agree** | 1% of queries | 57.0% | **Escalate to System Two** (Reasoning/CoT) |
-| **2 of 4 agree** | 20% of queries | 70.0% | Escalate or request user confirmation |
-| **3 of 4 agree** | 38% of queries | 88.0% | Accept System One decision |
-| **4 of 4 agree** | 41% of queries | **96.6%** | **Instant high-confidence execution** |
-
----
-
-### 4. Byzantine & Poisoning Robustness
-
-Evaluated when 1 or 2 peer adapters are maliciously modified to output 97% probability on wrong classes:
-
-| Ensembling Method | Clean (0 Poisoned) | 1 Poisoned Peer | 2 Poisoned Peers | Behavior |
-|---|---|---|---|---|
-| **Equal Weights (`prob_mean`)** | 88.7% | 80.6% | 24.1% | Linear weight pollution causes collapse |
-| **Equal Weights (`logit_mean`)** | 87.5% | 81.8% | 51.4% | Geometric mean resists single outlier |
-| **Trust-Weighted Ensembling** | **88.7%** | **86.4%** | **79.9%** | **Trust scores downweight malicious nodes to near 0** |
-
----
-
-### 5. Scaling to Massive Option Sets: Banking77 (77 Options)
-
-Evaluated on Banking77 customer intent queries with 77 distinct options via the two-stage chunked tournament:
-
-| Evaluation Dimension | Generative Decoding (System Two) | System One (Two-Stage Decision) |
+| Method | AG News (4 options) | Banking77 (77 options) |
 |---|---|---|
-| **Classification Accuracy** | 50.5% | **59.7%** (+9.2% improvement) |
-| **Unparseable Output Rate** | **1.9%** (failed regex/JSON matching) | **0.0%** (mathematically guaranteed valid choice) |
-| **Tournament Survival** | — | **84.2%** of correct options survive Stage 1 to finalists |
-| **Total Forward Passes** | Variable (20–60 tokens/pass) | 72 deterministic forward passes (18 chunks $\times$ 4 passes) |
-| **Cold Latency** | 3,840 ms | 4,236 ms (includes 61 ms P2P QUIC download) |
-| **Warm Latency** | 2,750 ms | 3,122 ms |
+| Base model, no adapter | 0.872 | 0.524 |
+| Own adapter only | 0.758 | 0.608 |
+| **Federated mix (`prob_mean`)** | **0.887** | **0.626** |
+| Federated mix (`logit_mean`) | 0.875 | 0.632 |
+| All adapters merged into one | 0.878 | 0.626 |
+| Centralised training (not private) | 0.894 | 0.628 |
+
+Mixing more peers helps. AG News accuracy by number of adapters mixed: k=1 0.758, k=2 0.821, k=3 0.863, k=4 0.887. An adapter is still better on its own topics (0.942 vs 0.874 for the mix on each node's own topic mix), so the mix trades some local accuracy for global accuracy.
+
+### 2. Probability quality (AG News, query node 1, lower is better)
+
+| Method | ECE | Brier | NLL | AURC |
+|---|---|---|---|---|
+| Base model | 0.086 | 0.216 | 0.724 | 0.065 |
+| All adapters merged | 0.058 | 0.198 | 0.432 | 0.048 |
+| Mix, `prob_mean` | 0.138 | 0.215 | 0.417 | 0.040 |
+| Mix, `logit_mean` | 0.030 | 0.199 | 0.374 | 0.043 |
+| Centralised | 0.086 | 0.177 | 0.357 | 0.034 |
+
+The `prob_mean` mix is under-confident (high ECE). `logit_mean` is better calibrated. Fitting `calibration_temperature` helps only a little (ECE 0.138 → 0.109). Two more mixes in the result files (confidence-weighted and question-aware) were computed **offline** and are not options of the node.
+
+### 3. Agreement and accuracy
+How many of the 4 adapters chose the same option as the mix:
+
+| Agreement | Share of questions | Accuracy |
+|---|---|---|
+| 1 of 4 | 1% | 57% |
+| 2 of 4 | 20% | 70% |
+| 3 of 4 | 38% | 88% |
+| 4 of 4 | 41% | 97% |
+
+So `agreement` is a useful signal for deciding when to ask for confirmation or call `/infer`. The node does not act on it automatically.
+
+### 4. Poisoned peers (simulation)
+One or two of the 4 adapters are replaced by one that puts 97% on a wrong option (AG News).
+
+| Mixing | 0 poisoned | 1 poisoned | 2 poisoned |
+|---|---|---|---|
+| Equal weights, `prob_mean` | 0.887 | 0.806 | 0.241 |
+| Equal weights, `logit_mean` | 0.875 | 0.818 | 0.514 |
+| Trust-weighted, `prob_mean` | 0.887 | 0.861 | 0.799 |
+
+The trust-weighted row **assumes trust has already flagged the bad peers** (trust 0.05 vs 0.25, weights = softmax(trust / 0.1)). It is not a live attack. Robustness depends on trust really identifying bad peers.
+
+### 5. Deciding vs generating (same adapters, mean accuracy)
+
+| | Generate | Decide (System One) |
+|---|---|---|
+| AG News | 0.814 | 0.797 |
+| Banking77 | 0.505 | 0.597 |
+| Unparseable outputs | 0.6% / 1.9% | 0% |
+
+On Banking77 (two-stage) a decision is better. On AG News, with only 4 options, generating was slightly more accurate. System One's advantage there is guaranteed valid output.
+
+### 6. Position bias
+With a single option order, the answer changes when the options are reordered for 10.7% (federated mix) to 21.5% (one node's own adapter) of AG News questions. Scoring all rotations makes this 0%.
+
+### 7. Latency and throughput (AG News, 4 options, one decision at a time)
+
+| Case | End-to-end |
+|---|---|
+| k=1, warm | 181 ms |
+| k=4, warm (16 forward passes, 636 ms model time) | 677 ms |
+| k=4, cold (adapters downloaded, 64 ms of transfer) | 1774 ms |
+| Banking77, k=4, warm (72 forward passes) | 3122 ms |
+
+- The sidecar runs one forward pass at a time. At 16 decisions in flight one node handled 1.4 decisions/s. A central vLLM server holding the same adapters handled 17.6/s.
+- The same k=4 decision repeated 50 times returned identical probabilities.
+- With 1 or 2 of 4 peers down every decision was still answered with fewer members (AG News accuracy 0.900 → 0.867 on 30 questions), but slower while the dead peer's download failed.
+- On Banking77, 99.4% of correct options reached the final round of the tournament.
 
 ---
-
-### 6. End-to-End Latency & Throughput Profile
-
-- **Single Query Latency ($k=1$ adapter, 4 options):** **181 ms** warm end-to-end (179 ms GPU forward passes).
-- **Federated Ensemble Latency ($k=4$ adapters, 4 options, auto-permutations):** **677 ms** warm end-to-end (636 ms GPU forward passes across 16 cyclic orderings).
-- **Network Fetch Penalty:** Incurred **only on the first cold request** (~64 ms over 1 Gbps LAN to fetch missing LoRA weights via `iroh-blobs`). Warm queries run at zero network overhead from local memory cache.
-- **Determinism:** 50 repeated executions of the identical $k=4$ decision yield $0.00\times 10^0$ probability divergence (100.0% identical choice index).
-
----
-
-## Shutdown & Teardown
-
-```bash
-# Stop Rust P2P nodes
-./stop_cluster.sh
-
-# Terminate Python sidecar processes
-pkill -f inference_engine.py
-```
 
 ---
 
 ## License
 
-This project is licensed under the **Apache License 2.0** — see the [LICENSE](LICENSE) file for details.
+Apache License 2.0. See [LICENSE](LICENSE).

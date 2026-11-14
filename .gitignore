@@ -25,3 +25,13 @@ hf_cache
 /.claude
 /docs
 Claude.md
+
+# RAG: runtime output, downloaded datasets and the Flower comparison checkout
+CLAUDE.md
+/results/m9/
+/m9-configs/
+/m9-data/
+/m9-flwr/
+/flower-fedrag-*/
+# The patch_* rule above would hide this source file
+!/scripts/m9/flower/patch_fedrag.py

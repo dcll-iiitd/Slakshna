@@ -51,6 +51,8 @@ pub struct MeshNetwork {
     endpoint_id: Arc<RwLock<Option<String>>>,
     _router: Option<iroh::protocol::Router>,
     _endpoint: Option<iroh::Endpoint>,
+    /// When set before `start`, peers can query this node's document index.
+    rag: Option<Arc<crate::rag::RagService>>,
 }
 
 impl MeshNetwork {
@@ -68,7 +70,34 @@ impl MeshNetwork {
             endpoint_id: Arc::new(RwLock::new(None)),
             _router: None,
             _endpoint: None,
+            rag: None,
         }
+    }
+
+    /// Serve this node's document index to peers. Must be called before `start`.
+    pub fn set_rag_service(&mut self, rag: Arc<crate::rag::RagService>) {
+        self.rag = Some(rag);
+    }
+
+    /// The endpoint and the peers a RAG query should be sent to.
+    ///
+    /// Targets are live gossip neighbours plus every remembered peer: gossip
+    /// keeps only a handful of neighbours, so in a larger federation the
+    /// neighbour list alone would miss most members.
+    pub async fn rag_link(&self) -> Option<crate::rag::PeerLink> {
+        let endpoint = self._endpoint.clone()?;
+        let my_id = endpoint.id();
+
+        let mut ids = self.active_peers.read().await.clone();
+        ids.extend(self.state.read().await.known_peers());
+
+        let mut targets: Vec<EndpointId> = Vec::new();
+        for id in ids.iter().filter_map(|id| id.parse::<EndpointId>().ok()) {
+            if id != my_id && !targets.contains(&id) {
+                targets.push(id);
+            }
+        }
+        Some(crate::rag::PeerLink { endpoint, targets })
     }
 
     /// This node's Iroh EndpointId, once the endpoint has been bound.
@@ -83,7 +112,7 @@ impl MeshNetwork {
         let keypair = state
             .get_keypair()
             .ok_or_else(|| BoxError::from("node identity not loaded before starting the network"))?;
-        Ok(SecretKey::from_bytes(&keypair.transport_seed()))
+        Ok(keypair.transport_secret_key())
     }
 
     /// Seed peers to reach for on startup: whatever the config lists, plus every
@@ -230,9 +259,18 @@ impl Network for MeshNetwork {
             .max_message_size(10_485_760) // 10 MB limit for large AI payloads
             .spawn(endpoint.clone());
 
-        let router = Router::builder(endpoint.clone())
-            .accept(ALPN, gossip.clone())
-            .spawn();
+        let mut router = Router::builder(endpoint.clone()).accept(ALPN, gossip.clone());
+        if let Some(rag) = &self.rag {
+            router = router.accept(
+                crate::rag::protocol::RAG_ALPN,
+                crate::rag::protocol::RagProtocol::new(
+                    rag.clone(),
+                    self.config.network.allowed_peers.clone(),
+                ),
+            );
+            info!("📚 Serving RAG retrieval requests from peers");
+        }
+        let router = router.spawn();
 
         self._router = Some(router);
         self._endpoint = Some(endpoint.clone());

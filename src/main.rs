@@ -4,6 +4,7 @@ mod identity;
 mod state;
 mod network;
 mod api;
+mod rag;
 
 use crate::config::Config;
 use crate::history::UpdateHistory;
@@ -37,6 +38,10 @@ struct MLEngineOutput {
 
 #[tokio::main]
 async fn main() -> Result<(), BoxError> {
+    // reqwest (used for the RAG sidecar) panics without a process-wide TLS
+    // crypto provider; see the note on `rustls` in Cargo.toml.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // Parse command line args
     let args: Vec<String> = std::env::args().collect();
 
@@ -48,6 +53,17 @@ async fn main() -> Result<(), BoxError> {
 
     // Load config
     let mut config = Config::load(&config_path)?;
+
+    // `--print-endpoint-id`: create or load this node's identity, print its
+    // Iroh EndpointId (what other nodes list in `network.peers`) and exit.
+    // Used by scripts/rag_make_configs.py before any node starts.
+    if args.iter().any(|arg| arg == "--print-endpoint-id") {
+        let mut state = State::new(&config.node.data_dir)?;
+        state.get_or_create_node_identity()?;
+        let keypair = state.get_keypair().ok_or("node identity not loaded")?;
+        println!("{}", keypair.transport_secret_key().public());
+        return Ok(());
+    }
 
     use tracing_subscriber::EnvFilter;
 
@@ -84,6 +100,46 @@ async fn main() -> Result<(), BoxError> {
         RwLock::new(UpdateHistory::new(config.clone(), state.clone(), node_identity.clone()).await?)
     );
 
+    // Start the RAG sidecar, if this node serves queries. `_sidecar` owns the
+    // child process and must live until the node exits.
+    let (rag_service, _sidecar) = if config.rag.enabled {
+        let client = crate::rag::sidecar::SidecarClient::new(config.rag.sidecar_port);
+        let child = if config.rag.spawn_sidecar {
+            Some(crate::rag::sidecar::spawn_sidecar(&config.rag, &config.node, &client).await?)
+        } else {
+            None
+        };
+        if let Some(corpus_dir) = &config.rag.corpus_dir {
+            let result = client.ingest(&serde_json::json!({ "path": corpus_dir })).await?;
+            info!("📚 Ingested {}: {}", corpus_dir, result);
+        }
+        info!("📚 RAG sidecar ready: {}", client.health().await?);
+        // The root is signed with the Iroh transport key, so peers can check it
+        // against our EndpointId. Signing before the network starts means the
+        // first `hello` a peer sends already gets a root.
+        let transport_key = state
+            .read().await
+            .get_keypair()
+            .ok_or("node identity not loaded")?
+            .transport_secret_key();
+        let service = crate::rag::RagService::new(
+            config.rag.clone(),
+            client,
+            config.node.id.clone(),
+            transport_key
+        );
+        service.refresh_own_root().await?;
+        if config.rag.adversary != crate::config::Adversary::None {
+            tracing::warn!(
+                "😈 [rag] adversary = {:?}: this node will send corrupted answers to peers. EXPERIMENTS ONLY.",
+                config.rag.adversary
+            );
+        }
+        (Some(Arc::new(service)), child)
+    } else {
+        (None, None)
+    };
+
     // Initialize network
     let network = Arc::new(
         RwLock::new(crate::network::mesh::MeshNetwork::new(config.clone(), history.clone(), state.clone()))
@@ -92,12 +148,20 @@ async fn main() -> Result<(), BoxError> {
     // Start network
     {
         let mut net = network.write().await;
+        if let Some(rag) = &rag_service {
+            net.set_rag_service(rag.clone());
+        }
         net.start().await?;
+    }
+
+    // Keep peers' signed RAG roots fresh, so queries can skip peers that are down.
+    if let Some(rag) = &rag_service {
+        tokio::spawn(crate::rag::run_root_refresh(rag.clone(), network.clone()));
     }
 
     // Start API server
     let api_handle = tokio::spawn(
-        start_api_server(config.clone(), history.clone(), state.clone(), network.clone())
+        start_api_server(config.clone(), history.clone(), state.clone(), network.clone(), rag_service)
     );
 
     let hist = history.clone();
@@ -115,7 +179,11 @@ async fn main() -> Result<(), BoxError> {
     let gpu_id_loop = config.node.gpu_id;
     let config_loop = config.clone();
 
-    tokio::spawn(async move {
+    if !config.training.enabled {
+        info!("⏸️ Federated training is disabled ([training] enabled = false); this node only joins the mesh");
+    }
+
+    if config.training.enabled { tokio::spawn(async move {
         let epoch_duration = config_loop.training.epoch_duration_secs;
         let sync_deadline = config_loop.training.sync_deadline_secs;
         let expected_peers = config_loop.training.expected_peers;
@@ -414,11 +482,15 @@ async fn main() -> Result<(), BoxError> {
                 std::process::exit(0);
             }
         }
-    });
+    }); }
 
     // Print status
     info!("==================================================");
-    info!("🟢 Node is LIVE (Peer-to-Peer Federated Learning Active)");
+    if config.training.enabled {
+        info!("🟢 Node is LIVE (Peer-to-Peer Federated Learning Active)");
+    } else {
+        info!("🟢 Node is LIVE (mesh only, training disabled)");
+    }
     info!("==================================================");
     info!("Transport: Iroh QUIC (with automatic STUN + DERP relay)");
     info!(

@@ -130,6 +130,14 @@ impl Keypair {
         seed.copy_from_slice(&hash);
         seed
     }
+
+    /// The Iroh secret key derived from `transport_seed`. Its public half is
+    /// this node's EndpointId. The mesh uses it for QUIC, and the RAG service
+    /// signs its Merkle root with it, so peers can check that signature
+    /// against the EndpointId they already know.
+    pub fn transport_secret_key(&self) -> iroh::SecretKey {
+        iroh::SecretKey::from_bytes(&self.transport_seed())
+    }
 }
 
 const TRANSPORT_KEY_DOMAIN: &[u8] = b"slakshna/iroh-endpoint/v1";

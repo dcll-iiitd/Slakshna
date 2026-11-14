@@ -1,0 +1,12 @@
+# Python dependencies for the RAG sidecar (rag_engine.py). Separate from the
+# Bhaskera training environment. Install the CPU build of torch:
+#   uv venv .venv-rag --python 3.11
+#   uv pip install --python .venv-rag/bin/python --torch-backend cpu -r requirements-rag.txt
+torch
+sentence-transformers
+faiss-cpu
+numpy
+pypdf
+fastapi
+uvicorn
+httpx

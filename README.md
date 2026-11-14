@@ -1,466 +1,353 @@
-# SLAKSHNA — Decentralized Geo-Localised Personalized Federated Learning
+# SLAKSHNA-RAG: Verifiable Peer-to-Peer Federated RAG
 
-A **Peer-to-Peer Federated Learning Framework** built in **Rust** and integrated with a Python Machine Learning Engine (**Bhaskera**). **SLAKSHNA** enables decentralized, privacy-preserving, weighted-aggregation Federated Learning (FL) without centralized aggregators or synchronous blocking rounds. It runs across geo-localized machines and institutional clusters (including SLURM-managed supercomputers, kubernetes managed clusters) separated by complex firewalls, securely sharing compressed model updates without any central coordinator.
+This branch adds **federated retrieval-augmented generation (RAG)** to SLAKSHNA, the peer-to-peer federated learning framework. Each participant keeps its documents on its own machine. When someone asks a question, the node searches its own documents, asks its peers for relevant passages over an encrypted peer-to-peer connection, **checks with cryptographic proofs** that every passage a peer returns is genuine, and has a local language model answer from the combined evidence.
 
----
-
-## Key Features & Architectural Highlights
-
-- **Asynchronous P2P Training**  
-  Instead of traditional synchronous FL rounds waiting for slow participants, SLAKSHNA operates asynchronously. Nodes continuously train on local data, broadcast compressed model deltas to the network, and evaluate peers dynamically.
-
-- **Iroh QUIC Mesh & Gossip Network (`iroh-gossip`)** 
-  Built on **Iroh v1.0.2**, the framework utilizes **QUIC (Quick UDP (User Datagram Protocol) Internet Connections)** transport, direct NAT (Network Address Translation) traversal (STUN/DERP), and `iroh-gossip` topic swarms. Nodes discover peers dynamically using cryptographic Ed25519 `EndpointId` public keys.
-
-- **No Bootstrap Node**  
-  Every participant is identical: there is no coordinator, no first node, and no node type. Membership follows from the shared `[federation] id` alone. Nodes find each other through **mDNS** on the local network, the **BitTorrent mainline DHT** and pkarr/DNS globally, and **gossip peer exchange** once connected — and each node remembers every peer it has ever met in its own RocksDB, so a restarted federation reassembles itself with no configuration and no privileged host.
-
-- **Universal Firewall & VPN Traversal (`Playit.gg`)**  
-  Academic and enterprise networks (such as university campus firewalls or remote VPNs) often block inbound UDP/TCP hole-punching and standard DERP relay traffic. SLAKSHNA natively supports static public UDP/TCP tunneling via **Playit.gg**, providing fixed, persistent public addresses (`<ip>:<port>`) for nodes across different cities without requiring root/sudo access or complex router configurations.
-
-- **Bhaskera ML Engine (`ml_engine.py`)**  
-  A robust Python engine bridging the Rust networking layer with distributed GPU/CPU training. Powered by **Ray Train (`TorchTrainer`)**, **PyTorch**, and **parameter efficient training algorithms**, it executes local pre-training, and fine-tuning on tokenized datasets while streaming real-time epoch loss tracking. During training it can offload the optimizer states to perform **concurrent evals** on the model.
-
-- **SLURM Supercomputer & Multi-Core Cluster Support**  
-  Fully compatible with HPC SLURM clusters (`srun` / `sbatch`). SLURM isolates allocated GPUs seamlessly and maps to cluster-assigned resources without port collisions or resource deadlocks.
-
-- **Weighted Aggregation**  
-  Peers asynchronously evaluate incoming model updates by computing cosine similarity against their local gradient direction and tracking validation loss improvements. Nodes dynamically update peer weights (`state["alpha"]` and normalized `w_i` weights) and aggregate updates based on these weights. It checks not only malicious updates but also provides foundation for mitigating catastrophic forgetting.
-
-- **Sparsification and Compression**  
-  Before broadcasting over the P2P network, local weight updates are sparsified to retain only the most significant weights (e.g., `sparsity=0.01`). The sparse tensors are encoded (e.g., `fp16`, `fp8`) and base64 compressed, reducing network bandwidth requirements by over 98%.
-
-- **Differential Privacy (DP)**  
-  L2 norm clipping, Gaussian noise etc. augmented to ensure Differential Privacy for local gradients protected against membership inference and model inversion attacks. Our differential privacy component also allows integrating `opacus` (`PrivacyEngine`) and `opt-einsum`.
+There is no central server, no shared index and no bootstrap node.
 
 ---
 
-## Security & Privacy Architecture
+## Contents
 
-SLAKSHNA is built from the ground up to operate securely over untrusted public networks, proxies, and shared supercomputers:
-
-1. **End-to-End Cryptographic Transport (`TLS 1.3 over QUIC`)**  
-   Every node generates an `Ed25519` cryptographic keypair upon startup (`src/network/mesh.rs`). All communication across the Iroh mesh, whether sent directly via local IPs or routed across public internet tunnels like `Playit.gg`, is wrapped in end-to-end **TLS 1.3** encryption.
-   - **Zero-Trust Tunnels:** Public proxy services (`Playit.gg`) act purely as raw packet forwarders. They cannot read, decrypt, or tamper with model weights because they do not hold the private keys. This mechanism consistently saves both subscription and storage on services such as Cloudflare.
-
-2. **Poisoning Defense**  
-   To prevent adversarial nodes from ruining the global model (`Model Poisoning`), SLAKSHNA does not use simple averaging. When a node receives a peer's delta, `ml_engine.py` evaluates the update against local validation metrics (`Cosine Similarity` & `Validation Loss`). If a node submits poisoned or erratic updates, its trust score (`alpha`) drops, rendering its weight in the Federated Averaging formula close to `0.0`.
-
-3. **Differential Privacy against Data Reconstruction**  
-   By combining sparsification/compression with differential privacy, raw local dataset samples (e.g., chat dataset, patient records, etc.) can never be reconstructed by eavesdroppers or peer nodes.
+1. [What is RAG?](#1-what-is-rag)
+2. [Why federated RAG?](#2-why-federated-rag)
+3. [How SLAKSHNA-RAG works](#3-how-slakshna-rag-works)
+4. [Requirements](#4-requirements)
+5. [Build](#5-build)
+6. [Run](#6-run)
+7. [Configuration](#7-configuration)
+8. [HTTP API](#8-http-api)
+9. [Tests](#9-tests)
+10. [Comparing with Flower FedRAG](#10-comparing-with-flower-fedrag)
+11. [Repository layout](#11-repository-layout)
+12. [Limits](#12-limits)
 
 ---
 
-## System Architecture
+## 1. What is RAG?
+
+A large language model (LLM) only knows what was in its training data. Ask it about a document it has never seen, or about something that happened after it was trained, and it either refuses or makes up a plausible answer.
+
+**Retrieval-augmented generation** fixes this by looking things up first:
+
+1. **Index.** Documents are split into short passages ("chunks"). An *embedding model* turns each chunk into a vector, a list of numbers that captures its meaning, so chunks about similar things get similar vectors. The vectors go into a *vector index* for fast similarity search.
+2. **Retrieve.** The question is embedded with the same model, and the index returns the chunks whose vectors are closest to it.
+3. **Generate.** The retrieved chunks are pasted into the LLM's prompt as context, and the model answers from them.
+
+The model doesn't need retraining when the documents change. You re-index them instead, and every answer can be traced back to the passages it came from.
+
+## 2. Why federated RAG?
+
+Ordinary RAG assumes all documents sit in **one index on one machine**. Often they can't:
+
+- **Privacy and regulation.** Hospitals, universities and companies hold data they may not copy to a shared server (patient records, internal reports, unpublished research).
+- **Ownership.** Each group wants to keep control over its data, and be able to add, update or withdraw documents without asking a central operator.
+- **No single point of trust or failure.** A central index is a single target for attack, a single bill, and a single thing that can go down.
+
+**Federated RAG** keeps every document collection where it is. A question is sent to the participants, each searches its own collection, and only the few passages relevant to that question leave a participant's machine.
+
+Most federated RAG systems, such as Flower's FedRAG example, still use a **central server** that sends questions out and merges answers, and they **trust** whatever each client sends back. SLAKSHNA-RAG removes both assumptions:
+
+| | Typical federated RAG | SLAKSHNA-RAG |
+| :-- | :-- | :-- |
+| Coordinator | Central server | None: every node is equal and can ask or answer |
+| Finding peers | Configured server address | mDNS on a LAN, the mainline DHT, DNS, or listed peers (Iroh QUIC mesh) |
+| Trust in peers | Passages and scores taken as sent | Every passage carries a Merkle proof against a signed commitment; scores are recomputed by the asker |
+| Which peers are asked | All of them | Only peers whose topics match the question (two-round and directory modes) |
+
+## 3. How SLAKSHNA-RAG works
+
+### 3.1 The pieces
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Axum HTTP & WS Server                           │
-│                     (Node Status, Leaderboard)                         │
-├──────────────────────────────────┬─────────────────────────────────────┤
-│         Rust P2P Engine          │           Python ML Engine          │
-│                                  │                                     │
-│  • Iroh Mesh & Gossip Protocol   │  • ml_engine.py Bridge              │
-│  • Decentralized Sync            │  • Bhaskera (Ray Train / PyTorch)   │
-│  • Local State Persistence       │  • LoRA Fine-Tuning & SparseLoCo    │
-│  • Asynchronous Evaluation       │  • Differential Privacy             │
-├──────────────────────────────────┴─────────────────────────────────────┤
-│                    Iroh Network (`iroh-gossip`)                        │
-│          (QUIC / Ed25519 TLS 1.3 / mDNS / STUN / Playit.gg)            │
-└────────────────────────────────────────────────────────────────────────┘
+           your question (HTTP)
+                  │
+   ┌──────────────▼──────────────┐                  ┌──────────────────────────────┐
+   │ Rust node  (iiitd)          │  /slakshna/rag/2 │ Rust node of a peer          │
+   │  src/api.rs   POST /rag/... │◄────────────────►│  answers hello / centroids / │
+   │  src/rag/     query pipeline│   Iroh QUIC      │  chunks / search / directory │
+   │               proof checks  │   (encrypted)    │                              │
+   └──────────────┬──────────────┘                  └──────────────┬───────────────┘
+                  │ HTTP on 127.0.0.1                              │
+   ┌──────────────▼──────────────┐                  ┌──────────────▼───────────────┐
+   │ Python sidecar (rag_engine) │                  │ Python sidecar of the peer   │
+   │  PDF/text loading, chunking │                  │  its own documents, index    │
+   │  embeddings, FAISS HNSW     │                  │  and Merkle tree             │
+   │  k-means clusters, Merkle   │                  └──────────────────────────────┘
+   │  tree, answer via Ollama    │
+   └─────────────────────────────┘
 ```
 
----
+- The **Rust node** (`src/`) handles identity, networking, the HTTP API and all checks on what peers send.
+- The **Python sidecar** (`rag_engine.py`, package `rag/`) is a local helper process the node starts for you. It does the machine-learning work: reading documents, embedding, searching, and calling [Ollama](https://ollama.com) to write the answer.
+- Peers talk over a dedicated Iroh protocol, `/slakshna/rag/2`: one QUIC stream per request, with JSON messages.
 
-## Technology Stack
+### 3.2 Indexing: committing to your documents
 
-| Layer                    | Technologies Used                                                                                                                                            |
-| :----------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Networking Core**      | **Rust** (`edition = 2021`), **Tokio** async runtime                                                                                                         |
-| **P2P Communication**    | **Iroh** (`iroh v1.0.2`, `iroh-gossip`, `iroh-relay`), **QUIC**, **Ed25519 TLS 1.3**, **Playit.gg** (Static Tunnels)                                         |
-| **Peer Discovery**       | **mDNS** (`iroh-mdns-address-lookup`), **BitTorrent mainline DHT** (`iroh-mainline-address-lookup`), **pkarr/DNS**, gossip peer exchange, on-disk peer cache |
-| **API & WebSockets**     | **Axum 0.7**, **Hyper**, **tokio-tungstenite** (`WebSocket`), **Serde / Serde JSON**                                                                         |
-| **ML Engine & FL**       | **Python 3.11+**, **PyTorch**, **Ray / Ray Train** (`ray.train.torch.TorchTrainer`), **setproctitle**                                                        |
-| **Transformers & PEFT**  | **HuggingFace Transformers**, **PEFT** (`LoRA`), **PyArrow** (Parquet caching), **PyYAML**                                                                   |
-| **Differential Privacy** | **Gradient clipping**, **Noice injection**, **Opacus** (`PrivacyEngine`), **opt-einsum**                                                                     |
+When a node ingests documents (PDF, `.txt`, `.md`, or pre-chunked MedRAG `.jsonl`), the sidecar:
 
----
+1. splits them into chunks and embeds each chunk (default model `sentence-transformers/all-MiniLM-L6-v2`);
+2. stores the vectors in a **FAISS HNSW** index, a fast approximate nearest-neighbour search;
+3. groups the chunks into **topics** with spherical k-means. Each topic (cluster) is summarised by its **centroid**, the average direction of its chunks' vectors;
+4. builds a **two-level Merkle tree**. A Merkle tree is a tree of hashes in which each parent is the hash of its children, so the single hash at the top (the *root*) changes if anything below it changes. Here the lower level hashes each cluster's chunks, and the upper level hashes each cluster's id, centroid and chunk-tree root. The 32-byte root therefore pins down every chunk, every centroid, and which cluster each chunk belongs to.
 
-## Repository Structure
+The Rust node then **signs** the root, a version number that only increases, and the cluster count with its Ed25519 key. That key is also the node's network identity (its Iroh `EndpointId`), so peers can check the signature without any extra key exchange.
 
-| Path                       | Description                                                                                                                     |
-| :------------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
-| `src/main.rs`              | Rust Node entry point, federated epoch loop, P2P orchestrator, and network broadcast                                            |
-| `src/history.rs`           | Local update history — the per-peer append-only log of model updates and peer reviews                                           |
-| `src/identity.rs`          | Ed25519 keypair and the node's stable federation identity (`NodeId`)                                                            |
-| `src/network/`             | Iroh QUIC + Gossip network implementation (`mesh.rs`, `mod.rs`) — peer discovery, gossip swarm, and secure peer synchronization |
-| `src/api.rs`               | Axum HTTP REST endpoints and real-time WebSocket broadcast server for dashboards                                                |
-| `src/config.rs`            | TOML configuration loader for federation, training cadence, network ports, IDs, and storage paths                               |
-| `ml_engine.py`             | Python ML bridge executing Bhaskera distributed LoRA training, DP clipping, sparsification, and peer evaluation                 |
-| `setup.sh`                 | Main installation script for system dependencies and virtual environments                                                       |
-| `Bhaskera/`                | Submodule / embedded repository containing the distributed LLM training framework                                               |
-| `node_template.yaml`       | Base YAML template for HuggingFace / Ray / PEFT training arguments                                                              |
-| `node1.toml`               | Node-1 configuration file                                                                                                       |
-| `node2.toml`, `node3.toml` | Peer node configuration files                                                                                                   |
-| `logs/`                    | Directory containing runtime communication logs and real-time epoch loss tracking CSVs                                          |
-| `plots_script/`            | Python scripts for visualizing training metrics, trust scores, and system performance                                           |
-| `results/`                 | Output directory containing generated plots and evaluation metric graphs                                                        |
----
+### 3.3 Querying: three retrieval modes
 
-## Environment & Prerequisites Setup
+Every node fetches every peer's signed root in the background (`hello`, once a minute). A query then runs in one of three modes:
 
-When setting up on a machine where Rust, Cargo, or Python are installed in custom directories (such as `/mnt/disk1/...` or scratch drives), export your environment variables before compiling or running:
+| Mode | Round 1 | Round 2 | When to use |
+| :-- | :-- | :-- | :-- |
+| `two_round` (default) | Ask **every** peer for its centroids closest to the question; keep the best clusters overall | Ask only the owners of the winning clusters for chunks from those clusters | General use; peers with unrelated topics aren't asked for chunks |
+| `flat` | — | Ask every peer for its best chunks directly | Baseline; fewest round trips |
+| `directory` | **None.** Clusters are chosen locally from a verified copy of every peer's centroids, fetched once per root version | Same as `two_round` | Many peers; saves a network round per question. Needs `[rag] directory = true` |
+
+In every mode the asking node:
+
+- checks each centroid's and chunk's **Merkle proof** against the peer's signed root (cluster proofs also by their position in the tree, so a peer can't pass one cluster off as another);
+- **re-embeds every peer chunk** and uses its own score, so a peer can't inflate its relevance;
+- drops anything that fails, and records a flag for the peer (`bad_chunk_proof`, `score_mismatch`, `bad_centroid_proof`, `incomplete_directory`, `equivocation`, …);
+- merges verified peer chunks with its own, keeps the top `final_k`, and passes them to the LLM.
+
+A peer caught signing two different roots under the same version (**equivocation**) is refused from then on. A peer that is down is marked `skipped_stale` so it doesn't cost a timeout on every question, and comes back at the next successful refresh.
+
+## 4. Requirements
+
+| Needed for | What |
+| :-- | :-- |
+| The node | [Rust](https://rustup.rs) (stable, edition 2021), a C compiler |
+| The sidecar | Python 3.11 and [uv](https://docs.astral.sh/uv/) (or any way to make a virtual environment) |
+| Answer writing | [Ollama](https://ollama.com) with a small model, e.g. `qwen2.5:1.5b`. Not needed with `generator = "none"`, which returns the retrieved passages only |
+
+RAG runs on an ordinary CPU machine. No GPU and no Bhaskera training environment are needed when `[training] enabled = false`, as in the RAG example configs.
+
+## 5. Build
 
 ```bash
-# 1. Point to your Rust & Cargo installation
-export CARGO_HOME=/mnt/disk1/slakshna/rust/.cargo
-export RUSTUP_HOME=/mnt/disk1/slakshna/rust/.rustup
-export PATH=$CARGO_HOME/bin:$PATH
+git clone -b RAG https://github.com/dcll-iiitd/Slakshna.git
+cd Slakshna
 
-# 2. Activate Python Environment (e.g., using uv, poetry, etc.)
-if [ -f "/mnt/disk1/slakshna/Bhaskera/bhaskera-activate.sh" ]; then
-    source /mnt/disk1/slakshna/Bhaskera/bhaskera-activate.sh
-elif [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
-fi
-```
-
-### Installation & Build
-
-Follow these exact steps in sequence to set up the environment and build the project:
-
-```bash
-# 1. Initialize the Bhaskera submodule
-git submodule update --init --recursive
-
-# 2. Navigate to the Bhaskera ML engine directory
-cd Bhaskera
-
-# 3. Run the Bhaskera setup script (installs python dependencies)
-bash setup.sh
-
-# 4. Activate the Bhaskera Python virtual environment
-source bhaskera-activate.sh
-
-# 5. Move back to the SLAKSHNA-FL root directory
-cd ..
-
-# 6. Run the SLAKSHNA root setup script
-bash setup.sh
-
-# 7. Build the Rust P2P node binary in release mode
-# (Make sure you have Rust and Cargo installed!)
+# 1. The Rust node -> target/release/iiitd
 cargo build --release
 
-# 8. You are now ready to run your nodes!
-# (e.g. ./target/release/iiitd --config config.toml)
+# 2. The Python sidecar's own environment (CPU build of torch)
+uv venv .venv-rag --python 3.11
+uv pip install --python .venv-rag/bin/python --torch-backend cpu -r requirements-rag.txt
+
+# 3. An answer model (skip if you only want retrieved passages)
+ollama pull qwen2.5:1.5b
 ```
 
----
+The `Bhaskera` submodules are only needed for federated *training*; you can skip `git submodule update` for RAG.
 
-## Running a Local Multi-Node Cluster
+Always run commands **from the repository root**. The configs and scripts use paths relative to it.
 
-To make local testing and simulations easy, you can use the provided cluster scripts. We have pre-configured 2-node, 4-node, and 6-node configurations in the `examples/` directory.
+## 6. Run
 
-### Requirements
-- **Rust / Cargo**: Required to compile the node binary (done automatically by the script if not found).
-- **Python / Bhaskera**: The Python environment must be set up properly as shown in the Installation steps. The script will automatically source `.venv` or `bhaskera-activate.sh`.
+### 6.1 Two nodes on one machine
 
-### Starting the Cluster
-
-To start an entire cluster with a single command, use `start_cluster.sh` and pass the number of nodes (2, 4, or 6):
+The repository includes a small test corpus (`corpus/`, Wikipedia articles as PDFs). Node 1 holds articles about Indian space missions, and node 2 holds articles about scientists and places, so a question about node 2's topics can only be answered with node 2's help.
 
 ```bash
-./start_cluster.sh 4
+./target/release/iiitd --config examples/rag-2node/node2.toml     # terminal 1
+./target/release/iiitd --config examples/rag-2node/node1.toml     # terminal 2
 ```
 
-This will run all 4 nodes in the background. The script outputs logs directly into the `logs/` directory.
-You can monitor the logs of any specific node like this:
+Each node starts its sidecar, ingests its `corpus_dir`, signs its root and joins the mesh. On one machine or one LAN the nodes find each other through mDNS. Wait about 10 seconds after both are up for the first background refresh.
+
+Check that node 1 can see node 2 and that node 2's signature checks out:
 
 ```bash
-tail -f logs/node1_cluster.log
+curl localhost:8545/rag/debug/hello      # node 2 should show status "ok" and signature_valid: true
+curl localhost:8545/rag/status           # sidecar, own root, peer registry, directory
 ```
 
-### Stopping the Cluster
-
-To safely shut down all the nodes started by the script, simply run:
+### 6.2 Ask a question
 
 ```bash
-./stop_cluster.sh
+curl localhost:8545/rag/query -H 'content-type: application/json' \
+     -d '{"query": "In which town was A. P. J. Abdul Kalam born and raised?"}'
 ```
 
----
+The answer comes back with the `contexts` it was built from. Each context shows its `node`, `score` and `verification` (`local`, `verified`, `verified_new_root` or `failed_proof`). There is also a `peers` list showing what each peer did (`ok`, `timeout`, `skipped_stale`, `refused`, …, plus any flags and bytes sent), and `timings_ms`.
 
-## TOML Configuration Breakdown
+Optional request fields:
 
-Every node requires its own `.toml` configuration file (`config.toml`, `node2.toml`, etc.).
+| Field | Values |
+| :-- | :-- |
+| `retrieval` | `"two_round"`, `"flat"`, `"directory"` (needs `[rag] directory = true`) |
+| `scope` | `"all"` (default), `"local"` (own index only), `"peers"` (peers only) |
+| `top_k` | chunks taken from each index |
+| `final_k` | chunks kept after merging and given to the LLM |
 
-Every node file has the same shape. **There is no bootstrap node and no node type** —
-membership is decided entirely by the shared `[federation] id`.
+To run all 15 test questions in `corpus/questions.jsonl` and save the full responses:
 
-```toml
-[federation]
-id = "slakshna-fl-1"        # Nodes sharing this id derive the same gossip topic and train together
-name = "SLAKSHNA Federation"
-
-[training]
-epoch_duration_secs = 600   # Length of one federated epoch (aligned to the wall clock)
-sync_deadline_secs = 300    # How far into the epoch to wait for peer updates before aggregating
-expected_peers = 6          # Release the sync barrier early once this many nodes have reported
-
-[node]
-id = "node-1"
-data_dir = "./data-node1"   # Dedicated delta storage directory
-gpu_id = 0                  # GPU assigned to this node for local training
-
-[network]
-host = "0.0.0.0"
-p2p_port = 9000             # Iroh QUIC router listening port
-api_port = 8545             # Axum HTTP REST API port
-ws_port = 8546              # WebSocket port
-peers = []                  # Optional seeds; empty is fine — see "Joining a federation".
-
-[discovery]
-mdns = true                 # Zero-config discovery of federation members on the local network
-dht = true                  # Serverless global lookup over the BitTorrent mainline DHT
-dns = true                  # Number 0's public pkarr/DNS lookup
-relay = true                # Public relays as a fallback transport when hole punching fails
-
-[logging]
-level = "info"
-```
-
-> Every node in a federation must share the same `[federation] id` — it is hashed into the
-> 32-byte gossip topic *and* into the mDNS service label, so a mismatch silently puts nodes
-> in different swarms.
-
-### Joining a federation
-
-A node never depends on a particular other node being up. Start it with `peers = []`
-and it comes up alone, advertises itself, and merges into the swarm as soon as any
-member appears. Four independent mechanisms find peers, in rough order of speed:
-
-| Mechanism                                                       | Scope                 | Depends on                                                      |
-| :-------------------------------------------------------------- | :-------------------- | :-------------------------------------------------------------- |
-| **mDNS** (`discovery.mdns`)                                     | Same LAN or same host | Nothing — multicast only                                        |
-| **Remembered peers**                                            | Anywhere              | `{data_dir}/rocksdb`; every peer ever met is redialled on start |
-| **Gossip peer exchange**                                        | Anywhere              | One reachable member; the swarm hands over the rest             |
-| **Mainline DHT / pkarr DNS** (`discovery.dht`, `discovery.dns`) | Internet              | Public DHT; no server we operate                                |
-
-On a LAN, that means nothing to configure: launch the nodes in any order and they find
-each other. Across the internet, hand any one member's EndpointId to a joining node —
-any member, not a designated one:
-
-```toml
-[network]
-peers = ["a65a49db0894467a3b6d95eda3924c309a5589e265f734332f2b65100364be90"]
-```
-
-Each node prints its own EndpointId at startup and serves it at `GET /status`;
-`GET /peers` lists both live neighbours and the remembered set. The EndpointId is
-derived from the keypair in `{data_dir}/rocksdb`, so **it is stable across restarts** —
-publish it once and it stays valid.
-
-Peers may still be pinned to an explicit address with `<EndpointId>@<host>:<port>` when
-no discovery mechanism can reach them (see the tunnelling section below).
-
----
-
-## Managing the Bhaskera Submodule (Contributor Guide)
-
-The `Bhaskera` ML engine is included as a Git submodule.
-
-### 1. Cloning & Pulling Updates
-Whenever you start working or pull updates from teammates, you must update *both* the parent repo and the submodule.
-
-**Cloning for the first time:**
 ```bash
-git clone --recursive https://github.com/dcll-iiitd/Slakshna.git
+python3 scripts/rag_run_questions.py --api http://localhost:8545 --retrieval two_round --out /tmp/two_round.jsonl
 ```
 
-**Pulling updates from a branch:**
-To avoid "untracked files" or "unstaged changes" errors, always update the submodule after pulling or switching branches:
+### 6.3 Add documents while running
+
 ```bash
-git pull
-git submodule update --init --recursive
-```
-*(You can configure git to do this automatically by using `git pull --recurse-submodules`)*
-
-### 2. Making changes OUTSIDE Bhaskera (e.g., Rust code, config files)
-If you are only editing files in the main `Slakshna` directory (like `README.md` or `node_template.yaml`), the workflow is standard:
-```bash
-git add .
-git commit -m "Update README"
-git push
+curl localhost:8545/rag/ingest -H 'content-type: application/json' -d '{"path": "path/to/folder"}'
+curl localhost:8545/rag/ingest -H 'content-type: application/json' \
+     -d '{"documents": [{"id": "note.txt", "text": "..."}]}'
 ```
 
-### 3. Making changes INSIDE Bhaskera
-If you edit code *inside* the `Bhaskera` folder, you must push the code twice: once for the submodule to save the actual code, and once for the parent to "bookmark" that new commit.
+Adding documents re-clusters the index and produces a new signed root with a higher version. Peers pick it up at their next refresh, or immediately if they notice the version changed during a query.
 
-**Step 1: Push the actual code (Inside Bhaskera):**
-```bash
-cd Bhaskera
-git add .
-git commit -m "Fixed bug"
-git push origin Slakshna
-```
-(here Slakshna is the branch name of Bhaskera)
+### 6.4 Nodes on different machines
 
-**Step 2: Tell the parent about it (Back in Slakshna):**
-```bash
-cd ..
-git add Bhaskera
-git commit -m "Update Bhaskera to latest commit"
-git push
-```
-> **⚠️ The Golden Rule of Submodules:** Never push the Parent if you haven't pushed the Child. Always commit and push inside `Bhaskera` first. If you push the parent repo pointing to a commit in Bhaskera that hasn't been pushed to GitHub yet, your teammates will get a `fatal: not our ref` error.
+1. Use the same `[federation] id` on every node. Nodes with different ids never see each other.
+2. Build **the same commit** everywhere; the wire format must match.
+3. If mDNS can't cross your network, list the other node in `[network] peers`. You can get a node's `EndpointId` without starting it:
 
-### 4. Switching Branches (Troubleshooting)
-If you switch to a branch where `Bhaskera` is not yet a submodule (like an older `main` branch), Git may refuse to checkout because of conflicting files. You can safely move the directory out of the way temporarily:
-```bash
-mv Bhaskera Bhaskera_backup
-git checkout main
-git submodule update --init --recursive
-rm -rf Bhaskera_backup
-```
-
----
-
-## Model & Training Configuration (`node_template.yaml`)
-
-While the `.toml` files control the Rust node's networking and federation behavior, the **`node_template.yaml`** file configures the underlying Python ML Engine (`Bhaskera`). 
-
-At runtime, `ml_engine.py` dynamically reads `node_template.yaml`, overwrites node-specific dynamic paths (like `tokenized_path` or `save_directory`), and generates a `config_{node-id}.yaml` for Ray Train to execute.
-
-Developers should modify `node_template.yaml` to adjust:
-- **Model Selection & Architecture:** Change `model.name` (e.g., `NousResearch/Llama-2-7b-hf`), data types, or enable Liger Kernels.
-- **Training Paradigm (LoRA vs. Full-Parameter):** Toggle `lora.enabled`. For LoRA, you can configure `rank`, `alpha`, and target modules. For full-parameter fine-tuning, disable LoRA and switch to an optimizer like `galore_muon`.
-- **Optimizers & Hyperparameters:** Change `federated.optimizer`, adjust `batch_size`, `learning_rate`, `gradient_accumulation_steps`, or `max_steps`.
-- **Distributed Strategy:** Configure FSDP settings (`distributed.strategy: "fsdp"`) including activation checkpointing and sharding behavior.
-- **Dataset Configuration:** Change `data.dataset_name` and rendering formats (e.g., `chatml`).
-
-> **Note:** Any changes made to `node_template.yaml` will apply uniformly across all nodes in your local simulation unless explicitly overwritten by `ml_engine.py`.
-
----
-
-## Dataset Tokenization
-
-Before starting the federated training process, you must tokenize your dataset. The tokenization process converts your raw JSONL data into packed Parquet shards which the training engine loads directly.
-
-1. **Configure Tokenization:**
-   Navigate to the `Bhaskera` submodule and open the provided tokenization config:
-   `configs/tokenize_south_asia.yaml`.
-   Update the `data.path` to point to your raw JSONL dataset and `data.cache_dir` to your desired output directory.
-
-2. **Run the Tokenizer:**
-   Run the following command from inside the `Bhaskera` directory:
    ```bash
-   bhaskera-tokenize --config configs/tokenize_south_asia.yaml
-   ```
-   
-3. **Update Training Config:**
-   The command above will output a `tokenized_path:` snippet at the end. Copy this path and paste it into your `node_template.yaml` under `data.tokenized_path`.
-
----
-
-## Running the System across Geo-Localized Machines
-
-Try it without a tunnel first: relays plus DHT/pkarr lookup traverse most NATs on their
-own, and no node needs a public address. The steps below are the fallback for machines
-behind strict university or corporate firewalls (NAT/Deep Packet Inspection) that block
-hole punching and relay traffic outright.
-
-Note that the tunnelled node is **not** a bootstrap node — it is an ordinary member that
-happens to have a reachable address. Any member with a working address can serve as an
-entry point, and once a joining node is in the swarm it learns every other member
-through gossip.
-
-**What is Playit.gg?**  
-[Playit.gg](https://playit.gg) is a service that creates a secure outbound tunnel from your local machine to a public cloud server. It gives your local node a static public IP address on the internet, completely bypassing incoming firewall restrictions. Because SLAKSHNA uses Iroh (End-to-End Encryption), passing data through Playit's public servers is 100% secure.
-
-### Step 1: Start the Playit Tunnel (Main Machine)
-*You must run this on your "Main Machine" (e.g., Delhi server) **before** starting the SLAKSHNA node.*
-
-1. Install `playit` on the main machine.
-2. Start the Playit daemon (e.g., `cd ~/playit && ./playit start`).
-3. Follow the CLI prompt to create a tunnel. Create a **UDP/TCP tunnel** pointing to your local Iroh `p2p_port` (e.g., `9000` or `9001` based on your config).
-4. Playit will assign you a public endpoint. **Note down this IP and Port** (e.g., `147.185.221.225:42060`).
-
-### Step 2: Start the Tunnelled Node (Main Machine)
-With the tunnel running in the background, start your node:
-```bash
-./target/release/iiitd --config node1.toml
-```
-When started, the node prints its Iroh `EndpointId` (public key) — stable across restarts:
-```
-INFO 🔑 Iroh EndpointId: a65a49db0894467a3b6d95eda3924c309a5589e265f734332f2b65100364be90
-INFO 🤝 Any peer can join this federation with: peers = ["a65a49db…64be90"]
-```
-
-### Step 3: Connect Other Nodes (e.g., Mumbai Machine)
-On the other machines, open their TOML configuration file (e.g., `node2.toml`).
-
-Combine the **EndpointId** (from Step 2) and the **Playit Public IP:Port** (from Step 1)
-in the form `<EndpointId>@<playit_ip>:<playit_port>` to pin the address, bypassing
-discovery entirely:
-
-```toml
-[network]
-# Format: ["<EndpointId>@<Playit_IP>:<Playit_Port>"]
-peers = ["a65a49db0894467a3b6d95eda3924c309a5589e265f734332f2b65100364be90@147.185.221.225:42060"]
-```
-
-Now, start the other node:
-```bash
-./target/release/iiitd --config node2.toml
-```
-It dials the public Playit IP, encrypts the traffic against the EndpointId, and joins the
-swarm. From there gossip peer exchange introduces it to every other member, and the peers
-it meets are cached in its own `data_dir` — so on the next start it no longer needs this
-entry at all.
-
----
-
-## Running on Academic SLURM Supercomputers
-
-When deploying SLAKSHNA on a SLURM cluster login node:
-1. **Never run directly on the login node without a GPU allocation**, as `torch.cuda.is_available()` will fail (`no GPUs found!`).
-2. **Set `gpu_id = 0` in your `.toml` file.** When SLURM allocates a physical GPU (`rpgpu[...]`) to your job, it maps that card inside the container to `CUDA_VISIBLE_DEVICES=0`.
-3. **Launch the node using `srun` on the GPU partition:**
-   ```bash
-   srun -p gpu --gres=gpu:1 --time=04:00:00 ./target/release/iiitd --config config.toml
+   ./target/release/iiitd --config examples/rag-2node/node2.toml --print-endpoint-id
    ```
 
----
+   and then in node 1's config: `peers = ["<EndpointId>@<ip of machine 2>:9001"]`. Turning on `dht`, `dns` and `relay` in `[discovery]` lets nodes find each other across the internet and behind NAT.
 
-## HTTP REST & WebSocket API
+### 6.5 Many nodes on one machine
 
-The node exposes an Axum-powered API for monitoring trust evaluations and system status:
-
-| Method | Endpoint                 | Description                                                                         |
-| :----- | :----------------------- | :---------------------------------------------------------------------------------- |
-| `GET`  | `/status`                | Returns federation id, completed round, active Iroh P2P peer count, and node status |
-| `GET`  | `/updates`               | Returns every model update and peer review on record                                |
-| `GET`  | `/updates/latest`        | Returns the most recent record in the local update history                          |
-| `GET`  | `/updates/:index`        | Returns what each participant contributed at that position in its log               |
-| `GET`  | `/leaderboard`           | Returns node trust score rankings (`alpha` / `w_i`)                                 |
-| `WS`   | `ws://localhost:8546/ws` | Live WebSocket stream emitting peer evaluation updates                              |
-
----
-
-## Testing Model Poisoning & Defense
-
-You can simulate a malicious node attempting to poison the Federated Learning by setting the `MALICIOUS_NODES` environment variable:
+`scripts/rag_make_configs.py` writes configs for N local nodes (unique ports and data directories, every node listing every other), and `scripts/m9/slakshna_cluster.py` starts them and waits until all of them see each other:
 
 ```bash
-MALICIOUS_NODES="node-2" ./target/release/iiitd --config node2.toml
+python3 scripts/rag_make_configs.py --nodes 5 --name demo --out configs/demo --data-root data-demo
+python3 scripts/m9/slakshna_cluster.py up   --configs configs/demo
+python3 scripts/m9/slakshna_cluster.py down --configs configs/demo
 ```
 
-When `node-2` runs in malicious mode, it injects a destructive learning rate (`learning_rate = 1.0`). When `node-1` receives `node-2`'s model delta, `ml_engine.py` computes cosine similarity and observes negative alignment. `node-1` automatically slashes `node-2`'s trust score and down-weights its updates in the final model aggregation.
+### 6.6 The sidecar on its own
+
+The Python side can also run without any Rust node, which is handy for debugging an index:
+
+```bash
+.venv-rag/bin/python rag_engine.py ingest --data-dir ./data-rag-node1 --path corpus/node1
+.venv-rag/bin/python rag_engine.py serve  --data-dir ./data-rag-node1 --port 8600 --generator none
+curl localhost:8600/health
+```
+
+## 7. Configuration
+
+A RAG node is an ordinary SLAKSHNA config with `[training] enabled = false` and a `[rag]` section. See `examples/rag-2node/node1.toml` for a complete, commented example. The most useful `[rag]` keys:
+
+| Key | Default | Meaning |
+| :-- | :-- | :-- |
+| `enabled` | `false` | Turn RAG on for this node |
+| `corpus_dir` | none | Folder ingested at startup (already-indexed files are skipped) |
+| `sidecar_port` | `8600` | Local port of the sidecar; unique per node on one machine |
+| `python` | `.venv-rag/bin/python` | Interpreter with `requirements-rag.txt` installed |
+| `embedding_model` | `sentence-transformers/all-MiniLM-L6-v2` | **Must be the same on every node** |
+| `generator` / `generator_model` | `"ollama"` / `qwen2.5:1.5b` | `"none"` returns passages without an answer |
+| `retrieval` | `"two_round"` | Default mode; a query can override it |
+| `top_k`, `final_k` | `5`, `5` | Chunks per index / chunks kept after merging |
+| `n_clusters` | `0` (= √chunks) | k-means topics per node, at most 64 |
+| `centroids_per_peer`, `max_clusters`, `min_centroid_score` | `3`, `5`, `0.2` | Round-1 cluster selection |
+| `chunks_per_cluster` | `3` | Round-2 chunks per chosen cluster |
+| `directory` | `false` | Serve own centroids and keep peers' directory (enables `directory` mode). It reveals this node's topic map to allowed peers |
+| `peer_timeout_ms`, `select_timeout_ms` | `5000`, `2000` | Per-peer timeouts for chunks / for `hello` and round 1 |
+| `root_refresh_secs`, `peer_stale_secs` | `60`, `180` | Background root refresh; when a silent peer is skipped |
+| `require_prior_root` | `false` | Reject chunks proven against a root first seen during the same query |
+| `adversary` | `"none"` | **Experiments only:** make this node misbehave towards peers (`tamper_text`, `inflate_score`, `fake_centroid`, `equivocate`, `hide_cluster`) to test detection |
+
+`[network] allowed_peers` restricts which `EndpointId`s may query this node.
+
+## 8. HTTP API
+
+| Route | What it does |
+| :-- | :-- |
+| `POST /rag/query` | Answer a question (section 6.2) |
+| `POST /rag/ingest` | Add documents: `{"path": ...}` or `{"documents": [{"id", "text"}]}` |
+| `GET /rag/status` | Sidecar health, this node's signed root, the peer registry (roots, flags, evidence), directory state |
+| `GET /rag/debug/hello` | Fetch every peer's signed root now and check each signature |
+
+The federated-learning routes (`/status`, `/peers`, `/updates`, `/leaderboard`, `/ws`) are unchanged.
+
+## 9. Tests
+
+```bash
+# Rust: Merkle proofs, signed roots, protocol messages, registry, retrieval checks, simulated attackers, directory
+cargo test --release
+
+# Directory scale test: 1000 peers x 13 centroids, prints timings
+cargo test --release directory_scale -- --ignored --nocapture
+
+# Python sidecar: store, Merkle tree, HTTP routes
+.venv-rag/bin/python -m unittest tests/test_rag_store.py tests/test_rag_merkle.py tests/test_rag_server.py
+```
+
+`tests/fixtures/merkle_vectors.json` is checked by **both** the Python and the Rust tests, so the two languages can't drift apart on the exact bytes they hash. Regenerate it with `scripts/rag_merkle_vectors.py` only when the format changes on purpose.
+
+On the two-node test corpus, all six `node1_only` and all six `node2_only` questions retrieved the right source in every mode, and every remote context verified. Each simulated attack was caught with its expected flag, and no tampered text ever reached a context or an answer. The three `cross_node` questions, which need one passage from each node, still fail: the top passages tend to come from one side.
+
+## 10. Comparing with Flower FedRAG
+
+`scripts/m9/` holds a head-to-head comparison with [Flower's FedRAG example](https://github.com/flwrlabs/flower/tree/main/examples/fedrag) on the MedRAG Textbooks corpus and MIRAGE benchmark questions, sharded across 5 nodes. Both systems' retrieved passages are answered by the **same** LLM with the same prompt (`answer.py`), so only retrieval differs.
+
+| Step | Script |
+| :-- | :-- |
+| Download and shard the data, embed once | `prepare_textbooks.py`, `embed_cache.py` |
+| Central "one big index" reference for recall | `global_baseline.py` |
+| Slakshna: start N nodes, ask every question in one mode | `slakshna_cluster.py`, `run_slakshna.py` |
+| Flower: pinned FedRAG copy, SuperLink + SuperNodes | `flower/setup_flower.sh`, `flower/flower_cluster.py` |
+| Answer every contexts file with one LLM; compute tables | `answer.py`, `evaluate.py` |
+
+Typical sequence:
+
+```bash
+.venv-rag/bin/python scripts/m9/prepare_textbooks.py --out datasets/textbooks
+python3 scripts/rag_make_configs.py --nodes 5 --name book --out m9-configs/book --data-root m9-data/book
+python3 scripts/m9/slakshna_cluster.py up --configs m9-configs/book
+python3 scripts/m9/run_slakshna.py --configs m9-configs/book --data datasets/textbooks \
+        --retrieval directory --out results/m9/raw/book/slakshna_directory.jsonl
+bash    scripts/m9/flower/setup_flower.sh --data datasets/textbooks
+python3 scripts/m9/flower/flower_cluster.py up ...      # then run / down
+```
+
+Run each script with `--help` for its options.
+
+## 11. Repository layout
+
+Files added or changed for RAG:
+
+```
+rag_engine.py              sidecar entry point: `ingest` and `serve`
+rag/                       loaders, chunking, embedder, FAISS store, k-means, Merkle tree, HTTP server, Ollama generator
+requirements-rag.txt       sidecar dependencies
+src/rag/mod.rs             RagService: query pipeline, merging, own signed root
+src/rag/sidecar.rs         starts the sidecar and talks to it over local HTTP
+src/rag/protocol.rs        the /slakshna/rag/2 peer protocol (both sides)
+src/rag/retrieval.rs       two_round / flat / directory pipelines and every check on peer data
+src/rag/merkle.rs          Merkle proof verification and signed roots
+src/rag/registry.rs        peers' signed roots, staleness, equivocation evidence
+src/rag/directory.rs       verified copy of peers' centroids (directory mode)
+src/rag/adversary.rs       simulated misbehaving peers, for experiments only
+src/api.rs, config.rs,     /rag/* routes, [rag] config section,
+src/main.rs, identity.rs,  sidecar startup and --print-endpoint-id,
+src/network/mesh.rs        transport key for signing, second Iroh protocol
+examples/rag-2node/        two-node RAG configs
+corpus/                    two-node test corpus and 15 questions
+scripts/rag_*.py           corpus builder, config generator, question runner, Merkle test vectors
+scripts/m9/                Slakshna vs Flower FedRAG evaluation
+tests/test_rag_*.py        sidecar tests; tests/fixtures/merkle_vectors.json shared with Rust
+```
+
+The federated-learning side of SLAKSHNA (`ml_engine.py`, `federated_communication/`, the Bhaskera submodule, the epoch loop in `src/main.rs`) is unchanged and still runs when `[training] enabled` is left on. The `main` branch README describes it.
+
+## 12. Limits
+
+The proofs bind a peer to **what it committed**, not to whether that content is true or complete:
+
+- **Bad content committed in advance** passes every check. A peer can ingest misleading documents before signing.
+- **Withholding.** A proof shows a chunk is in the corpus, not that it is the best one. A peer can leave relevant chunks out. Hiding a whole cluster is caught in directory mode (`incomplete_directory`) but not in `two_round`.
+- **First contact.** The first root seen from a peer is accepted as is, and the peer registry is kept in memory, so it is lost on restart.
+- **Privacy.** Peers see the raw question. Centroids reveal a node's topics, which is why `directory` is off by default. Chunks travel as plain text inside the encrypted QUIC connection.
+- **Flags are recorded, not acted on.** Apart from equivocation, a flagged peer is still asked next time; turning flags into trust scores is future work.
+- **Membership.** A node queries the peers it knows (gossip neighbours plus remembered and listed peers). Very large federations will need a proper membership mechanism.
 
 ---
 
-## 📄 License
+## Licence
 
-This project is licensed under the **Apache License 2.0** — see the [LICENSE](file:///mnt/disk1/slakshna/slakshnaFL/SLAKSHNA/LICENSE) file for details.
-
+Apache License 2.0. See [LICENSE](LICENSE).

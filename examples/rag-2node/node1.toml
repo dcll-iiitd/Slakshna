@@ -1,0 +1,40 @@
+# RAG node 1: joins the mesh, never runs federated training.
+# Run from the repository root:  ./target/release/iiitd --config examples/rag-2node/node1.toml
+
+[federation]
+id = "slakshna-rag-1"       # Must be identical on every node that should find each other
+name = "SLAKSHNA RAG"
+
+[training]
+enabled = false             # CPU machine: do not launch the ML training engine
+
+[node]
+id = "rag-node-1"
+data_dir = "./data-rag-node1"   # Holds this node's identity; deleting it gives the node a new identity
+
+[network]
+host = "0.0.0.0"
+p2p_port = 9000             # Other nodes connect here (UDP)
+api_port = 8545             # Status pages: http://<this machine>:8545/status
+ws_port = 8546
+# Empty is fine on one local network. If the nodes cannot find each other, put the
+# other node's EndpointId and address here:  peers = ["<EndpointId>@<ip>:<p2p_port>"]
+peers = []
+
+[rag]
+enabled = true
+sidecar_port = 8600         # Local port of this node's Python helper; unique per node on one machine
+python = ".venv-rag/bin/python"
+corpus_dir = "corpus/node1"  # Documents this node indexes at startup
+generator = "ollama"        # "none" returns the retrieved passages without writing an answer
+generator_model = "qwen2.5:1.5b"
+directory = true            # Serve and use the centroid directory, so "directory" mode works per query
+
+[discovery]
+mdns = true                 # Find other nodes on the same local network automatically
+dht = false                 # Internet-wide lookup; not needed on one local network
+dns = false
+relay = false
+
+[logging]
+level = "info"

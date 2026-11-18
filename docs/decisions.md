@@ -110,3 +110,26 @@ every flag set, so they pick 3000 characters, documented in their `--help`
 text as a rough, tunable stand-in, not derived from any specific model. Why:
 avoids inventing a number inside the reusable loop while still keeping the
 command-line tools usable out of the box.
+
+### A9. Fixed a real `HfLLM` bug found by the server-side check, 18 Nov 2026
+
+Found and fixed by the assistant, during the section 4.5 server run against a
+real node and `allenai/OLMo-2-1124-7B-Instruct`. `HfLLM.complete()`
+(`rag/llm.py`) called `self.tokenizer.apply_chat_template(messages,
+add_generation_prompt=True, return_tensors="pt")` and passed the result
+straight to `model.generate()` as if it were a plain tensor. In this
+`transformers` version (5.23.0), that call instead returns a `BatchEncoding`
+(a dict-like object holding `input_ids` and `attention_mask`), which has no
+`.shape` - so every real call failed with `AttributeError`, caught by
+`complete()`'s own error handling and silently turned into an empty-looking
+LLM error on every question. Fixed by requesting `return_dict=True`
+explicitly and unpacking the result into `generate(**inputs, ...)`, which
+also means `attention_mask` is now passed to `generate()` (it wasn't
+before). Why this is worth recording: none of Step 1's Windows unit tests
+could have caught this - testing it needs a real `transformers` install and
+tokenizer, which is explicitly out of scope for those tests (section 4.5
+calls that server-side work). It only surfaced because the plan requires an
+actual server run before calling Step 1 done, not because of a gap in the
+unit tests. A regression test was added (`tests/test_rag_agent.py`,
+`TestHfComplete`) using a fake tokenizer/model that mimics `BatchEncoding`'s
+shape, so this class of bug is now caught without needing a real model.

@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from rag.agent import Agent, NodeSearch, answer, plan, reflect, rrf_merge, truncate_passages
 from rag.agent_profiles import get_profile
-from rag.llm import OllamaLLM, hf_generation_kwargs, make_llm, _seed_everything
+from rag.llm import HfLLM, OllamaLLM, hf_generation_kwargs, make_llm, _seed_everything
 
 
 class _FakeLLM:
@@ -362,6 +362,93 @@ class TestHfDeterminism(unittest.TestCase):
         for seed in (0, 0, 0):
             _seed_everything(fake_torch, seed)
         self.assertEqual(fake_torch.seeds, [0, 0, 0])
+
+
+class _FakeBatchEncoding(dict):
+    """Mimics transformers' BatchEncoding: dict-like, with a .to(device) that no-ops here."""
+
+    def to(self, device):
+        return self
+
+
+class _FakeShapeTensor(list):
+    """A minimal 2D-tensor stand-in: just enough to expose .shape like torch does."""
+
+    @property
+    def shape(self):
+        return (len(self), len(self[0]) if self else 0)
+
+
+class _FakeHfTokenizer:
+    def __init__(self):
+        self.chat_template_calls = []
+        self.decode_calls = []
+
+    def apply_chat_template(self, messages, add_generation_prompt, return_tensors, return_dict):
+        self.chat_template_calls.append(dict(
+            messages=messages, add_generation_prompt=add_generation_prompt,
+            return_tensors=return_tensors, return_dict=return_dict))
+        return _FakeBatchEncoding(
+            input_ids=_FakeShapeTensor([[1, 2, 3]]),
+            attention_mask=_FakeShapeTensor([[1, 1, 1]]),
+        )
+
+    def decode(self, ids, skip_special_tokens):
+        self.decode_calls.append(list(ids))
+        return "a reply"
+
+
+class _FakeHfModel:
+    def __init__(self):
+        self.generate_calls = []
+
+    def generate(self, **kwargs):
+        self.generate_calls.append(kwargs)
+        return [[1, 2, 3, 9, 9]]  # 3 prompt tokens + 2 newly generated ones
+
+
+class TestHfComplete(unittest.TestCase):
+    """HfLLM.complete() against fakes for the tokenizer/model - no transformers/torch needed.
+
+    Regression test for a real bug found during server testing: in recent
+    transformers versions, apply_chat_template(..., return_tensors="pt")
+    alone returns a BatchEncoding (dict-like: input_ids + attention_mask),
+    not a bare tensor. Passing that positionally to generate() fails - it has
+    no .shape. The fix requests return_dict=True and unpacks it as **inputs.
+    """
+
+    def _make_llm(self):
+        llm = HfLLM.__new__(HfLLM)  # skip __init__: no real torch/transformers import
+        llm._torch = _FakeTorch()
+        llm.seed = 0
+        llm.device = "cpu"
+        llm.tokenizer = _FakeHfTokenizer()
+        llm.model = _FakeHfModel()
+        return llm
+
+    def test_requests_return_dict_and_passes_inputs_as_keywords(self):
+        llm = self._make_llm()
+        llm.complete("hello", max_new_tokens=16)
+        self.assertTrue(llm.tokenizer.chat_template_calls[0]["return_dict"])
+        generate_call = llm.model.generate_calls[0]
+        self.assertIn("input_ids", generate_call)
+        self.assertIn("attention_mask", generate_call)
+        self.assertEqual(generate_call["max_new_tokens"], 16)
+
+    def test_decodes_only_the_newly_generated_tokens(self):
+        llm = self._make_llm()
+        llm.complete("hello", max_new_tokens=16)
+        # fake generate() output is 3 prompt tokens + [9, 9]; only the new ones should be decoded.
+        self.assertEqual(llm.tokenizer.decode_calls[0], [9, 9])
+
+    def test_returns_the_decoded_reply(self):
+        llm = self._make_llm()
+        self.assertEqual(llm.complete("hello", max_new_tokens=16), "a reply")
+
+    def test_reseeds_before_generating(self):
+        llm = self._make_llm()
+        llm.complete("hello", max_new_tokens=16)
+        self.assertEqual(llm._torch.seeds, [0])
 
 
 class TestPlan(unittest.TestCase):

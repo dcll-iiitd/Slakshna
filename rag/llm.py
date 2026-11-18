@@ -82,11 +82,13 @@ class HfLLM:
     def complete(self, prompt, max_new_tokens):
         _seed_everything(self._torch, self.seed)
         messages = [{"role": "user", "content": prompt}]
-        input_ids = self.tokenizer.apply_chat_template(
-            messages, add_generation_prompt=True, return_tensors="pt",
+        # return_dict=True: apply_chat_template returns a BatchEncoding (input_ids +
+        # attention_mask), not a bare tensor - generate() needs both, as keywords.
+        inputs = self.tokenizer.apply_chat_template(
+            messages, add_generation_prompt=True, return_tensors="pt", return_dict=True,
         ).to(self.device)
-        output = self.model.generate(input_ids, max_new_tokens=max_new_tokens, **hf_generation_kwargs())
-        reply_ids = output[0][input_ids.shape[-1]:]
+        output = self.model.generate(**inputs, max_new_tokens=max_new_tokens, **hf_generation_kwargs())
+        reply_ids = output[0][inputs["input_ids"].shape[-1]:]
         return self.tokenizer.decode(reply_ids, skip_special_tokens=True)
 
 
